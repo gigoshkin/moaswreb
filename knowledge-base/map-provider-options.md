@@ -10,7 +10,9 @@ Status: **thinking, not decided.** The code owner decides (George). Figures belo
 - Address search is our server: TTC geocoder (landmarks, stops) plus Photon (OpenStreetMap streets). OSM has few house numbers in Tbilisi.
 
 ## What TTC itself uses
-Its web app (transit.ttc.com.ge) bundles **Mapbox GL JS** (checked in the JS bundle, 17 Oct). It is not Google. Its tile style and key are its own, not ours to use.
+- **Website** (transit.ttc.com.ge): bundles **Mapbox GL JS** (checked in the JS bundle, 17 Oct). Not Google.
+- **Phone app** (George's screenshot, 17 Oct, Plan tab, dark theme): a **vector map that looks like Mapbox** **[judged from a screenshot, not verified]**: DIN-style label font, grey landmark icon in a circle ("Nikoloz Baratashvili Bridge"), rounded dark road casing, dashed rail lines, Georgian street names with English landmark names. Not Google's look. No logo was visible (the tab bar covers the corner where Mapbox/Google put theirs). Mapbox's native SDK needs a **development build**, not Expo Go.
+- Its screen is the same pattern George wants: a dark card on top with From / To / swap, "Leave: now" and an options icon, a big red Start button at the bottom, a locate button. Both keys and styles are TTC's own, not ours to use.
 
 ## Is it Expo Go that limits us?
 - **`react-native-maps` is included in Expo Go.** On Android it is the real Google Maps, no setup for testing (Expo docs, SDK 58 "map view" page). So a native, smooth, deep-zoom Google map is possible **without leaving Expo Go**. On iPhone, Expo Go uses Apple Maps; Google on iOS needs a development build.
@@ -27,6 +29,8 @@ Its web app (transit.ttc.com.ge) bundles **Mapbox GL JS** (checked in the JS bun
 | D. Static Maps (Google) for previews | picture only | yes | about $2 per 1,000 after a free monthly allowance **[unverified]**; the card on the trip form is the only place needed | no |
 
 Address search with Google (Places Autocomplete): about $2.83 per 1,000 requests, cheaper when a session ends with a Place Details call; Place Details about $17 per 1,000 **[unverified, blogs disagree]**. For a demo this is cents. It finds house numbers in Tbilisi far better than OSM. It must be called from our server (key stays secret) and the privacy note must say place text goes to Google.
+
+Note: Mapbox GL JS also runs inside a WebView, which works in Expo Go, but it is less smooth than a native map **[unverified]**. Google's map accepts a custom style (`customMapStyle` on Android), so it can be toned down to our light palette with fewer POIs.
 
 ## Recommendation (for George to decide)
 1. **Keep Photon + TTC search now**; add a Google Places call behind a server env key later if house numbers still disappoint.
