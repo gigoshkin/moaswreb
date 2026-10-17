@@ -1,8 +1,16 @@
-import type { StopHit } from '@transit/shared';
+import type { LatLon, Locale, NearStop, StopHit } from '@transit/shared';
 import type { TtcClient } from './client.ts';
 import type { Stop } from './types.ts';
 
 const REFRESH_MS = 24 * 60 * 60 * 1000;
+
+/** Equirectangular distance; exact enough within a city. */
+export const distanceM = (a: LatLon, b: LatLon): number => {
+  const rad = Math.PI / 180;
+  const x = (b.lon - a.lon) * rad * Math.cos(((a.lat + b.lat) / 2) * rad);
+  const y = (b.lat - a.lat) * rad;
+  return Math.hypot(x, y) * 6_371_000;
+};
 
 interface Entry {
   hit: StopHit;
@@ -45,17 +53,44 @@ export class StopIndex {
     this.loadedAt = Date.now();
   }
 
-  async get(id: string): Promise<StopHit | null> {
+  /** English name when asked for and TTC has one; Georgian otherwise. */
+  private named(e: Entry, locale: Locale): StopHit {
+    return locale === 'en' && e.nameEn ? { ...e.hit, name: e.nameEn } : e.hit;
+  }
+
+  async get(id: string, locale: Locale = 'ka'): Promise<StopHit | null> {
     await this.ensure();
-    return this.entries.find((e) => e.hit.id === id)?.hit ?? null;
+    const e = this.entries.find((e) => e.hit.id === id);
+    return e ? this.named(e, locale) : null;
+  }
+
+  /** Closest stops to a point, nearest first. */
+  async near(p: LatLon, { radiusM = 500, limit = 10, mode, locale = 'ka' }: { radiusM?: number; limit?: number; mode?: string; locale?: Locale } = {}): Promise<NearStop[]> {
+    await this.ensure();
+    const hits: NearStop[] = [];
+    for (const e of this.entries) {
+      if (mode && e.hit.mode !== mode) continue;
+      const d = distanceM(p, e.hit);
+      if (d <= radiusM) hits.push({ ...this.named(e, locale), distanceM: Math.round(d) });
+    }
+    return hits.sort((a, b) => a.distanceM - b.distanceM).slice(0, limit);
+  }
+
+  /**
+   * The stop a plan leg starts or ends at. TTC's leg from/to carry no stop id
+   * but sit exactly on the stop (0 m in live data, 17 Oct), while the
+   * opposite-direction stop can be 7 m away, so: nearest of the same mode.
+   */
+  async snap(p: LatLon, mode: string, maxM = 25): Promise<string | null> {
+    return (await this.near(p, { radiusM: maxM, limit: 1, mode }))[0]?.id ?? null;
   }
 
   /** Name or stop-code search; prefix matches rank above substring matches. */
-  async search(query: string, limit = 5): Promise<StopHit[]> {
+  async search(query: string, limit = 5, locale: Locale = 'ka'): Promise<StopHit[]> {
     await this.ensure();
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    const scored: Array<[number, StopHit]> = [];
+    const scored: Array<[number, Entry]> = [];
     for (const e of this.entries) {
       let best = -1;
       for (const k of e.keys) {
@@ -63,11 +98,11 @@ export class StopIndex {
         else if (k.startsWith(q)) best = Math.max(best, 2);
         else if (k.includes(q)) best = Math.max(best, 1);
       }
-      if (best >= 0) scored.push([best, e.hit]);
+      if (best >= 0) scored.push([best, e]);
     }
     return scored
-      .sort((a, b) => b[0] - a[0] || a[1].name.localeCompare(b[1].name))
+      .sort((a, b) => b[0] - a[0] || a[1].hit.name.localeCompare(b[1].hit.name))
       .slice(0, limit)
-      .map(([, hit]) => hit);
+      .map(([, e]) => this.named(e, locale));
   }
 }

@@ -8,7 +8,7 @@ import {
   type PlanQuery,
 } from '@transit/shared';
 import { insideTbilisi } from '../geo.ts';
-import { TtcError } from '../ttc/client.ts';
+import { upstreamFailed } from '../ttc/client.ts';
 import type { PlanService } from './service.ts';
 
 const ALL_MODES: PlanMode[] = ['BUS', 'SUBWAY', 'GONDOLA'];
@@ -76,8 +76,7 @@ export const registerPlanRoute = (app: FastifyInstance, plans: PlanService): voi
         return await plans.plan(query);
       } catch (err) {
         req.log.warn({ err }, 'TTC plan failed');
-        const status = err instanceof TtcError && err.status < 500 && err.status !== 429 ? 502 : 503;
-        return reply.code(status).send({ error: 'upstream', message: 'TTC trip planner unavailable' });
+        return reply.code(upstreamFailed(err)).send({ error: 'upstream', message: 'TTC trip planner unavailable' });
       }
     },
   );

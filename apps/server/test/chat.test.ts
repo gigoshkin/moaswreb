@@ -25,9 +25,10 @@ const message = (content: object[], stop_reason: string) => ({
 
 const setup = (responses: object[]) => {
   const ttc = fakeTtc();
+  const stops = new StopIndex(ttc);
   const claude = scriptedClaude(responses);
   const app = Fastify();
-  registerChatRoute(app, { ttc, stops: new StopIndex(ttc), plans: new PlanService(ttc) }, claude.client);
+  registerChatRoute(app, { ttc, stops, plans: new PlanService(ttc, stops) }, claude.client);
   return { app, ...claude };
 };
 

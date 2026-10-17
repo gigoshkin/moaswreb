@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import Fastify from 'fastify';
 import { registerPlanRoute } from '../src/plan/route.ts';
 import { PlanService } from '../src/plan/service.ts';
+import { StopIndex } from '../src/ttc/stops.ts';
 import { TtcError, type TtcClient } from '../src/ttc/client.ts';
 
 const raw = JSON.parse(await readFile(new URL('./fixtures/plan-otp-synthetic.json', import.meta.url), 'utf8'));
@@ -12,7 +13,7 @@ const setup = (plan: (p: unknown) => Promise<unknown>) => {
   const calls: unknown[] = [];
   const app = Fastify();
   const fake = { plan: (p: unknown) => (calls.push(p), plan(p)) } as unknown as TtcClient;
-  registerPlanRoute(app, new PlanService(fake));
+  registerPlanRoute(app, new PlanService(fake, new StopIndex(fake)));
   return { app, calls };
 };
 

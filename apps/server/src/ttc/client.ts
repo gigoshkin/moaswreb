@@ -23,6 +23,10 @@ export class TtcError extends Error {
   }
 }
 
+/** HTTP status for our caller when TTC fails: 502 if TTC rejected the request, 503 if it's down or throttling us. */
+export const upstreamFailed = (err: unknown): 502 | 503 =>
+  err instanceof TtcError && err.status < 500 && err.status !== 429 ? 502 : 503;
+
 /**
  * Client for TTC's PIS gateway. The API key is the one TTC ships to every
  * visitor of transit.ttc.com.ge; we read it from that page at runtime (and

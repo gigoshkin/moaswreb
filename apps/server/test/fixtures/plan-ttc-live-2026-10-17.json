@@ -1,0 +1,793 @@
+{
+ "from": {
+  "lat": 41.7151,
+  "lon": 44.8271,
+  "name": "Origin"
+ },
+ "to": {
+  "lat": 41.7099,
+  "lon": 44.7929,
+  "name": "Destination"
+ },
+ "itineraries": [
+  {
+   "startTime": "2026-10-19T04:25:31.000+00:00",
+   "endTime": "2026-10-19T04:59:02.000+00:00",
+   "duration": 2011,
+   "walkTime": 1400,
+   "walkDistance": 1758.73,
+   "legs": [
+    {
+     "from": {
+      "lat": 41.7151,
+      "lon": 44.8271,
+      "name": "Origin"
+     },
+     "to": {
+      "lat": 41.711436,
+      "lon": 44.822166,
+      "name": "Mnatobi Street"
+     },
+     "startTime": "2026-10-19T04:25:31.000+00:00",
+     "endTime": "2026-10-19T04:34:43.000+00:00",
+     "duration": 552,
+     "legPolyline": {
+      "encodedValue": "qnr}FcgrpGF@^RZT^FfA`@EzAm@dCrBr@`AZTDdARvAZ|@Zl@XV\\P`@@XAXMbAEfAAd@FXLVb@h@~@hAFK",
+      "color": null
+     },
+     "mode": "WALK",
+     "steps": [
+      {
+       "relativeDirection": "DEPART",
+       "distance": 201.59,
+       "streetName": "service road",
+       "lat": 41.7151329,
+       "lon": 44.8269083
+      },
+      {
+       "relativeDirection": "LEFT",
+       "distance": 119.06,
+       "streetName": "road",
+       "lat": 41.7145348,
+       "lon": 44.8253454
+      },
+      {
+       "relativeDirection": "CONTINUE",
+       "distance": 286.62,
+       "streetName": "O. Chechelashvili St",
+       "lat": 41.7135134,
+       "lon": 44.8249177
+      },
+      {
+       "relativeDirection": "SLIGHTLY_LEFT",
+       "distance": 25,
+       "streetName": "road",
+       "lat": 41.7120884,
+       "lon": 44.8229356
+      },
+      {
+       "relativeDirection": "CONTINUE",
+       "distance": 73.03,
+       "streetName": "Mnatobi St",
+       "lat": 41.7119701,
+       "lon": 44.8226833
+      }
+     ],
+     "intermediateStops": null,
+     "route": null,
+     "realTime": false,
+     "arrivalDelay": 0,
+     "distance": 705.3
+    },
+    {
+     "from": {
+      "lat": 41.711436,
+      "lon": 44.822166,
+      "name": "Mnatobi Street"
+     },
+     "to": {
+      "lat": 41.711185,
+      "lon": 44.800602,
+      "name": "ჯავახიშვილის #69"
+     },
+     "startTime": "2026-10-19T04:34:43.000+00:00",
+     "endTime": "2026-10-19T04:44:54.000+00:00",
+     "duration": 611,
+     "legPolyline": {
+      "encodedValue": "mwq}FoiqpGDDPTBJ@LQxHDNVC????@AT?TAR?B?l@Gn@O??BAp@Y?AN@??RBBD????BCL@VL`@Th@b@Z\\JLHPFb@A^AB??A?Bl@TpAR|H????T`J???@^rKDFHBRC??@?@GNETKDJJ^Nx@V|AJf@Lh@Jr@Fn@@^@p@K?CA???AADK?g@@O@MC]GCAA?EAMAWCQAKAA@???@A@FzB@\\?F@F?L@~@ALEJILEJA@?@ARCTAB??A?@DCZGb@EZEXIPQNMH_@Tq@VQHSH[Je@?WB?@A?EHENO|@EZARCRERAJA@??A?@F???D?BCNALAJ?BA^ALAPAVC\\?DAXBb@Lv@Hh@ThADVDRBLHXDT?H???@DDRfA@B?@Jf@a@DO@g@JEDCFCRAHBN?BFPh@jBBHV|@@BnAbEq@b@gAp@a@VmBnAC@MHGBG?",
+      "color": null
+     },
+     "mode": "BUS",
+     "steps": [],
+     "intermediateStops": [
+      {
+       "id": "1:1768",
+       "code": "1768",
+       "name": "Mnatobi Street",
+       "lat": 41.711224,
+       "lon": 44.820261,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3676",
+       "code": "3676",
+       "name": "Petre Bagrationi Street",
+       "lat": 41.709932,
+       "lon": 44.820496,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:1769",
+       "code": "1769",
+       "name": "Church (Gumati Street)",
+       "lat": 41.70908,
+       "lon": 44.819473,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3426",
+       "code": "3426",
+       "name": "Akhuti Street",
+       "lat": 41.708856,
+       "lon": 44.817244,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3427",
+       "code": "3427",
+       "name": "Paata Saakadze St #32",
+       "lat": 41.708748,
+       "lon": 44.815465,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3428",
+       "code": "3428",
+       "name": "Public School #26",
+       "lat": 41.7084,
+       "lon": 44.813409,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3429",
+       "code": "3429",
+       "name": "Dodo Chichinadze Street",
+       "lat": 41.707735,
+       "lon": 44.811256,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:1761",
+       "code": "1761",
+       "name": "Lami Street",
+       "lat": 41.708831,
+       "lon": 44.809551,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:1773",
+       "code": "1773",
+       "name": "Terenti Graneli St #26",
+       "lat": 41.710474,
+       "lon": 44.80734,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:1774",
+       "code": "1774",
+       "name": "Giorgi Chitaia Square",
+       "lat": 41.710166,
+       "lon": 44.804649,
+       "vehicleMode": "BUS"
+      }
+     ],
+     "route": {
+      "id": null,
+      "shortName": "490",
+      "longName": "სადგურის მოედანი - მნათობის ქ.",
+      "color": "0033B4",
+      "mode": null
+     },
+     "realTime": false,
+     "arrivalDelay": 0,
+     "distance": 2543.19
+    },
+    {
+     "from": {
+      "lat": 41.711185,
+      "lon": 44.800602,
+      "name": "ჯავახიშვილის #69"
+     },
+     "to": {
+      "lat": 41.7099,
+      "lon": 44.7929,
+      "name": "Destination"
+     },
+     "startTime": "2026-10-19T04:44:54.000+00:00",
+     "endTime": "2026-10-19T04:59:02.000+00:00",
+     "duration": 848,
+     "legPolyline": {
+      "encodedValue": "{uq}FwbmpGBF\\UBA@F`@lAb@rAl@jBd@vA\\dAdA`DDLDDF@H@D?H?@?DACBGFA@ADABAFAD?H?F@D?DBJDXTv@H\\jBhGHTDLHZ\\nAHV?@j@lBJd@A@AB?BI\\OTOV_@^m@p@cAhAa@`@IH}@|@KSYi@EEI?SDG?CEEGSw@AIBIXQBC?M",
+      "color": null
+     },
+     "mode": "WALK",
+     "steps": [
+      {
+       "relativeDirection": "DEPART",
+       "distance": 21.51,
+       "streetName": "Ivane Javakhishvili Street",
+       "lat": 41.7111692,
+       "lon": 44.8005628
+      },
+      {
+       "relativeDirection": "RIGHT",
+       "distance": 684.57,
+       "streetName": "Kote Marjanishvili Street",
+       "lat": 41.7109989,
+       "lon": 44.8006855
+      },
+      {
+       "relativeDirection": "RIGHT",
+       "distance": 5,
+       "streetName": "road",
+       "lat": 41.7081835,
+       "lon": 44.7937035
+      },
+      {
+       "relativeDirection": "CONTINUE",
+       "distance": 13.4,
+       "streetName": "U. Chkheidze St",
+       "lat": 41.7082063,
+       "lon": 44.7936545
+      },
+      {
+       "relativeDirection": "CONTINUE",
+       "distance": 203.61,
+       "streetName": "Ushangi Chkheidze St",
+       "lat": 41.7082587,
+       "lon": 44.7935091
+      },
+      {
+       "relativeDirection": "RIGHT",
+       "distance": 125.35,
+       "streetName": "service road",
+       "lat": 41.7096767,
+       "lon": 44.7919633
+      }
+     ],
+     "intermediateStops": null,
+     "route": null,
+     "realTime": false,
+     "arrivalDelay": 0,
+     "distance": 1053.43
+    }
+   ]
+  },
+  {
+   "startTime": "2026-10-19T04:20:07.000+00:00",
+   "endTime": "2026-10-19T04:54:16.000+00:00",
+   "duration": 2049,
+   "walkTime": 1391,
+   "walkDistance": 1742.69,
+   "legs": [
+    {
+     "from": {
+      "lat": 41.7151,
+      "lon": 44.8271,
+      "name": "Origin"
+     },
+     "to": {
+      "lat": 41.709932,
+      "lon": 44.820496,
+      "name": "Petre Bagrationi Street"
+     },
+     "startTime": "2026-10-19T04:20:07.000+00:00",
+     "endTime": "2026-10-19T04:33:36.000+00:00",
+     "duration": 809,
+     "legPolyline": {
+      "encodedValue": "qnr}FcgrpGF@^RZT^FfA`@EzAm@dCrBr@`AZTDdARvAZ|@Zl@XV\\P`@@XAXMbAEfAAd@FXLVb@h@~@hA`@f@?j@A\\IzFZAn@AH?n@E|@O`@SPG^DDB??",
+      "color": null
+     },
+     "mode": "WALK",
+     "steps": [
+      {
+       "relativeDirection": "DEPART",
+       "distance": 201.59,
+       "streetName": "service road",
+       "lat": 41.7151329,
+       "lon": 44.8269083
+      },
+      {
+       "relativeDirection": "LEFT",
+       "distance": 119.06,
+       "streetName": "road",
+       "lat": 41.7145348,
+       "lon": 44.8253454
+      },
+      {
+       "relativeDirection": "CONTINUE",
+       "distance": 286.62,
+       "streetName": "O. Chechelashvili St",
+       "lat": 41.7135134,
+       "lon": 44.8249177
+      },
+      {
+       "relativeDirection": "SLIGHTLY_LEFT",
+       "distance": 25,
+       "streetName": "road",
+       "lat": 41.7120884,
+       "lon": 44.8229356
+      },
+      {
+       "relativeDirection": "CONTINUE",
+       "distance": 233.68,
+       "streetName": "Mnatobi St",
+       "lat": 41.7119701,
+       "lon": 44.8226833
+      },
+      {
+       "relativeDirection": "LEFT",
+       "distance": 162.41,
+       "streetName": "Paata Saakadze St",
+       "lat": 41.711361,
+       "lon": 44.8202771
+      }
+     ],
+     "intermediateStops": null,
+     "route": null,
+     "realTime": false,
+     "arrivalDelay": 0,
+     "distance": 1028.35
+    },
+    {
+     "from": {
+      "lat": 41.709932,
+      "lon": 44.820496,
+      "name": "Petre Bagrationi Street"
+     },
+     "to": {
+      "lat": 41.709477,
+      "lon": 44.797614,
+      "name": "M/S \"Marjanishvili\""
+     },
+     "startTime": "2026-10-19T04:33:36.000+00:00",
+     "endTime": "2026-10-19T04:44:34.000+00:00",
+     "duration": 658,
+     "legPolyline": {
+      "encodedValue": "anq}Fc_qpG?@DCJ@Jb@J^H`@DNBLF\\RfAF~@F~@@H?DA\\Ah@Cl@Cn@EXMd@KVGLELIXKZCN?B?V?PJvAJfABv@?n@Cv@ATC\\Er@Cd@ATCr@Ad@C`CETOt@Qv@]zAOh@U\\A@?BHl@RlBFb@Fb@PdAPjAN|@@B@?\\OLGRGb@Mb@Mv@SX@Eh@CB????@DCZGb@EZEXIPQNMH_@Tq@VQHSH[Je@?WB?@A?EHENO|@EZARCRERAJC@????@F???D?BCNALAJ?BA^ALAPAVC\\?DAXBb@Lv@Hh@ThADVDRBLHXDT?H???@d@lCFJlKjE`ExARP`CtHB\\???@B?DLNh@Nh@FNKFiAx@GDGC????cO~Ji@FIA]NCH",
+      "color": null
+     },
+     "mode": "BUS",
+     "steps": [],
+     "intermediateStops": [
+      {
+       "id": "1:1761",
+       "code": "1761",
+       "name": "Lami Street",
+       "lat": 41.708831,
+       "lon": 44.809551,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:1773",
+       "code": "1773",
+       "name": "Terenti Graneli St #26",
+       "lat": 41.710474,
+       "lon": 44.80734,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:1774",
+       "code": "1774",
+       "name": "Giorgi Chitaia Square",
+       "lat": 41.710166,
+       "lon": 44.804649,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3415",
+       "code": "3415",
+       "name": "Kiev Street",
+       "lat": 41.706207,
+       "lon": 44.800607,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:866",
+       "code": "866",
+       "name": "Davit Aghmashenebeli Avenue",
+       "lat": 41.706467,
+       "lon": 44.799693,
+       "vehicleMode": "BUS"
+      }
+     ],
+     "route": {
+      "id": null,
+      "shortName": "451",
+      "longName": "მ/ს \"მარჯანიშვილი\" - პეტრე ბაგრატიონის ქ.",
+      "color": "0033B4",
+      "mode": null
+     },
+     "realTime": false,
+     "arrivalDelay": 0,
+     "distance": 2747.73
+    },
+    {
+     "from": {
+      "lat": 41.709477,
+      "lon": 44.797614,
+      "name": "M/S \"Marjanishvili\""
+     },
+     "to": {
+      "lat": 41.7099,
+      "lon": 44.7929,
+      "name": "Destination"
+     },
+     "startTime": "2026-10-19T04:44:34.000+00:00",
+     "endTime": "2026-10-19T04:54:16.000+00:00",
+     "duration": 582,
+     "legPolyline": {
+      "encodedValue": "ekq}FaplpG?FDACBGFA@ADABAFAD?H?F@D?DBJDXTv@H\\jBhGHTDLHZ\\nAHV?@j@lBJd@A@AB?BI\\OTOV_@^m@p@cAhAa@`@IH}@|@KSYi@EEI?SDG?CEEGSw@AIBIXQBC?M",
+      "color": null
+     },
+     "mode": "WALK",
+     "steps": [
+      {
+       "relativeDirection": "DEPART",
+       "distance": 366.99,
+       "streetName": "Kote Marjanishvili Street",
+       "lat": 41.7094716,
+       "lon": 44.7975748
+      },
+      {
+       "relativeDirection": "RIGHT",
+       "distance": 5,
+       "streetName": "road",
+       "lat": 41.7081835,
+       "lon": 44.7937035
+      },
+      {
+       "relativeDirection": "CONTINUE",
+       "distance": 13.4,
+       "streetName": "U. Chkheidze St",
+       "lat": 41.7082063,
+       "lon": 44.7936545
+      },
+      {
+       "relativeDirection": "CONTINUE",
+       "distance": 203.61,
+       "streetName": "Ushangi Chkheidze St",
+       "lat": 41.7082587,
+       "lon": 44.7935091
+      },
+      {
+       "relativeDirection": "RIGHT",
+       "distance": 125.35,
+       "streetName": "service road",
+       "lat": 41.7096767,
+       "lon": 44.7919633
+      }
+     ],
+     "intermediateStops": null,
+     "route": null,
+     "realTime": false,
+     "arrivalDelay": 0,
+     "distance": 714.34
+    }
+   ]
+  },
+  {
+   "startTime": "2026-10-19T04:15:48.000+00:00",
+   "endTime": "2026-10-19T04:52:28.000+00:00",
+   "duration": 2200,
+   "walkTime": 894,
+   "walkDistance": 1116.57,
+   "legs": [
+    {
+     "from": {
+      "lat": 41.7151,
+      "lon": 44.8271,
+      "name": "Origin"
+     },
+     "to": {
+      "lat": 41.717892,
+      "lon": 44.828281,
+      "name": "Tsaishi Street"
+     },
+     "startTime": "2026-10-19T04:15:48.000+00:00",
+     "endTime": "2026-10-19T04:21:00.000+00:00",
+     "duration": 312,
+     "legPolyline": {
+      "encodedValue": "qnr}FcgrpGKCY?a@OOOSIO]K]Qe@[f@oArBgCcD}CoBBK",
+      "color": null
+     },
+     "mode": "WALK",
+     "steps": [
+      {
+       "relativeDirection": "DEPART",
+       "distance": 201.4,
+       "streetName": "service road",
+       "lat": 41.7151329,
+       "lon": 44.8269083
+      },
+      {
+       "relativeDirection": "RIGHT",
+       "distance": 200.83,
+       "streetName": "road",
+       "lat": 41.7164469,
+       "lon": 44.8268461
+      }
+     ],
+     "intermediateStops": null,
+     "route": null,
+     "realTime": false,
+     "arrivalDelay": 0,
+     "distance": 402.23
+    },
+    {
+     "from": {
+      "lat": 41.717892,
+      "lon": 44.828281,
+      "name": "Tsaishi Street"
+     },
+     "to": {
+      "lat": 41.709477,
+      "lon": 44.797614,
+      "name": "M/S \"Marjanishvili\""
+     },
+     "startTime": "2026-10-19T04:21:00.000+00:00",
+     "endTime": "2026-10-19T04:42:46.000+00:00",
+     "duration": 1306,
+     "legPolyline": {
+      "encodedValue": "y_s}FworpGMFKlAI|A?x@BvHAjA????BjCX`JR`D????NtBHhAFbALZNd@HNHP????R\\^l@d@l@`DjETV^NLD??@?LDZBn@?tA@PD\\H`@DRF??@?RPVb@FXBXDxDHrDFvB?x@???@?dCEzD?`E???@CnIIhC???@CrA@X@P@F@JBRBHFVFNFNPZhB`Cr@`A^d@DBD@HENW???Av@_BJq@HeA@eA?qA???A?o@@cADs@XeAVeABWDY@U@WB_@??@??iCE{ASkB??AAGs@G_AOq@EgAGcDCkBEiAIcACMCKCE????GGA?A@AB@@@BFHDPHbADhAD~C@z@Bv@DdANr@Bf@Zt@Rh@TXJPHNFLFRFRBJ@LDVJx@?T?L????EnASbBc@lDUjBIbAAR???@?r@@V@XHt@VzCLnB???@JpADPz@~Cv@zBZfAPhA????Tv@NPRFP@b@I????f@Q^Tn@XnAl@jAb@dFlB???@tBx@NHHHXt@jAnDh@nB??@@Nd@Nh@JX?Bc@ZUNQLSL????_GbEcGzDSJUAk@T",
+      "color": null
+     },
+     "mode": "BUS",
+     "steps": [],
+     "intermediateStops": [
+      {
+       "id": "1:3567",
+       "code": "3567",
+       "name": "Tsaishi Street #42",
+       "lat": 41.718062,
+       "lon": 44.825155,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:2191",
+       "code": "2191",
+       "name": "Tsaishi Street #36",
+       "lat": 41.717816,
+       "lon": 44.821877,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:4205",
+       "code": "4205",
+       "name": "Atotsi Street",
+       "lat": 41.717396,
+       "lon": 44.820078,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:2193",
+       "code": "2193",
+       "name": "Kakha Manijashvili Street",
+       "lat": 41.715788,
+       "lon": 44.818211,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:2194",
+       "code": "2194",
+       "name": "Kukia Cemetery",
+       "lat": 41.714389,
+       "lon": 44.818001,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:2195",
+       "code": "2195",
+       "name": "Larekhi Deadlock",
+       "lat": 41.713984,
+       "lon": 44.814745,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:2196",
+       "code": "2196",
+       "name": "Mikha Khelashvili Street",
+       "lat": 41.714018,
+       "lon": 44.812151,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:2197",
+       "code": "2197",
+       "name": "Rostovi Street",
+       "lat": 41.714081,
+       "lon": 44.809771,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:2198",
+       "code": "2198",
+       "name": "Otar Kapanadze Street",
+       "lat": 41.712671,
+       "lon": 44.80742,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3408",
+       "code": "3408",
+       "name": "Ivane Michurini Street",
+       "lat": 41.712276,
+       "lon": 44.809276,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3409",
+       "code": "3409",
+       "name": "Artvini Street #36",
+       "lat": 41.71189,
+       "lon": 44.811459,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3410",
+       "code": "3410",
+       "name": "Artvini Street #54",
+       "lat": 41.71202,
+       "lon": 44.813152,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3857",
+       "code": "3857",
+       "name": "Otar Chechelashvili Street",
+       "lat": 41.712418,
+       "lon": 44.816577,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3411",
+       "code": "3411",
+       "name": "Merab Mamardashvili St #68",
+       "lat": 41.711425,
+       "lon": 44.811741,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3403",
+       "code": "3403",
+       "name": "Merab Mamardashvili St #40",
+       "lat": 41.711899,
+       "lon": 44.808988,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:2200",
+       "code": "2200",
+       "name": "Railway Underpass",
+       "lat": 41.711648,
+       "lon": 44.806857,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3412",
+       "code": "3412",
+       "name": "Giorgi Chitaia Square",
+       "lat": 41.71074,
+       "lon": 44.804207,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3413",
+       "code": "3413",
+       "name": "Giorgi Chitaia Square",
+       "lat": 41.710186,
+       "lon": 44.803831,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:4203",
+       "code": "4203",
+       "name": "Giorgi Mazniashvili Street",
+       "lat": 41.707653,
+       "lon": 44.802718,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:3415",
+       "code": "3415",
+       "name": "Kiev Street",
+       "lat": 41.706207,
+       "lon": 44.800607,
+       "vehicleMode": "BUS"
+      },
+      {
+       "id": "1:866",
+       "code": "866",
+       "name": "Davit Aghmashenebeli Avenue",
+       "lat": 41.706467,
+       "lon": 44.799693,
+       "vehicleMode": "BUS"
+      }
+     ],
+     "route": {
+      "id": null,
+      "shortName": "353",
+      "longName": "Kukia - Station Square",
+      "color": "00B38B",
+      "mode": null
+     },
+     "realTime": false,
+     "arrivalDelay": 0,
+     "distance": 5090.34
+    },
+    {
+     "from": {
+      "lat": 41.709477,
+      "lon": 44.797614,
+      "name": "M/S \"Marjanishvili\""
+     },
+     "to": {
+      "lat": 41.7099,
+      "lon": 44.7929,
+      "name": "Destination"
+     },
+     "startTime": "2026-10-19T04:42:46.000+00:00",
+     "endTime": "2026-10-19T04:52:28.000+00:00",
+     "duration": 582,
+     "legPolyline": {
+      "encodedValue": "ekq}FaplpG?FDACBGFA@ADABAFAD?H?F@D?DBJDXTv@H\\jBhGHTDLHZ\\nAHV?@j@lBJd@A@AB?BI\\OTOV_@^m@p@cAhAa@`@IH}@|@KSYi@EEI?SDG?CEEGSw@AIBIXQBC?M",
+      "color": null
+     },
+     "mode": "WALK",
+     "steps": [
+      {
+       "relativeDirection": "DEPART",
+       "distance": 366.99,
+       "streetName": "Kote Marjanishvili Street",
+       "lat": 41.7094716,
+       "lon": 44.7975748
+      },
+      {
+       "relativeDirection": "RIGHT",
+       "distance": 5,
+       "streetName": "road",
+       "lat": 41.7081835,
+       "lon": 44.7937035
+      },
+      {
+       "relativeDirection": "CONTINUE",
+       "distance": 13.4,
+       "streetName": "U. Chkheidze St",
+       "lat": 41.7082063,
+       "lon": 44.7936545
+      },
+      {
+       "relativeDirection": "CONTINUE",
+       "distance": 203.61,
+       "streetName": "Ushangi Chkheidze St",
+       "lat": 41.7082587,
+       "lon": 44.7935091
+      },
+      {
+       "relativeDirection": "RIGHT",
+       "distance": 125.35,
+       "streetName": "service road",
+       "lat": 41.7096767,
+       "lon": 44.7919633
+      }
+     ],
+     "intermediateStops": null,
+     "route": null,
+     "realTime": false,
+     "arrivalDelay": 0,
+     "distance": 714.34
+    }
+   ]
+  }
+ ]
+}

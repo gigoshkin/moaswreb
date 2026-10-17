@@ -10,8 +10,9 @@ import { StopIndex } from '../src/ttc/stops.ts';
 import { fakeTtc } from './fakes.ts';
 
 const ttc = fakeTtc();
+const stops = new StopIndex(ttc);
 const app = Fastify();
-registerMcpRoute(app, createTools({ ttc, stops: new StopIndex(ttc), plans: new PlanService(ttc) }));
+registerMcpRoute(app, createTools({ ttc, stops, plans: new PlanService(ttc, stops) }));
 const address = await app.listen({ port: 0, host: '127.0.0.1' });
 after(() => app.close());
 

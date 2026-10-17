@@ -1,9 +1,10 @@
-import type { ActionCard, Arrival, Locale } from '@transit/shared';
-import { tbilisiLocalToIso } from '@transit/shared';
+import type { ActionCard, Locale } from '@transit/shared';
+import { STOP_ID_PATTERN, tbilisiLocalToIso } from '@transit/shared';
 import * as z from 'zod/v4';
 import { insideTbilisi } from '../geo.ts';
 import type { PlanService } from '../plan/service.ts';
 import type { TtcClient } from '../ttc/client.ts';
+import { arrivalsAt, findPlaces } from '../ttc/lookups.ts';
 import type { StopIndex } from '../ttc/stops.ts';
 
 /**
@@ -49,7 +50,7 @@ export const createTools = ({ ttc, stops, plans, locale = 'ka' }: ToolDeps): Too
     schema: z.object({ query: z.string().min(1).describe('Stop name or code, e.g. "თავისუფლების მოედანი" or "Liberty Square"') }),
     mcp: true,
     run: async ({ query }) => {
-      const hits = await stops.search(query);
+      const hits = await stops.search(query, 5, locale);
       if (!hits.length) return { text: `No stops match "${query}".` };
       return {
         text: hits.map((s) => `${s.id} | ${s.name} | ${s.mode} | ${s.lat},${s.lon}`).join('\n'),
@@ -65,14 +66,7 @@ export const createTools = ({ ttc, stops, plans, locale = 'ka' }: ToolDeps): Too
     schema: z.object({ query: z.string().min(1) }),
     mcp: true,
     run: async ({ query }) => {
-      const res = await ttc.geocode(query, locale);
-      const rows = (res.features ?? []).slice(0, 5).flatMap((f) => {
-        const c = f.geometry?.coordinates;
-        if (!c) return [];
-        const p = f.properties ?? {};
-        const name = String(p.name ?? p.label ?? p.street ?? query);
-        return [`${name} | ${c[1]},${c[0]}`];
-      });
+      const rows = (await findPlaces(ttc, query, locale)).map((p) => `${p.name}${p.address ? `, ${p.address}` : ''} | ${p.lat},${p.lon}`);
       return { text: rows.length ? rows.join('\n') : `No place matches "${query}".` };
     },
   }),
@@ -80,26 +74,16 @@ export const createTools = ({ ttc, stops, plans, locale = 'ka' }: ToolDeps): Too
   tool({
     name: 'next_arrivals',
     description: 'Live arrival countdown at one TTC stop: which routes come next and in how many minutes.',
-    schema: z.object({ stopId: z.string().regex(/^\d+:\d+$/, 'TTC stop id like "1:1405"') }),
+    schema: z.object({ stopId: z.string().regex(new RegExp(STOP_ID_PATTERN), 'TTC stop id like "1:1405" or "1:metro_1_11"') }),
     mcp: true,
     run: async ({ stopId }) => {
-      const [stop, raw] = await Promise.all([stops.get(stopId), ttc.arrivalTimes(stopId, locale)]);
-      const arrivals: Arrival[] = raw
-        .map((a) => ({
-          route: a.shortName,
-          color: a.color ? `#${a.color.replace(/^#/, '')}` : null,
-          headsign: a.headsign,
-          minutes: a.realtime ? a.realtimeArrivalMinutes : a.scheduledArrivalMinutes,
-          realtime: a.realtime,
-        }))
-        .filter((a) => a.minutes >= 0)
-        .sort((a, b) => a.minutes - b.minutes);
-      const name = stop?.name ?? stopId;
+      const { stop, arrivals } = await arrivalsAt(ttc, stops, stopId, locale);
+      const name = stop.name;
       return {
         text: arrivals.length
           ? arrivals.map((a) => `${a.route} → ${a.headsign}: ${a.minutes} min${a.realtime ? '' : ' (timetable)'}`).join('\n')
           : `No arrivals at ${name} right now.`,
-        card: { type: 'arrivals', stop: { id: stopId, name }, arrivals },
+        card: { type: 'arrivals', stop, arrivals },
       };
     },
   }),

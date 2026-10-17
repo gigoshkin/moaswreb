@@ -1,4 +1,4 @@
-import type { TripsPayload } from '@transit/shared';
+import { STOP_ID_PATTERN, type TripsPayload } from '@transit/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { requireKey } from '../auth.ts';
 import type { TripStore } from './trips.ts';
@@ -19,8 +19,8 @@ const tripsSchema = {
         additionalProperties: false,
         properties: {
           id: { type: 'string', maxLength: 64 },
-          fromStopId: { type: 'string', pattern: '^\\d+:\\d+$' },
-          toStopId: { type: 'string', pattern: '^\\d+:\\d+$' },
+          fromStopId: { type: 'string', pattern: STOP_ID_PATTERN },
+          toStopId: { type: 'string', pattern: STOP_ID_PATTERN },
           arriveBy: { type: 'string', pattern: HHMM },
           days: { type: 'array', minItems: 1, maxItems: 7, uniqueItems: true, items: { type: 'integer', minimum: 1, maximum: 7 } },
           walkMin: { type: 'integer', minimum: 0, maximum: 60 },
