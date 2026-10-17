@@ -49,3 +49,20 @@ export interface ReversePlaceResponse {
   /** The nearest address or landmark, or null when OSM has nothing close. */
   place: PlaceHit | null;
 }
+
+/** One line at a stop, with the stops it visits after this one (for building a route by hand). */
+export interface StopLine {
+  shortName: string;
+  color: string | null;
+  minibus: boolean;
+  mode: string;
+  headsign: string | null;
+  /** The stops after this one, in driving order. */
+  next: Array<{ id: string; name: string; lat: number; lon: number }>;
+}
+
+/** GET /stops/:id/lines */
+export interface StopLinesResponse {
+  stop: { id: string; name: string };
+  lines: StopLine[];
+}

@@ -1,4 +1,4 @@
-import type { LatLon, PlanResponse } from '@transit/shared';
+import type { JourneyStep, LatLon, PlanAvoid, PlanResponse } from '@transit/shared';
 import { router } from 'expo-router';
 import type { Place, SavedTrip } from './trips';
 
@@ -38,12 +38,21 @@ export interface RouteDraft {
   to: Place | null;
   arriveBy: string;
   days: number[];
+  avoid?: PlanAvoid;
+  steps?: JourneyStep[];
+}
+/** What the builder hands back: the ends, the lines the trip never uses and, for a hand-built route, its rides. */
+export interface RouteResult {
+  from: Place;
+  to: Place;
+  avoid?: PlanAvoid;
+  steps?: JourneyStep[];
 }
 let routeDraftNow: RouteDraft | null = null;
-let routePending: ((r: { from: Place; to: Place } | null) => void) | null = null;
+let routePending: ((r: RouteResult | null) => void) | null = null;
 
 /** Opens the route builder on the map; resolves with the chosen ends, or null if closed. */
-export function buildRoute(draft: RouteDraft): Promise<{ from: Place; to: Place } | null> {
+export function buildRoute(draft: RouteDraft): Promise<RouteResult | null> {
   routePending?.(null);
   routeDraftNow = draft;
   return new Promise((resolve) => {
@@ -55,7 +64,7 @@ export function buildRoute(draft: RouteDraft): Promise<{ from: Place; to: Place 
 export const routeDraft = (): RouteDraft => routeDraftNow ?? { from: null, to: null, arriveBy: '09:00', days: [1, 2, 3, 4, 5] };
 
 /** Called by the builder: with the ends on Done, with null when it closes. */
-export function finishRoute(r: { from: Place; to: Place } | null) {
+export function finishRoute(r: RouteResult | null) {
   routePending?.(r);
   routePending = null;
 }

@@ -8,12 +8,13 @@ import { getPreview, openNewTrip } from '../../lib/handoff';
 import { firstWalkMin, isMetro, lastWalkMin, leaveAt, placeName, transitLegs } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { hhmm, nextArriveBy } from '../../lib/time';
-import { tripDays, useTrips } from '../../lib/trips';
+import { saveTrip, tripDays, useTrips, withStops } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
 import { Icon, type IconName } from '../../ui/Icon';
 import { LeaveByBar } from '../../ui/LeaveByBar';
+import { Options } from '../../ui/Options';
 import { RoutePlate } from '../../ui/RoutePlate';
 import { StaticMap } from '../../ui/StaticMap';
 import { Text } from '../../ui/Text';
@@ -65,7 +66,27 @@ export default function TripDetail() {
               <SectionLabel style={styles.sectionLabel}>Route details</SectionLabel>
               <Timeline it={it} destination={p?.to.label ?? trip?.to.label ?? ''} />
             </Animated.View>
-          ) : (
+          ) : null}
+          {trip && (live.itineraries.length > 0 || trip.avoid) ? (
+            <Animated.View entering={FadeIn.duration(200)} style={styles.gap}>
+              <SectionLabel style={styles.sectionLabel}>All ways to get there</SectionLabel>
+              <Options
+                itineraries={live.itineraries}
+                chosenId={live.choice.kind === 'none' ? undefined : live.choice.it.id}
+                now={now}
+                bufferMin={settings.use().bufferMin}
+                avoid={trip.avoid}
+                loading={!live.loaded && !live.error}
+                onAvoid={(avoid) => {
+                  // The first stop and the walk can change with the avoid list: save now, refresh the server's copy after.
+                  const next = { ...trip, avoid };
+                  saveTrip(next);
+                  withStops(next).then(saveTrip);
+                }}
+              />
+            </Animated.View>
+          ) : null}
+          {it ? null : (
             <Card>
               <Text variant="body15" color={color.textSecondary}>
                 {live.error ? "Can't reach the planner right now." : live.loaded ? 'No route found for this trip.' : 'Planning…'}

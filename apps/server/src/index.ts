@@ -25,7 +25,8 @@ const ttc = new TtcClient();
 const recorder = new Recorder(config.dataDir);
 const poller = new Poller(ttc, recorder);
 const stops = new StopIndex(ttc);
-const plans = new PlanService(ttc, stops, new TtcSource(ttc, stops, join(config.dataDir, 'transit-cache.json')));
+const source = new TtcSource(ttc, stops, join(config.dataDir, 'transit-cache.json'));
+const plans = new PlanService(ttc, stops, source);
 const store = config.tripsKey ? new TripStore(config.dataDir, new Sealer(config.tripsKey)) : null;
 const watcher = store ? new AlertWatcher(store, stops, plans, expoPush()) : null;
 
@@ -36,7 +37,7 @@ app.get('/health', async () => ({ ok: true, ttcKeyLoaded: ttc.hasKey }));
 app.get('/logger/stats', async () => poller.stats());
 app.get('/alerts/stats', async () => ({ enabled: Boolean(watcher), sent: watcher?.sent ?? 0, lastError: watcher?.lastError ?? null }));
 registerPlanRoute(app, plans);
-registerStopRoutes(app, { ttc, stops });
+registerStopRoutes(app, { ttc, stops, source });
 registerChatRoute(app, { ttc, stops, plans });
 registerMcpRoute(app, createTools({ ttc, stops, plans }));
 if (store) registerMeRoutes(app, store);

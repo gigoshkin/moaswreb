@@ -1,11 +1,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { STOP_ID_PATTERN, type Locale, type NearStopsResponse, type PlacesResponse, type StopsResponse } from '@transit/shared';
+import { STOP_ID_PATTERN, type Locale, type NearStopsResponse, type PlacesResponse, type StopLinesResponse, type StopsResponse } from '@transit/shared';
 import { insideTbilisi } from '../geo.ts';
 import { photonGeo, type StreetGeo } from '../ttc/photon.ts';
 import { upstreamFailed } from '../ttc/client.ts';
 import { arrivalsAt, findPlaces } from '../ttc/lookups.ts';
 import type { TtcClient } from '../ttc/client.ts';
 import type { StopIndex } from '../ttc/stops.ts';
+import type { TtcSource } from '../journey/ttc-source.ts';
 
 const locale = { type: 'string', enum: ['ka', 'en'] } as const;
 const limit = { type: 'integer', minimum: 1, maximum: 20 } as const;
@@ -15,13 +16,14 @@ const limit = { type: 'integer', minimum: 1, maximum: 20 } as const;
  *   GET /stops?q=         stop search by name (matches Georgian or English) or code, from the in-memory index
  *   GET /stops/near       closest stops to a point, from the in-memory index
  *   GET /stops/:id/arrivals  live countdown, one TTC call
+ *   GET /stops/:id/lines  every line that stops here and the stops it visits next (the by-hand route builder)
  *   GET /places?q=        address/landmark search (TTC's OSM geocoder plus Photon for streets and house numbers)
  *   GET /places/reverse   the address at a point (Photon), for the map pin
  * Same data as the chat tools (ttc/lookups.ts). Names come back in English
  * unless ?locale=ka (TTC's data is bilingual; the app is English-only).
  */
-export const registerStopRoutes = (app: FastifyInstance, deps: { ttc: TtcClient; stops: StopIndex; geo?: StreetGeo }): void => {
-  const { ttc, stops, geo = photonGeo } = deps;
+export const registerStopRoutes = (app: FastifyInstance, deps: { ttc: TtcClient; stops: StopIndex; geo?: StreetGeo; source?: TtcSource }): void => {
+  const { ttc, stops, geo = photonGeo, source } = deps;
   const fail = (req: FastifyRequest, reply: FastifyReply, err: unknown) => {
     req.log.warn({ err }, 'TTC lookup failed');
     return reply.code(upstreamFailed(err)).send({ error: 'upstream', message: 'TTC unavailable' });
@@ -94,6 +96,35 @@ export const registerStopRoutes = (app: FastifyInstance, deps: { ttc: TtcClient;
     async (req, reply) => {
       if (!insideTbilisi(req.query.lat, req.query.lon)) return reply.code(400).send({ error: 'bad_request', message: 'Point is outside Tbilisi' });
       return { place: await geo.reverse(req.query.lat, req.query.lon) };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/stops/:id/lines',
+    { schema: { params: { type: 'object', properties: { id: { type: 'string', pattern: STOP_ID_PATTERN } } } } },
+    async (req, reply): Promise<StopLinesResponse | undefined> => {
+      if (!source) return reply.code(501).send({ error: 'not_available', message: 'Line lookup is off' });
+      try {
+        const stop = await stops.get(req.params.id, 'en');
+        if (!stop) return reply.code(404).send({ error: 'unknown_stop', message: 'No such stop' });
+        const patterns = await source.patternsAt(stop.id);
+        return {
+          stop: { id: stop.id, name: stop.name },
+          lines: patterns
+            .map((p) => ({
+              shortName: p.shortName,
+              color: p.color,
+              minibus: p.minibus,
+              mode: p.mode,
+              headsign: p.headsign,
+              next: p.stops.slice(p.stops.findIndex((s) => s.id === stop.id) + 1),
+            }))
+            .filter((l) => l.next.length)
+            .sort((a, b) => a.shortName.localeCompare(b.shortName, 'en', { numeric: true })),
+        };
+      } catch (err) {
+        return fail(req, reply, err);
+      }
     },
   );
 

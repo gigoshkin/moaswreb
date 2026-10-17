@@ -36,6 +36,8 @@ export default function EditTrip() {
       to: existing?.to ?? draft?.to ?? null,
       arriveBy: existing?.arriveBy ?? draft?.arriveBy ?? '09:00',
       days: existing?.days ?? draft?.days ?? DEFAULT_DAYS,
+      avoid: existing?.avoid ?? draft?.avoid,
+      steps: existing?.steps ?? draft?.steps,
     };
   });
   const [from, setFrom] = useState<Place | null>(init.from);
@@ -43,13 +45,15 @@ export default function EditTrip() {
   const [name, setName] = useState(init.name ?? '');
   const [arriveBy, setArriveBy] = useState(init.arriveBy);
   const [days, setDays] = useState<number[]>(init.days);
+  const [avoid, setAvoid] = useState(init.avoid);
+  const [steps, setSteps] = useState(init.steps);
   const [iosPicker, setIosPicker] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Preview of the next occurrence, also the source of the stop ids on save.
   const draftTrip: SavedTrip | null = useMemo(
-    () => (from && to ? { id: existing?.id ?? 'draft', name: '', from, to, arriveBy, days } : null),
-    [from, to, arriveBy, days.join()],
+    () => (from && to ? { id: existing?.id ?? 'draft', name: '', from, to, arriveBy, days, avoid, steps } : null),
+    [from, to, arriveBy, days.join(), JSON.stringify(avoid), JSON.stringify(steps)],
   );
   const date = nextArriveBy(arriveBy, days, now).slice(0, 10);
   const { choice } = useTripPlan(draftTrip, date, now);
@@ -57,10 +61,14 @@ export default function EditTrip() {
   const legs = it ? transitLegs(it) : [];
 
   const openBuilder = async () => {
-    const r = await buildRoute({ from, to, arriveBy, days });
+    const r = await buildRoute({ from, to, arriveBy, days, avoid, steps });
     if (r) {
+      // A different start or end makes an old hand-built route meaningless.
+      const moved = r.from.lat !== from?.lat || r.from.lon !== from?.lon || r.to.lat !== to?.lat || r.to.lon !== to?.lon;
       setFrom(r.from);
       setTo(r.to);
+      setAvoid(r.avoid);
+      setSteps(moved && !r.steps ? undefined : r.steps);
     }
   };
 
@@ -83,7 +91,7 @@ export default function EditTrip() {
   const save = async () => {
     if (!from || !to || saving) return;
     setSaving(true);
-    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || to.label, from, to, arriveBy, days };
+    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || to.label, from, to, arriveBy, days, ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) };
     const first = legs[0];
     const trip =
       it && first
