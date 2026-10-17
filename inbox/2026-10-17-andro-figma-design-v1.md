@@ -35,9 +35,12 @@
 - **Colours:** warm paper `#F4F2EE`, ink `#121316`, one lime accent `#D4FF3F`, olive `#3D6300` for accent text on light, amber `#E5630B` for late.
   - Lime is a fill on light backgrounds; as text it is used only on ink.
   - Route colours in the frames are samples; the real ones come from the TTC API `color` field.
-- **Fonts:** Noto Sans Georgian for Georgian UI text, Google Sans Flex for numbers and Latin. 123-Antena Bold is the brand font for the wordmark only.
+- **Fonts (andro, updated):** display text = **123-Antena Bold** (text styles `ka/Display`, `ka/Title`, `num/Hero`, `num/Large`); everything else = **Helvetica**.
+  - The Figma connector can't load either font, so the frames still show Noto Sans Georgian / Google Sans Flex until andro switches the 11 text styles in Figma by hand. Every screen updates from the styles; each style's description names its target font.
+  - Helvetica has no Georgian letters. Georgian body text needs a Georgian companion font (a Georgian Helvetica cut, or Noto Sans Georgian as fallback); andro to decide.
+  - Check that 123-Antena has the digits used in `num/Hero` and `num/Large`.
 - **Theme:** light only.
 
 ## Open
 - Copy is real Georgian UI copy, but numbers, stops and routes are sample data.
-- The Figma connector can't load 123-Antena, so any new wordmark text has to be set by hand in Figma.
+- The Figma connector can't load 123-Antena or Helvetica, so fonts are switched by hand in Figma via the text styles.
