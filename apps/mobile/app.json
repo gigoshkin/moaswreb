@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Tbilisi Transit",
+    "slug": "tbilisi-transit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ge.hacktoberfest.transit"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F5F0",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "ge.hacktoberfest.transit"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-image",
+      "expo-font"
+    ]
+  }
+}
