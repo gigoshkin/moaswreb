@@ -4,4 +4,5 @@
 
 export type * from './plan.ts';
 export type * from './chat.ts';
+export type * from './trips.ts';
 export { TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from './time.ts';

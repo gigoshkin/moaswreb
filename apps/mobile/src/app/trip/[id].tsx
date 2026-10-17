@@ -1,11 +1,12 @@
 import { FlashList } from '@shopify/flash-list';
 import type { Itinerary, PlanQuery } from '@transit/shared';
 import { useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ItineraryCard } from '../../components/ItineraryCard';
 import { Text } from '../../components/Text';
+import { scheduleBackup } from '../../lib/alerts';
 import { t } from '../../lib/strings';
 import { nextArriveBy } from '../../lib/time';
 import { getTrip } from '../../lib/trips';
@@ -26,11 +27,19 @@ export default function TripScreen() {
     [trip?.id],
   );
   if (!trip || !query) return null;
-  return <Options title={trip.name} query={query} topInset={insets.top} />;
+  return <Options tripId={trip.id} walkMin={trip.walkMin ?? 0} title={trip.name} query={query} topInset={insets.top} />;
 }
 
-function Options({ title, query, topInset }: { title: string; query: PlanQuery; topInset: number }) {
+function Options(props: { tripId: string; walkMin: number; title: string; query: PlanQuery; topInset: number }) {
+  const { tripId, walkMin, title, query, topInset } = props;
   const { plan, refreshing, error, sample, refresh } = usePlan(query);
+
+  // Backup alert from the latest plan that arrives on time (sample data never schedules).
+  useEffect(() => {
+    if (!plan || sample) return;
+    const best = [...plan.itineraries].sort((a, b) => Date.parse(b.departAt) - Date.parse(a.departAt))[0];
+    if (best) scheduleBackup(tripId, title, Date.parse(best.departAt) - walkMin * 60_000).catch(() => {});
+  }, [plan?.fetchedAt]);
   const notice = sample ? t.sample : error ? t.offline : null;
 
   return (

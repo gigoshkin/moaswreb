@@ -1,7 +1,9 @@
-import type { ApiError, PlanQuery, PlanResponse } from '@transit/shared';
+import type { ApiError, PlanQuery, PlanResponse, StoredTrip } from '@transit/shared';
 import { readCache, writeCache } from './cache';
+import { deviceId } from './device';
 
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? '';
+const KEY = process.env.EXPO_PUBLIC_API_KEY ?? '';
 
 export const hasApi = BASE !== '';
 
@@ -29,3 +31,24 @@ export async function fetchPlan(q: PlanQuery): Promise<PlanResponse> {
   writeCache(planKey(q), body);
   return body;
 }
+
+const me = async (method: 'PUT' | 'DELETE', path: string, body?: unknown): Promise<void> => {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: {
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      'x-device-id': deviceId(),
+      ...(KEY ? { authorization: `Bearer ${KEY}` } : {}),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+};
+
+/** Replace this device's trips on the server (stops and times only). */
+export const syncTrips = (trips: StoredTrip[]) => me('PUT', '/me/trips', { trips });
+
+export const registerPushToken = (token: string) => me('PUT', '/me/push', { token });
+
+/** The delete-all button: removes this device's trips and push token from the server. */
+export const deleteMyData = () => me('DELETE', '/me');
