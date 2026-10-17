@@ -11,6 +11,7 @@ import { settings } from '../../lib/settings';
 import { hhmm, nextArriveBy } from '../../lib/time';
 import type { Place } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
+import { useRoadItinerary } from '../../lib/shapes';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
@@ -50,6 +51,7 @@ export default function RouteBuilder() {
   const best: Itinerary | null = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
   // A way tapped in the list is shown on the map; the app still uses the best one.
   const it = plan.itineraries.find((x) => x.id === picked) ?? best;
+  const roadIt = useRoadItinerary(it);
   const busy = !plan.error && (!plan.loaded || plan.refreshing);
 
   const pick = async (kind: PickKind) => {
@@ -66,7 +68,7 @@ export default function RouteBuilder() {
     else if (!init.to) pick('to');
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { routes, markers, points } = useMemo(() => overlay(from, to, it), [from, to, it]);
+  const { routes, markers, points } = useMemo(() => overlay(from, to, roadIt), [from, to, roadIt]);
 
   // Frame the whole route whenever it changes (not on the first frame: the map starts framed).
   const fitKey = `${from?.lat},${from?.lon}|${to?.lat},${to?.lon}|${it?.id ?? ''}`;

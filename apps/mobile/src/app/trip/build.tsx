@@ -12,7 +12,9 @@ import { kindOf, leaveAt, type Kind } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { distanceLabel } from '../../lib/stops';
 import { hhmm, nextArriveBy } from '../../lib/time';
+import { decodePolyline } from '../../lib/mapMath';
 import { useNow } from '../../lib/useNow';
+import { useRideShapes, useRoadItinerary } from '../../lib/shapes';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { slotsFor } from '../../lib/ways';
 import { Button } from '../../ui/Button';
@@ -206,9 +208,14 @@ export default function BuildRoute() {
     setMetro(null);
   };
 
-  const planned = useMemo(() => overlay(from, to, it), [it]);
+  const roadIt = useRoadItinerary(it);
+  const planned = useMemo(() => overlay(from, to, roadIt), [roadIt]);
+  const shapes = useRideShapes(rides.map((r) => ({ route: r.lines.find((l) => !r.skipped.includes(l.label))?.label ?? '', from: r.board.id, to: r.off.id })));
   // Rides already built, in their colours but faded, so you can see where the next one joins.
-  const built: MapRoute[] = useMemo(() => rides.map((r) => ({ points: r.path, color: `${kindColor[r.lines[0]?.kind ?? 'bus']}99` })), [rides]);
+  const built: MapRoute[] = useMemo(
+    () => rides.map((r, i) => ({ points: shapes[i] ? decodePolyline(shapes[i]!) : r.path, color: `${kindColor[r.lines[0]?.kind ?? 'bus']}99` })),
+    [rides, shapes],
+  );
 
   // The middle of the map to ~300 m, so the set of stop dots only changes when you have really moved.
   const mid = centre ?? to;

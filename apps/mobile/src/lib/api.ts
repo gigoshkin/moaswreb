@@ -156,5 +156,9 @@ export const registerPushToken = (token: string) => request<unknown>('/me/push',
 /** The delete-all button: removes this device's trips and push token from the server. */
 export const deleteMyData = () => request<unknown>('/me', { method: 'DELETE', device: true });
 
+/** The road shape of one ride (a line between two stops); null when TTC has none. */
+export const stopShape = (from: string, to: string, route: string): Promise<{ shape: string | null }> =>
+  request<{ shape: string | null }>(`/stops/shape?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&route=${encodeURIComponent(route)}`, { timeoutMs: PLAN_TIMEOUT_MS });
+
 /** Every line that stops here and the stops it visits next (building a route by hand). */
 export const stopLines = (stopId: string): Promise<StopLinesResponse> => request<StopLinesResponse>(`/stops/${encodeURIComponent(stopId)}/lines`, { timeoutMs: PLAN_TIMEOUT_MS });

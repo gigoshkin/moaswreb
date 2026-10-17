@@ -7,6 +7,7 @@ import { arrivalsAt, findPlaces } from '../ttc/lookups.ts';
 import type { TtcClient } from '../ttc/client.ts';
 import type { StopIndex } from '../ttc/stops.ts';
 import type { TtcSource } from '../journey/ttc-source.ts';
+import { ShapeService } from '../journey/shapes.ts';
 
 const locale = { type: 'string', enum: ['ka', 'en'] } as const;
 const limit = { type: 'integer', minimum: 1, maximum: 20 } as const;
@@ -24,6 +25,7 @@ const limit = { type: 'integer', minimum: 1, maximum: 20 } as const;
  */
 export const registerStopRoutes = (app: FastifyInstance, deps: { ttc: TtcClient; stops: StopIndex; geo?: StreetGeo; source?: TtcSource }): void => {
   const { ttc, stops, geo = photonGeo, source } = deps;
+  const shapes = new ShapeService(ttc, stops);
   const fail = (req: FastifyRequest, reply: FastifyReply, err: unknown) => {
     req.log.warn({ err }, 'TTC lookup failed');
     return reply.code(upstreamFailed(err)).send({ error: 'upstream', message: 'TTC unavailable' });
@@ -35,6 +37,27 @@ export const registerStopRoutes = (app: FastifyInstance, deps: { ttc: TtcClient;
     async (req, reply): Promise<StopsResponse | undefined> => {
       try {
         return { stops: await stops.search(req.query.q, req.query.limit ?? 5, req.query.locale ?? 'en') };
+      } catch (err) {
+        return fail(req, reply, err);
+      }
+    },
+  );
+
+  /** The road shape of one ride (a line from stop A to stop B); `shape` is null when TTC has none, and the app draws a straight line. */
+  app.get<{ Querystring: { from: string; to: string; route: string } }>(
+    '/stops/shape',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          required: ['from', 'to', 'route'],
+          properties: { from: { type: 'string', pattern: STOP_ID_PATTERN }, to: { type: 'string', pattern: STOP_ID_PATTERN }, route: { type: 'string', minLength: 1, maxLength: 16 } },
+        },
+      },
+    },
+    async (req, reply) => {
+      try {
+        return { shape: await shapes.shape(req.query.from, req.query.to, req.query.route) };
       } catch (err) {
         return fail(req, reply, err);
       }
