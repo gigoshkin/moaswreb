@@ -1,6 +1,7 @@
 # Knowledge base index
 
 - [ttc-pis-gateway-api.md](ttc-pis-gateway-api.md) — TTC's own transit API (stops, routes, live positions/arrivals, timetables, geocode, planner), mapped from transit.ttc.com.ge and tested live 17 Oct
+- [ttc-prediction-accuracy.md](ttc-prediction-accuracy.md) — how far off TTC's live arrival predictions are (measured 17 Oct, Saturday evening, lines 347/558): ~1–1.5 min up to 10 min ahead, late-leaning at the end of a line
 - [hf-challenge.md](hf-challenge.md) — Hacktoberfest Georgia 2026 opening deck: schedule, tracks, judging, prizes, support (source: opening.hacktoberfest.ge/deck/hf-challenge)
 - [georgian-glossary.md](georgian-glossary.md): Georgian UI terms and register rule. **Not in use:** the app is English-only since 17 Oct (George)
 - [vps-dev-setup.md](vps-dev-setup.md): step-by-step VPS setup (Claude Code + Remote Control, Tailscale, Expo Go live demos)

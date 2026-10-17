@@ -54,7 +54,7 @@ The pattern-based calls return **500** when `patternSuffix` is missing or empty.
 
 ## Not in this API
 - No disruption or notice feed found in the bundle **[?]**, so notices still have to be pasted or scraped.
-- No marshrutka (minibus) positions; the 277 "BUS" routes may include minibus lines **[?]**.
+- Minibuses (marshrutkas) are in it: the 277 "BUS" routes include minibus lines with ids like `1:minibusR33069` (558), and these have live `positions` and `realtime` arrivals **[V]** (17 Oct logger recording).
 - No historical data. We have to log it ourselves.
 
 ## Polling budget for the logger
