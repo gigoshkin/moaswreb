@@ -7,6 +7,11 @@ const ka = {
   options: 'ვარიანტები',
   min: (n: number) => `${n} წთ`,
   walk: (n: number) => `${n} წთ ფეხით`,
+  myTrips: 'ჩემი მარშრუტები',
+  arriveBy: (time: string) => `ჩასვლა ${time}-მდე`,
+  noOptions: 'ვარიანტი ვერ მოიძებნა',
+  offline: 'კავშირი ვერ დამყარდა, ნაჩვენებია ბოლო შედეგი',
+  sample: 'სანიმუშო მონაცემები (სერვერი არ არის მითითებული)',
 };
 
 const en: typeof ka = {
@@ -15,6 +20,11 @@ const en: typeof ka = {
   options: 'Options',
   min: (n) => `${n} min`,
   walk: (n) => `${n} min walk`,
+  myTrips: 'My trips',
+  arriveBy: (time) => `Arrive by ${time}`,
+  noOptions: 'No options found',
+  offline: "Couldn't connect; showing the last result",
+  sample: 'Sample data (no server configured)',
 };
 
 export type Lang = 'ka' | 'en';
