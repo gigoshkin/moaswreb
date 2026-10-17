@@ -1,4 +1,4 @@
-# Taxi-style route builder: stage 1 done, stage 2 not started (gigoshkin, 2026-10-17)
+# Taxi-style route builder: stage 1 done, stage 2 not started (gigoshkin, 2026-10-17, updated late evening)
 
 Written so a fresh session (e.g. a cloud session) can pick this up with no other context. Branch: `wip/route-builder`. Read this file first, then the code it points to.
 
@@ -57,3 +57,32 @@ Open design questions:
 
 ## Standing rules (from CLAUDE.md and George)
 No AI attribution in commits, docs or code. English-only app. Don't commit secrets. Palette: andro's Figma (see `inbox/2026-10-17-gigoshkin-screens-built.md`). Changes to andro's area (features, screens, flows in the spec) need a request in `requests/`; this route builder changes the Add-trip flow, so **write a request to andro (or at least tell them in an inbox note)** before merging to main. Ask George one question at a time. Check `grep -l "to: george" requests/*.md | xargs grep -l "status: pending"` before pushing.
+
+## Update: first phone test and what happens next (late 17 Oct)
+George tried stage 1 on his Android phone in Expo Go. Results and fixes (all pushed on `wip/route-builder`):
+- Red screen "Tried to synchronously call a Remote Function: scaleAt". `scaleAt` and `clamp` in `src/lib/mapMath.ts` are called inside gesture/animated-style worklets and now carry `'worklet'`. **Rule for this codebase: any helper called from a worklet must have the directive; the browser preview cannot show this error.**
+- Map jumped to a wrong place when the finger left the screen, flickered, and loaded tiles ugly. Cause: React re-laid the tiles one frame before the animated transform picked up the new anchor. `MapCanvas` now renders one `TileLayer` per layout (its transform inputs never change), keeps the previous layer underneath until the new tiles have loaded, fades tiles in, checks drift every frame (also while coasting), and only re-anchors at rest when the view moved off its layout. **Not yet re-tested on the phone.**
+- Search showed nothing while waiting (`/places` takes about 2 s when Photon is cold, so "7B Archil Mefe st" looked empty). Added `src/ui/SearchLoading.tsx` (a bus glides along four stops, skeleton rows under it). The server does return the Archil Mepe streets for that query; exact house numbers are mostly missing in OSM.
+- George's complaints that remain: zoom stops at 16 (Esri tiles), no bus stops on the map, and he cannot edit the planned route or choose between several buses; **the by-hand builder and the route options are not built** (stage 2). The builder only shows the single best itinerary (`plan.itineraries[0]` or the chosen one); the planner returns several, none of them are shown.
+
+### Decision in progress: Google map
+Read `knowledge-base/map-provider-options.md` first. Short version: `react-native-maps` is inside Expo Go and shows real Google Maps on Android, so no dev build is needed for the map. George leans towards trying it. **Before committing to Google, George will send a screenshot of TTC's phone app (not the website) so we can tell which map it uses (the website uses Mapbox GL JS). Do not merge a Google map to `main` until George says so.** Work on it on a separate branch (`wip/google-map`), keep `MapCanvas`'s props (`start`, `routes`, `markers`, `pin`, `inset`, `onIdle`, `flyTo`, `fit`) so the screens above it don't change.
+
+Key facts for that work:
+- Expo Go needs **no Google key** (it ships its own). A key is only needed for a development or store build: `apps/mobile/app.json` → `expo.android.config.googleMaps.apiKey`, read from the environment at build time, never committed.
+- Billing safeguards George asked for (he does not want a surprise bill; Google asks for a card authorisation when billing is enabled):
+  1. The map itself (Maps SDK for Android) is free and unlimited **[unverified: check Google's page]**, so it cannot run up a bill.
+  2. Anything that costs money (Places Autocomplete/Details, Geocoding, Static Maps) must only be called from our server, behind a **hard daily cap in our own code** (like the chat quotas in `apps/server/src/ratelimit.ts`), default small, in `.env`, and off unless a key is set.
+  3. In Google Cloud: restrict the key to one API and to our app/IP, and set per-API **daily quota caps** (Quotas page); a budget alert alone only sends mail, it does not stop spending.
+  4. Do not enable billing at all until a paid API is actually needed.
+- Where each key goes: Android map key in the build config above (not needed in Expo Go); Places/Geocoding key on the server only, `GOOGLE_PLACES_API_KEY` in the repo-root `.env` (gitignored), read in `apps/server/src/config.ts`.
+- Keep Esri `StaticMap` for the small route card (no Static Maps cost). Draw TTC stops ourselves as markers if Google's own stops are too faint (`/stops/near` exists).
+
+### What a cloud session can and cannot do
+It can edit code, run `npx tsc --noEmit` in `apps/mobile` and `npm test -w @transit/server`. It cannot reach TTC or serve George's phone. George's VPS session keeps Expo Go (8081) and the API server (8080) running; he pulls the branch there and Expo reloads. Never kill his Expo server.
+
+### Order of work after the Google decision
+1. Google map behind the same `MapCanvas` props, on `wip/google-map` (or stay on Esri and add TTC stop dots if George decides against).
+2. Route options in the builder (cards for each itinerary from `useTripPlan`, tap to choose, keep the choice in the draft).
+3. Stage 2, build by hand (see above). Blocked on George's answer: do hand-built trips need server alerts now (extend `StoredTrip`, his area) or phone-only reminders first.
+4. Request or inbox note to andro before anything reaches `main`.
