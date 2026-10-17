@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import type { Kind } from '../lib/plans';
 import { Icon } from './Icon';
 import { RoutePlate } from './RoutePlate';
+import { Text } from './Text';
 import { color } from './theme';
 
 /** One line of a ride. */
@@ -21,14 +22,10 @@ interface Props {
   max?: number;
 }
 
-/** Plates are at least 40 wide; this much of each plate behind shows. */
-const SLIVER = 12;
-const PLATE_MIN_W = 40;
-
 /**
  * The rides of a trip like Google Maps draws them: an arrow between rides
- * (you change there) and numbers stacked on top of each other when several
- * lines cover the same ride (any of them works).
+ * (you change there) and numbers held in one capsule when several lines
+ * cover the same ride (any of them works).
  */
 export function LineChain({ slots, size = 'md', onDark, max = 3 }: Props) {
   const shown = slots.slice(0, max);
@@ -44,21 +41,25 @@ export function LineChain({ slots, size = 'md', onDark, max = 3 }: Props) {
   );
 }
 
-/** Alternatives for one ride, overlapped: the first in front, a sliver of each behind. */
+/** Alternatives for one ride, held together in one capsule: any of these lines does the ride. */
 export function Stack({ slot, size = 'md', onDark }: { slot: Slot; size?: 'sm' | 'md'; onDark?: boolean }) {
-  const lines = slot.slice(0, 3);
+  if (slot.length === 1) return <RoutePlate label={slot[0].label} kind={slot[0].kind} size={size} onDark={onDark} />;
+  const shown = slot.slice(0, 3);
   return (
-    <View style={styles.stack} accessibilityLabel={slot.length > 1 ? `Any of ${slot.map((l) => l.label).join(', ')}` : slot[0]?.label}>
-      {lines.map((l, i) => (
-        <View key={l.label} style={[{ zIndex: lines.length - i }, i > 0 && { marginLeft: SLIVER - PLATE_MIN_W }]}>
-          <RoutePlate label={l.label} kind={l.kind} size={size} onDark={onDark} />
-        </View>
+    <View style={[styles.capsule, { backgroundColor: onDark ? color.onInkPill : color.surfaceMuted }]} accessibilityLabel={`Any of ${slot.map((l) => l.label).join(', ')}`}>
+      {shown.map((l) => (
+        <RoutePlate key={l.label} label={l.label} kind={l.kind} size={size} />
       ))}
+      {slot.length > shown.length && (
+        <Text variant="captionStrong" color={onDark ? color.onInk : color.textSecondary}>
+          +{slot.length - shown.length}
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  stack: { flexDirection: 'row', alignItems: 'center' },
+  capsule: { flexDirection: 'row', alignItems: 'center', gap: 3, padding: 3, paddingRight: 4, borderRadius: 14 },
 });

@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: gutter, paddingVertical: 16, backgroundColor: color.surface, borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: color.border },
   rowTime: { width: 56 },
   rowMain: { flex: 1, gap: 4 },
-  rowMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rowMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 4 },
   metaText: { marginLeft: 4 },
   cta: { paddingHorizontal: gutter, paddingTop: 20 },
 });

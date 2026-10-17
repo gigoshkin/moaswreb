@@ -104,35 +104,51 @@ export default function RouteBuilder() {
       </View>
 
       <Animated.View
-        entering={FadeInDown.springify().damping(spring.smooth.damping).stiffness(spring.smooth.stiffness)}
-        layout={LinearTransition.springify().damping(spring.smooth.damping).stiffness(spring.smooth.stiffness)}
+        entering={FadeInDown.springify().damping(spring.sheet.damping).stiffness(spring.sheet.stiffness)}
+        layout={LinearTransition.springify().damping(spring.sheet.damping).stiffness(spring.sheet.stiffness)}
         style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}
         onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
       >
-        <View style={styles.ends}>
-          <View style={styles.rail}>
-            <View style={styles.railDot} />
-            <View style={styles.railLine} />
-            <Icon name="pin" size={20} color={color.ink} />
+        {from && to ? (
+          // Both ends set: one row split in half, with the swap button between.
+          <View style={styles.pair}>
+            <Tap onPress={() => pick('from')} feedback="tint" style={styles.half} accessibilityRole="button" accessibilityLabel={`From: ${from.label}`}>
+              <View style={styles.railDot} />
+              <Text variant="label14" numberOfLines={1} style={styles.flex}>
+                {from.label}
+              </Text>
+            </Tap>
+            <Tap onPress={swap} scaleTo={0.9} hitSlop={8} style={styles.swapMid} accessibilityRole="button" accessibilityLabel="Swap start and destination">
+              <View style={{ transform: [{ rotate: '90deg' }] }}>
+                <Icon name="swap" size={18} />
+              </View>
+            </Tap>
+            <Tap onPress={() => pick('to')} feedback="tint" style={styles.half} accessibilityRole="button" accessibilityLabel={`To: ${to.label}`}>
+              <Icon name="pin" size={16} color={color.ink} />
+              <Text variant="label14" numberOfLines={1} style={styles.flex}>
+                {to.label}
+              </Text>
+            </Tap>
           </View>
-          <View style={styles.rows}>
-            <EndRow label="From" value={from?.label} empty="Choose start" onPress={() => pick('from')} divider />
-            <EndRow label="To" value={to?.label} empty="Choose destination" onPress={() => pick('to')} />
+        ) : (
+          <View style={styles.ends}>
+            <View style={styles.rail}>
+              <View style={styles.railDot} />
+              <View style={styles.railLine} />
+              <Icon name="pin" size={20} color={color.ink} />
+            </View>
+            <View style={styles.rows}>
+              <EndRow label="From" value={from?.label} empty="Choose start" onPress={() => pick('from')} divider />
+              <EndRow label="To" value={to?.label} empty="Choose destination" onPress={() => pick('to')} />
+            </View>
           </View>
-          {from && to && (
-            <Animated.View entering={FadeIn.duration(150)} style={styles.swapWrap}>
-              <Tap onPress={swap} scaleTo={0.9} hitSlop={8} style={styles.swap} accessibilityRole="button" accessibilityLabel="Swap start and destination">
-                <Icon name="swap" size={20} />
-              </Tap>
-            </Animated.View>
-          )}
-        </View>
+        )}
 
         {trip && (
           <Animated.View entering={FadeIn.duration(180)} style={styles.gap}>
             <Summary it={it} all={plan.itineraries} busy={busy} error={plan.error} />
             <View style={styles.links}>
-              <Tap onPress={() => setShowOptions((v) => !v)} hitSlop={8} accessibilityRole="button">
+              <Tap onPress={() => setShowOptions((v) => !v)} scaleTo={0.96} style={styles.pill} accessibilityRole="button">
                 <Text variant="label14">{showOptions ? 'Hide ways' : `All ways${plan.itineraries.length ? ` (${plan.itineraries.length})` : ''}`}</Text>
               </Tap>
               <Tap
@@ -140,14 +156,15 @@ export default function RouteBuilder() {
                   const r = await buildSteps({ from: from!, to: to!, arriveBy: init.arriveBy, days: init.days, steps: steps ?? [], avoid });
                   if (r) setSteps(r);
                 }}
-                hitSlop={8}
+                scaleTo={0.96}
+                style={styles.pill}
                 accessibilityRole="button"
               >
                 <Text variant="label14">{steps?.length ? 'Change stops on map' : 'Pick stops on map'}</Text>
               </Tap>
             </View>
             {showOptions && (
-              <ScrollView style={styles.options} showsVerticalScrollIndicator={false}>
+              <ScrollView style={styles.options} contentContainerStyle={styles.optionsContent} showsVerticalScrollIndicator={false}>
                 <Ways
                   itineraries={plan.itineraries}
                   chosenId={best?.id}
@@ -208,12 +225,10 @@ function Summary({ it, all, busy, error }: { it: Itinerary | null; all: Itinerar
   const min = Math.max(1, Math.round(it.durationSec / 60));
   return (
     <View style={styles.summary}>
-      <View style={styles.summaryTop}>
-        <LineChain slots={slotsFor(it, all)} />
-        <Text variant="label16" style={styles.flex} numberOfLines={1}>
-          Leave around {hhmm(leaveAt(it, bufferMin))}
-        </Text>
-      </View>
+      <LineChain slots={slotsFor(it, all)} />
+      <Text variant="label16" numberOfLines={1}>
+        Leave around {hhmm(leaveAt(it, bufferMin))}
+      </Text>
       <Text variant="caption" color={color.textSecondary}>
         Arrive {hhmm(it.arriveAt)} · {min} min{firstWalkMin(it) > 0 ? ` · ${firstWalkMin(it)} min walk first` : ''}
       </Text>
@@ -234,12 +249,14 @@ const styles = StyleSheet.create({
   endRow: { height: 52, justifyContent: 'center', paddingRight: 56 },
   endRowDivider: {},
   divider: { position: 'absolute', left: 0, right: 56, bottom: 0, height: StyleSheet.hairlineWidth * 2, backgroundColor: color.border },
-  swapWrap: { position: 'absolute', right: 8, top: 0, bottom: 0, justifyContent: 'center' },
-  swap: { width: 40, height: 40, borderRadius: 20, backgroundColor: color.surface, alignItems: 'center', justifyContent: 'center', ...shadow.soft },
   gap: { gap: 10 },
-  links: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 },
-  options: { maxHeight: 240 },
+  links: { flexDirection: 'row', gap: 8 },
+  pill: { flex: 1, height: 40, borderRadius: radius.md, backgroundColor: color.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
+  options: { maxHeight: 240, borderTopWidth: StyleSheet.hairlineWidth * 2, borderTopColor: color.border },
+  optionsContent: { paddingTop: 10, paddingBottom: 4 },
+  pair: { flexDirection: 'row', alignItems: 'center', backgroundColor: color.surfaceMuted, borderRadius: radius.md, height: 52, paddingHorizontal: 6 },
+  half: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, height: 52 },
+  swapMid: { width: 32, height: 32, borderRadius: 16, backgroundColor: color.surface, alignItems: 'center', justifyContent: 'center', ...shadow.soft },
   summary: { gap: 4, paddingHorizontal: 2 },
-  summaryTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   flex: { flex: 1 },
 });

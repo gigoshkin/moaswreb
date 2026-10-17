@@ -1,8 +1,8 @@
 import type { Itinerary, PlanAvoid } from '@transit/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
-import { leaveAt, transitLegs } from '../lib/plans';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { kindOf, leaveAt, transitLegs } from '../lib/plans';
 import { chainOf, groupWays, type Way } from '../lib/ways';
 import { hhmm } from '../lib/time';
 import { Icon } from './Icon';
@@ -12,13 +12,13 @@ import { Busy } from './Spinner';
 import { Tap, haptic } from './Tap';
 import { Text } from './Text';
 import { Card } from './kit';
-import { color, radius, spring } from './theme';
+import { color, radius } from './theme';
 
 // Every way the planner found for a trip, grouped like Google Maps: numbers
 // stacked on each other are alternatives for the same ride (any of them gets
-// you there), an arrow means you change. Tap a way to open it and see each
-// option, show it on the map, or say this trip never uses a line. The avoid
-// list belongs to this trip only.
+// you there), an arrow means you change. Tap a way to open it, see each option
+// and show it on the map. Excluding a line is done once, for the route on top
+// of the list; the avoid list belongs to this trip only.
 
 interface Props {
   itineraries: Itinerary[];
@@ -48,6 +48,7 @@ export function Ways({ itineraries, chosenId, selectedId, now, bufferMin, avoid,
   const skipped = avoid?.routes ?? [];
   const ways = groupWays(itineraries, bufferMin);
   const activeId = selectedId ?? chosenId;
+  const chosen = itineraries.find((it) => it.id === chosenId);
   const toggleRoute = (name: string) => {
     haptic('selection');
     onAvoid(tidy(skipped.includes(name) ? skipped.filter((r) => r !== name) : [...skipped, name]));
@@ -59,7 +60,7 @@ export function Ways({ itineraries, chosenId, selectedId, now, bufferMin, avoid,
       {skipped.length > 0 && (
         <View style={styles.chips}>
           <Text variant="caption" color={color.textSecondary}>
-            Not using on this trip
+            Not using
           </Text>
           {skipped.map((r) => (
             <Tap key={r} onPress={() => toggleRoute(r)} hitSlop={6} style={styles.chip} accessibilityRole="button" accessibilityLabel={`Use ${r} again`}>
@@ -80,73 +81,75 @@ export function Ways({ itineraries, chosenId, selectedId, now, bufferMin, avoid,
           </Card>
         )
       ) : (
-        <>
-          {ways.some((w) => w.slots.some((s) => s.length > 1)) && (
-            <Text variant="caption" color={color.textSecondary}>
-              Numbers stacked together: any of them works. An arrow means you change.
-            </Text>
-          )}
-          {ways.map((w) => (
-            <WayCard key={w.key} way={w} open={open === w.key} activeId={activeId} chosenId={chosenId} now={now} bufferMin={bufferMin} skipped={skipped} onToggle={() => setOpen(open === w.key ? null : w.key)} onSelect={onSelect} onAvoid={toggleRoute} />
+        ways.map((w) => (
+          <WayCard key={w.key} way={w} open={open === w.key} activeId={activeId} chosenId={chosenId} now={now} bufferMin={bufferMin} onToggle={() => setOpen(open === w.key ? null : w.key)} onSelect={onSelect} />
+        ))
+      )}
+      {chosen && avoidable(chosen).length > 0 && (
+        <View style={styles.exclude}>
+          <Text variant="caption" color={color.textSecondary}>
+            Never use on this trip
+          </Text>
+          {avoidable(chosen).map((l) => (
+            <Tap key={l.route?.shortName} onPress={() => toggleRoute(l.route?.shortName ?? '')} hitSlop={6} style={styles.neverBtn} accessibilityRole="button" accessibilityLabel={`Never use ${l.route?.shortName}`}>
+              <RoutePlate label={l.route?.shortName ?? l.mode} kind={kindOf(l)} size="sm" />
+              <Icon name="close" size={14} color={color.textSecondary} />
+            </Tap>
           ))}
-        </>
+        </View>
       )}
     </View>
   );
 }
 
-function WayCard({ way, open, activeId, chosenId, now, bufferMin, skipped, onToggle, onSelect, onAvoid }: { way: Way; open: boolean; activeId?: string; chosenId?: string; now: number; bufferMin: number; skipped: string[]; onToggle: () => void; onSelect?: (it: Itinerary) => void; onAvoid: (name: string) => void }) {
+function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSelect }: { way: Way; open: boolean; activeId?: string; chosenId?: string; now: number; bufferMin: number; onToggle: () => void; onSelect?: (it: Itinerary) => void }) {
   const best = way.its[0];
   const leave = leaveAt(best, bufferMin);
   const gone = leave < now - 60_000;
   const current = way.its.some((it) => it.id === activeId);
   const min = Math.max(1, Math.round(best.durationSec / 60));
-  const lines = way.its.flatMap(avoidable).filter((l, i, all) => all.findIndex((x) => x.route?.shortName === l.route?.shortName) === i);
   return (
-    <Animated.View layout={LinearTransition.springify().damping(spring.smooth.damping).stiffness(spring.smooth.stiffness)}>
-      <Card style={[styles.card, current && styles.current, gone && styles.gone]}>
-        <Tap onPress={() => { haptic('selection'); onToggle(); onSelect?.(best); }} scaleTo={0.99} style={styles.head} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${way.its.length} options, tap to ${open ? 'close' : 'open'}`}>
-          <View style={styles.headMain}>
-            <LineChain slots={way.slots} />
-            <Text variant="caption" color={color.textSecondary}>
-              Arrive {hhmm(best.arriveAt)} · {min} min{best.transfers > 0 ? ` · ${best.transfers} change${best.transfers > 1 ? 's' : ''}` : ''}
-              {best.id === chosenId ? ' · best' : ''}
-            </Text>
-          </View>
-          <View style={styles.headSide}>
-            <Text variant="label16">{gone ? 'Gone' : hhmm(leave)}</Text>
+    <Card style={[styles.card, current && styles.current, gone && styles.gone]}>
+      <Tap
+        onPress={() => {
+          haptic('selection');
+          onToggle();
+          onSelect?.(best);
+        }}
+        scaleTo={0.99}
+        style={styles.head}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+      >
+        <View style={styles.headMain}>
+          <LineChain slots={way.slots} />
+          <Text variant="caption" color={color.textSecondary}>
+            Arrive {hhmm(best.arriveAt)} · {min} min{best.transfers > 0 ? ` · ${best.transfers} change${best.transfers > 1 ? 's' : ''}` : ''}
+            {best.id === chosenId ? ' · best' : ''}
+          </Text>
+        </View>
+        <View style={styles.headSide}>
+          <Text variant="label16">{gone ? 'Gone' : hhmm(leave)}</Text>
+          {way.its.length > 1 && (
             <View style={{ transform: [{ rotate: open ? '-90deg' : '90deg' }] }}>
               <Icon name="chevron-right" size={18} color={color.textTertiary} />
             </View>
-          </View>
-        </Tap>
-        {open && (
-          <Animated.View entering={FadeIn.duration(160)} style={styles.detail}>
-            {way.its.map((it) => (
-              <Tap key={it.id} onPress={() => onSelect?.(it)} feedback="tint" style={[styles.opt, it.id === activeId && styles.optOn]} accessibilityRole="button">
-                <LineChain slots={chainOf(it)} size="sm" />
-                <Text variant="caption" color={color.textSecondary} style={styles.flex} numberOfLines={1}>
-                  {leaveAt(it, bufferMin) < now - 60_000 ? 'Gone' : `Leave ${hhmm(leaveAt(it, bufferMin))}`} · arrive {hhmm(it.arriveAt)} · {transitLegs(it).some((l) => l.realtime) ? 'live' : 'timetable'}
-                </Text>
-              </Tap>
-            ))}
-            {lines.length > 0 && (
-              <View style={styles.never}>
-                <Text variant="caption" color={color.textSecondary}>
-                  Never use on this trip
-                </Text>
-                {lines.map((l) => (
-                  <Tap key={l.route?.shortName} onPress={() => onAvoid(l.route?.shortName ?? '')} hitSlop={6} style={[styles.neverBtn, skipped.includes(l.route?.shortName ?? '') && styles.off]} accessibilityRole="button" accessibilityLabel={`Never use ${l.route?.shortName}`}>
-                    <RoutePlate label={l.route?.shortName ?? l.mode} kind={l.route?.minibus ? 'minibus' : 'bus'} size="sm" />
-                    <Icon name="close" size={14} color={color.textSecondary} />
-                  </Tap>
-                ))}
-              </View>
-            )}
-          </Animated.View>
-        )}
-      </Card>
-    </Animated.View>
+          )}
+        </View>
+      </Tap>
+      {open && way.its.length > 1 && (
+        <Animated.View entering={FadeIn.duration(160)} style={styles.detail}>
+          {way.its.map((it) => (
+            <Tap key={it.id} onPress={() => onSelect?.(it)} feedback="tint" style={[styles.opt, it.id === activeId && styles.optOn]} accessibilityRole="button">
+              <LineChain slots={chainOf(it)} size="sm" />
+              <Text variant="caption" color={color.textSecondary} style={styles.flex} numberOfLines={1}>
+                {leaveAt(it, bufferMin) < now - 60_000 ? 'Gone' : hhmm(leaveAt(it, bufferMin))} → {hhmm(it.arriveAt)} · {transitLegs(it).some((l) => l.realtime) ? 'live' : 'timetable'}
+              </Text>
+            </Tap>
+          ))}
+        </Animated.View>
+      )}
+    </Card>
   );
 }
 
@@ -164,7 +167,6 @@ const styles = StyleSheet.create({
   detail: { gap: 4, paddingHorizontal: 8, paddingBottom: 12 },
   opt: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 6, borderRadius: radius.sm },
   optOn: { backgroundColor: color.surfaceMuted },
-  never: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingHorizontal: 6, paddingTop: 8 },
+  exclude: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, paddingTop: 6 },
   neverBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  off: { opacity: 0.35 },
 });

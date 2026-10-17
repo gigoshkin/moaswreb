@@ -15,7 +15,7 @@ export const color = {
   surfaceMuted: '#F4F4F5',
   border: '#E7E7EA',
   track: '#E7E7EA',
-  cream: '#FDF6E4',
+  cream: '#F0F0F2', // the Today hero (was beige; George, 18 Oct)
   sky: '#D0EDF6',
   onInk: '#FFFFFF',
   onInkMuted: 'rgba(255,255,255,0.6)',
@@ -97,6 +97,8 @@ export const shadow = {
 export const spring = {
   snappy: { damping: 24, stiffness: 320, mass: 0.6 } satisfies WithSpringConfig,
   smooth: { damping: 27, stiffness: 180, mass: 0.9 } satisfies WithSpringConfig,
+  /** Bottom sheets: the bounce George likes. Nothing else bounces. */
+  sheet: { damping: 22, stiffness: 180, mass: 0.9 } satisfies WithSpringConfig,
   lead: { damping: 28, stiffness: 420, mass: 0.6 } satisfies WithSpringConfig,
   trail: { damping: 26, stiffness: 170, mass: 0.8 } satisfies WithSpringConfig,
 };

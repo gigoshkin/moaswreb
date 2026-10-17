@@ -179,8 +179,8 @@ export default function BuildRoute() {
       </View>
 
       <Animated.View
-        entering={FadeInDown.springify().damping(spring.smooth.damping).stiffness(spring.smooth.stiffness)}
-        layout={LinearTransition.springify().damping(spring.smooth.damping).stiffness(spring.smooth.stiffness)}
+        entering={FadeInDown.springify().damping(spring.sheet.damping).stiffness(spring.sheet.stiffness)}
+        layout={LinearTransition.springify().damping(spring.sheet.damping).stiffness(spring.sheet.stiffness)}
         style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}
         onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
       >
@@ -333,7 +333,8 @@ function useStopsNear(p: Point | null) {
     let live = true;
     setLoading(true);
     const t = setTimeout(() => {
-      nearStops(p, { radiusM: 500, limit: 60 }).then(
+      // An API server from before the limit was raised answers 400 to 60: ask for 20 then.
+      nearStops(p, { radiusM: 500, limit: 60 }).catch(() => nearStops(p, { radiusM: 400, limit: 20 })).then(
         (r) => {
           if (!live) return;
           // Stops already seen stay, so the dots don't flicker while panning.

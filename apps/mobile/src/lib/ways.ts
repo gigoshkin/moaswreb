@@ -45,7 +45,13 @@ export const slotsFor = (it: Itinerary, all: Itinerary[]): Slot[] => {
 /** Group by stops, best (earliest arrival, then latest leave) first. */
 export function groupWays(all: Itinerary[], bufferMin: number): Way[] {
   const best = (a: Itinerary, b: Itinerary) => Date.parse(a.arriveAt) - Date.parse(b.arriveAt) || leaveAt(b, bufferMin) - leaveAt(a, bufferMin);
+  // The same lines can show up with different times or stops: keep the best of each, so nothing is listed twice.
+  const seen = new Set<string>();
+  const distinct = [...all].sort(best).filter((it) => {
+    const k = chainOf(it).map((s) => s[0].label).join('>');
+    return !seen.has(k) && !!seen.add(k);
+  });
   const groups = new Map<string, Itinerary[]>();
-  for (const it of [...all].sort(best)) groups.set(wayKey(it), [...(groups.get(wayKey(it)) ?? []), it]);
+  for (const it of distinct) groups.set(wayKey(it), [...(groups.get(wayKey(it)) ?? []), it]);
   return [...groups.entries()].map(([key, its]) => ({ key, its, slots: slotsFor(its[0], its) })).sort((a, b) => best(a.its[0], b.its[0]));
 }

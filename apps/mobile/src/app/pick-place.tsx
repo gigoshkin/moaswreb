@@ -282,7 +282,7 @@ function MapPick({ kind, onPick, onBack }: { kind: PickKind; onPick: (p: Place) 
         <MapButton icon="locate" label="My location" onPress={locate} style={locating && styles.busy} />
       </View>
 
-      <Animated.View entering={FadeInDown.springify().damping(spring.smooth.damping).stiffness(spring.smooth.stiffness)} style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onLayout={(e) => setCardH(e.nativeEvent.layout.height)}>
+      <Animated.View entering={FadeInDown.springify().damping(spring.sheet.damping).stiffness(spring.sheet.stiffness)} style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onLayout={(e) => setCardH(e.nativeEvent.layout.height)}>
         <Text variant="caption" color={color.textSecondary}>
           {TITLES[kind]}
         </Text>
