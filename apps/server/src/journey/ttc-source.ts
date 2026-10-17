@@ -150,9 +150,19 @@ export class TtcSource implements Source {
     const blocks = await this.memo(`schedule:${p.routeId}:${p.suffix}`, 6 * HOUR, () => this.ttc.schedule(p.routeId, p.suffix, 'en'));
     const block = blockFor(blocks, date);
     if (!block) return null;
-    // Position in the pattern → times. Positions are the pattern's own order.
+    // Line the timetable's stops up with the pattern's, in order (a loop line visits its first stop twice, and `position` is not always 0-based).
+    const sched = [...block.stops].sort((a, b) => a.position - b.position);
     const times: number[][] = [];
-    for (const s of block.stops) times[s.position] = parseTimes(s.arrivalTimes);
+    let cursor = 0;
+    p.stops.forEach((st, i) => {
+      for (let j = cursor; j < sched.length; j++) {
+        if (sched[j].id === st.id) {
+          times[i] = parseTimes(sched[j].arrivalTimes);
+          cursor = j + 1;
+          return;
+        }
+      }
+    });
     return { times };
   }
 

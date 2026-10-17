@@ -23,6 +23,7 @@ const engine = new Engine(new TtcSource(ttc, stops, process.env.TRANSIT_CACHE ??
 const deadline = Date.parse(`${arriveBy}:00+04:00`);
 const hm = (iso: string) => new Date(Date.parse(iso) + 4 * 3600e3).toISOString().slice(11, 16);
 const diffs: number[] = [];
+const departDiffs: number[] = [];
 
 for (const [name, from, to] of pairs) {
   const [fromStops, toStops] = await Promise.all([stops.near(from, { radiusM: 900, limit: 14 }), stops.near(to, { radiusM: 900, limit: 14 })]);
@@ -31,19 +32,30 @@ for (const [name, from, to] of pairs) {
   console.log(`\n${name}  (arrive by ${arriveBy})`);
   for (const t of theirs) {
     const lines = t.legs.filter((l) => l.route).map((l) => l.route!.shortName);
-    const mine = lines.length === 1 ? own.find((o) => o.legs.some((l) => l.route?.shortName === lines[0] && !o.id.includes('x'))) : undefined;
     const tl = t.legs.find((l) => l.route)!;
-    const ml = mine?.legs.find((l) => l.route);
     const line = `  TTC ${lines.join('>')}: ${hm(tl.departAt)}-${hm(tl.arriveAt)}`;
-    if (!ml || !mine) console.log(`${line}   ours: (not found or transfer)`);
-    else {
-      const dd = Math.round((Date.parse(ml.departAt) - Date.parse(tl.departAt)) / 60000);
-      const ride = Math.round((ml.durationSec - tl.durationSec) / 60);
-      diffs.push(Math.abs(ride));
-      console.log(`${line}   ours: ${hm(ml.departAt)}-${hm(ml.arriveAt)}  (depart ${dd >= 0 ? '+' : ''}${dd} min, ride ${ride >= 0 ? '+' : ''}${ride} min)`);
+    if (lines.length !== 1) {
+      console.log(`${line}   (transfer: TTC's planner only)`);
+      continue;
     }
+    // Compare like with like: same line, same boarding and alighting stop.
+    const fromId = await stops.snap(tl.from, tl.mode, 40);
+    const toId = await stops.snap(tl.to, tl.mode, 40);
+    // Ask our planner for exactly TTC's stops and line, so the two are compared like with like.
+    const mine = fromId && toId ? (await engine.solve({ from, to, steps: [{ fromStops: [fromId], toStops: [toId], routes: [lines[0]] }], deadline, now: Date.now() }))[0] : undefined;
+    const ml = mine?.legs.find((l) => l.route);
+    if (!ml) {
+      console.log(`${line}   ours: nothing for those stops`);
+      continue;
+    }
+    const dd = Math.round((Date.parse(ml.departAt) - Date.parse(tl.departAt)) / 60000);
+    const ride = Math.round((ml.durationSec - tl.durationSec) / 60);
+    diffs.push(Math.abs(ride));
+    departDiffs.push(Math.abs(dd));
+    console.log(`${line}   ours: ${hm(ml.departAt)}-${hm(ml.arriveAt)}  (same stops; depart ${dd >= 0 ? '+' : ''}${dd} min, ride ${ride >= 0 ? '+' : ''}${ride} min)`);
   }
   console.log(`  ours also: ${own.filter((o) => !theirs.some((t) => t.legs.some((l) => l.route?.shortName === o.legs.find((x) => x.route)?.route?.shortName))).map((o) => o.id).join(', ') || '-'}`);
 }
-if (diffs.length) console.log(`\nride-time difference on ${diffs.length} shared lines: mean ${(diffs.reduce((a, b) => a + b, 0) / diffs.length).toFixed(1)} min, max ${Math.max(...diffs)} min`);
+const mean = (xs: number[]) => (xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(1);
+if (diffs.length) console.log(`\nSame line and same stops, ${diffs.length} trips: ride time differs by ${mean(diffs)} min on average (max ${Math.max(...diffs)}); departure by ${mean(departDiffs)} min (max ${Math.max(...departDiffs)}).`);
 process.exit(0);
