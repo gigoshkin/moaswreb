@@ -27,7 +27,7 @@ const DAY_MS = 24 * 3600_000;
 const bestItinerary = (its: Itinerary[], arriveByMs: number): Itinerary | null =>
   its
     .filter((it) => Date.parse(it.arriveAt) <= arriveByMs)
-    .sort((a, b) => Date.parse(b.departAt) - Date.parse(a.departAt))[0] ?? null;
+    .sort((a, b) => Date.parse(b.departAt) - Date.parse(a.departAt) || Date.parse(a.arriveAt) - Date.parse(b.arriveAt))[0] ?? null;
 
 const routesOf = (it: Itinerary) =>
   it.legs
