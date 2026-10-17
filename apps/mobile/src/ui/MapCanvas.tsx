@@ -1,8 +1,8 @@
 import type { LatLon } from '@transit/shared';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Image, StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 import { GestureDetector, usePanGesture, usePinchGesture, useSimultaneousGestures } from 'react-native-gesture-handler';
-import Animated, { Easing, cancelAnimation, runOnJS, useAnimatedStyle, useSharedValue, withDecay, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, cancelAnimation, runOnJS, useAnimatedReaction, useAnimatedStyle, useSharedValue, withDecay, withSpring, withTiming } from 'react-native-reanimated';
 import Svg, { Polyline } from 'react-native-svg';
 import { MAX_ZOOM, MIN_ZOOM, TILE, clamp, fitView, latOf, lonOf, normX, normY, scaleAt, tileUrl, viewOf } from '../lib/mapMath';
 import { color, spring } from './theme';
@@ -65,11 +65,45 @@ interface Anchor {
 
 const PIN_H = 44;
 // Tiles are laid out this far beyond the screen on every side (× the screen size).
-const OVERSCAN = 0.6;
+const OVERSCAN = 0.5;
 
 const anchorOf = (nx: number, ny: number, zoom: number): Anchor => {
   const zi = clamp(Math.round(zoom), 3, 16);
   return { nx, ny, zi, k: 2 ** (zoom - zi) };
+};
+
+/** One tile layout. A new one is laid out when the view drifts; the old one stays underneath until the new tiles are in. */
+interface Gen extends Anchor {
+  id: number;
+}
+
+/** A point in a layout's pixels (at its zoom, relative to its anchor point). */
+const layerPoint = (a: Anchor) => {
+  const P = scaleAt(a.zi);
+  const ax = a.nx * P;
+  const ay = a.ny * P;
+  return (p: LatLon) => ({ x: normX(p.lon) * P - ax, y: normY(p.lat) * P - ay });
+};
+
+const tilesFor = (a: Anchor, w: number, h: number) => {
+  const P = scaleAt(a.zi);
+  const ax = a.nx * P;
+  const ay = a.ny * P;
+  const reachX = (w * (0.5 + OVERSCAN)) / a.k;
+  const reachY = (h * (0.5 + OVERSCAN)) / a.k;
+  const n = 2 ** a.zi;
+  const out: { key: string; uri: string; left: number; top: number }[] = [];
+  const x0 = Math.floor((ax - reachX) / TILE);
+  const x1 = Math.floor((ax + reachX) / TILE);
+  const y0 = Math.floor((ay - reachY) / TILE);
+  const y1 = Math.floor((ay + reachY) / TILE);
+  for (let tx = x0; tx <= x1; tx++) {
+    for (let ty = y0; ty <= y1; ty++) {
+      if (tx < 0 || ty < 0 || tx >= n || ty >= n) continue;
+      out.push({ key: `${a.zi}/${tx}/${ty}`, uri: tileUrl(a.zi, tx, ty), left: tx * TILE - ax, top: ty * TILE - ay });
+    }
+  }
+  return out;
 };
 
 export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
@@ -79,7 +113,10 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
   const [size, setSize] = useState({ w: 0, h: 0 });
   const insetTop = inset?.top ?? 0;
   const insetBottom = inset?.bottom ?? 0;
-  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  // The newest layout is on top; the one before it stays until the new tiles have loaded.
+  const [gens, setGens] = useState<Gen[]>([]);
+  const genSeq = useRef(0);
+  const anchor = gens.length ? gens[gens.length - 1] : null;
 
   const nx = useSharedValue(0);
   const ny = useSharedValue(0);
@@ -103,7 +140,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     (a: Anchor) => {
       anchorSV.set(a);
       anchoring.set(false);
-      setAnchor(a);
+      setGens((prev) => [...prev.slice(-1), { ...a, id: ++genSeq.current }]);
     },
     [anchorSV, anchoring],
   );
@@ -138,9 +175,12 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     const x = nx.get();
     const y = ny.get();
     const z = zoom.get();
-    commitAnchor(anchorOf(x, y, z));
+    // New tiles only when the view has moved off its layout; a small nudge keeps the one it has.
+    const cur = anchorSV.get();
+    const off = Math.max(Math.abs(x - cur.nx), Math.abs(y - cur.ny)) * TILE * 2 ** cur.zi * cur.k;
+    if (off > size.w * 0.2 || Math.abs(z - cur.zi) > 0.6) commitAnchor(anchorOf(x, y, z));
     onIdleRef.current?.({ lat: latOf(y), lon: lonOf(x) }, z);
-  }, [nx, ny, zoom, commitAnchor]);
+  }, [nx, ny, zoom, commitAnchor, anchorSV, size.w]);
 
   const reanchor = useCallback(() => commitAnchor(anchorOf(nx.get(), ny.get(), zoom.get())), [nx, ny, zoom, commitAnchor]);
 
@@ -156,6 +196,14 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
       runOnJS(reanchor)();
     }
   };
+
+  // Also while it coasts or glides, not only while a finger is down.
+  useAnimatedReaction(
+    () => [nx.value, ny.value, zoom.value],
+    () => checkDrift(),
+  );
+
+  const layoutReady = useCallback((id: number) => setGens((prev) => (prev.length > 1 && prev[prev.length - 1].id === id ? [prev[prev.length - 1]] : prev)), []);
 
   const moveStarted = useCallback(() => onMoveStartRef.current?.(), []);
 
@@ -177,7 +225,6 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
       const s = TILE * 2 ** zoom.value;
       nx.value -= e.changeX / s;
       ny.value = clamp(ny.value - e.changeY / s, 0.01, 0.99);
-      checkDrift();
     },
     onDeactivate: (e) => {
       'worklet';
@@ -219,7 +266,6 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
       nx.value += (e.focalX - fx) * (1 / sOld - 1 / sNew) - (e.focalX - last.x) / sNew;
       ny.value = clamp(ny.value + (e.focalY - focusY.value) * (1 / sOld - 1 / sNew) - (e.focalY - last.y) / sNew, 0.01, 0.99);
       zoom.value = zNew;
-      checkDrift();
     },
     onFinalize: () => {
       'worklet';
@@ -263,46 +309,12 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     [fly, size.w, size.h, insetTop, insetBottom, zoom],
   );
 
-  // --- layer contents, in pixels at the anchor zoom, relative to the anchor point ---
+  // --- the route, in the newest layout's pixels ---
 
-  const layer = useMemo(() => {
-    if (!anchor || !size.w) return null;
-    const P = scaleAt(anchor.zi);
-    const ax = anchor.nx * P;
-    const ay = anchor.ny * P;
-    const k0 = anchor.k;
-    const reachX = (size.w * (0.5 + OVERSCAN)) / k0;
-    const reachY = (size.h * (0.5 + OVERSCAN)) / k0;
-    const n = 2 ** anchor.zi;
-    const tiles: { key: string; uri: string; left: number; top: number }[] = [];
-    const x0 = Math.floor((ax - reachX) / TILE);
-    const x1 = Math.floor((ax + reachX) / TILE);
-    const y0 = Math.floor((ay - reachY) / TILE);
-    const y1 = Math.floor((ay + reachY) / TILE);
-    for (let tx = x0; tx <= x1; tx++) {
-      for (let ty = y0; ty <= y1; ty++) {
-        if (tx < 0 || ty < 0 || tx >= n || ty >= n) continue;
-        tiles.push({ key: `${anchor.zi}/${tx}/${ty}`, uri: tileUrl(anchor.zi, tx, ty), left: tx * TILE - ax, top: ty * TILE - ay });
-      }
-    }
-    const toLayer = (p: LatLon) => ({ x: normX(p.lon) * P - ax, y: normY(p.lat) * P - ay });
-    return { tiles, P, ax, ay, toLayer };
-  }, [anchor, size.w, size.h]);
-
-  // Layer transform: layer point L → screen = focus + k·(L − (view − anchor)).
-  const layerStyle = useAnimatedStyle(() => {
-    if (!anchor) return { opacity: 0 };
-    const P = scaleAt(anchor.zi);
-    const k = 2 ** (zoom.value - anchor.zi);
-    const dx = (nx.value - anchor.nx) * P;
-    const dy = (ny.value - anchor.ny) * P;
-    // `opacity` stays in every return: a style key that disappears is not reset.
-    return { opacity: 1, transform: [{ translateX: width.value / 2 - k * dx }, { translateY: focusY.value - k * dy }, { scale: k }] };
-  }, [anchor]);
-
+  const toLayer = useMemo(() => (anchor ? layerPoint(anchor) : null), [anchor]);
   const lines = useMemo(() => {
-    if (!layer || !anchor) return null;
-    const groups = routes.filter((r) => r.points.length > 1).map((r) => ({ walk: r.walk, pts: r.points.map(layer.toLayer) }));
+    if (!toLayer) return null;
+    const groups = routes.filter((r) => r.points.length > 1).map((r) => ({ walk: r.walk, pts: r.points.map(toLayer) }));
     if (!groups.length) return null;
     const all = groups.flatMap((g) => g.pts);
     const pad = 12;
@@ -311,40 +323,19 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     const maxX = Math.max(...all.map((p) => p.x)) + pad;
     const maxY = Math.max(...all.map((p) => p.y)) + pad;
     return { minX, minY, w: maxX - minX, h: maxY - minY, groups };
-  }, [layer, anchor, routes]);
-
-  const k0 = anchor?.k ?? 1;
+  }, [toLayer, routes]);
 
   return (
     <View style={[styles.map, style]} onLayout={onLayout}>
       <GestureDetector gesture={gesture}>
         <View style={StyleSheet.absoluteFill} collapsable={false}>
-          {layer && (
-            <Animated.View style={[styles.layer, { width: size.w, height: size.h }, layerStyle]} pointerEvents="none">
-              {layer.tiles.map((t) => (
-                <Image key={t.key} source={{ uri: t.uri }} style={[styles.tile, { left: t.left, top: t.top }]} fadeDuration={0} />
-              ))}
-              {lines && (
-                <Svg width={lines.w} height={lines.h} style={{ position: 'absolute', left: lines.minX, top: lines.minY }}>
-                  {lines.groups.map((g, i) => (
-                    <Polyline
-                      key={i}
-                      points={g.pts.map((p) => `${p.x - lines.minX},${p.y - lines.minY}`).join(' ')}
-                      fill="none"
-                      stroke={color.ink}
-                      strokeWidth={(g.walk ? 3 : 5) / k0}
-                      strokeDasharray={g.walk ? `${1 / k0} ${7 / k0}` : undefined}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  ))}
-                </Svg>
-              )}
-            </Animated.View>
-          )}
-          {layer &&
+          {size.w > 0 &&
+            gens.map((g, i) => (
+              <TileLayer key={g.id} gen={g} size={size} nx={nx} ny={ny} zoom={zoom} width={width} focusY={focusY} lines={i === gens.length - 1 ? lines : null} onReady={layoutReady} />
+            ))}
+          {anchor && toLayer &&
             markers.map((m) => (
-              <MarkerView key={m.key} at={layer.toLayer(m.at)} anchor={anchor!} nx={nx} ny={ny} zoom={zoom} width={width} focusY={focusY} bottom={m.anchor === 'bottom'}>
+              <MarkerView key={`${m.key}@${anchor.id}`} at={toLayer(m.at)} anchor={anchor} nx={nx} ny={ny} zoom={zoom} width={width} focusY={focusY} bottom={m.anchor === 'bottom'}>
                 {m.node}
               </MarkerView>
             ))}
@@ -357,6 +348,74 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
 
 type Shared = ReturnType<typeof useSharedValue<number>>;
 
+/** A tile layout: tiles (and the route, on the newest) in one layer, moved and scaled from the view every frame. The transform's inputs never change for a given layout, so it can't lag behind its tiles. */
+function TileLayer({ gen, size, nx, ny, zoom, width, focusY, lines, onReady }: { gen: Gen; size: { w: number; h: number }; nx: Shared; ny: Shared; zoom: Shared; width: Shared; focusY: Shared; lines: Lines | null; onReady: (id: number) => void }) {
+  const tiles = useMemo(() => tilesFor(gen, size.w, size.h), [gen, size.w, size.h]);
+  const settled = useRef(0);
+  const settle = useCallback(() => {
+    settled.current += 1;
+    if (settled.current >= tiles.length) onReady(gen.id);
+  }, [tiles.length, gen.id, onReady]);
+  useEffect(() => {
+    // Don't wait forever for a tile that never comes.
+    const t = setTimeout(() => onReady(gen.id), 1800);
+    return () => clearTimeout(t);
+  }, [gen.id, onReady]);
+
+  // Layer point L → screen = focus + k·(L − (view − anchor)).
+  const style = useAnimatedStyle(() => {
+    const P = scaleAt(gen.zi);
+    const k = 2 ** (zoom.value - gen.zi);
+    const dx = (nx.value - gen.nx) * P;
+    const dy = (ny.value - gen.ny) * P;
+    return { transform: [{ translateX: width.value / 2 - k * dx }, { translateY: focusY.value - k * dy }, { scale: k }] };
+  });
+
+  return (
+    <Animated.View style={[styles.layer, { width: size.w, height: size.h }, style]} pointerEvents="none">
+      {tiles.map((t) => (
+        <Tile key={t.key} uri={t.uri} left={t.left} top={t.top} onSettled={settle} />
+      ))}
+      {lines && (
+        <Svg width={lines.w} height={lines.h} style={{ position: 'absolute', left: lines.minX, top: lines.minY }}>
+          {lines.groups.map((g, i) => (
+            <Polyline
+              key={i}
+              points={g.pts.map((p) => `${p.x - lines.minX},${p.y - lines.minY}`).join(' ')}
+              fill="none"
+              stroke={color.ink}
+              strokeWidth={(g.walk ? 3 : 5) / gen.k}
+              strokeDasharray={g.walk ? `${1 / gen.k} ${7 / gen.k}` : undefined}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+        </Svg>
+      )}
+    </Animated.View>
+  );
+}
+
+type Lines = { minX: number; minY: number; w: number; h: number; groups: { walk?: boolean; pts: { x: number; y: number }[] }[] };
+
+/** One tile picture; fades in when it arrives, so new ground doesn't pop. */
+function Tile({ uri, left, top, onSettled }: { uri: string; left: number; top: number; onSettled: () => void }) {
+  const o = useSharedValue(0);
+  const fade = useAnimatedStyle(() => ({ opacity: o.value }));
+  return (
+    <Animated.Image
+      source={{ uri }}
+      style={[styles.tile, { left, top }, fade]}
+      fadeDuration={0}
+      onLoad={() => {
+        o.value = withTiming(1, { duration: 180 });
+        onSettled();
+      }}
+      onError={onSettled}
+    />
+  );
+}
+
 /** Keeps a marker on its point: same transform as the layer, but not scaled, so it stays crisp. */
 function MarkerView({ at, anchor, nx, ny, zoom, width, focusY, bottom, children }: { at: { x: number; y: number }; anchor: Anchor; nx: Shared; ny: Shared; zoom: Shared; width: Shared; focusY: Shared; bottom: boolean; children: ReactNode }) {
   const style = useAnimatedStyle(() => {
@@ -365,7 +424,7 @@ function MarkerView({ at, anchor, nx, ny, zoom, width, focusY, bottom, children 
     const dx = (nx.value - anchor.nx) * P;
     const dy = (ny.value - anchor.ny) * P;
     return { transform: [{ translateX: width.value / 2 + k * (at.x - dx) }, { translateY: focusY.value + k * (at.y - dy) }] };
-  }, [anchor, at.x, at.y]);
+  });
   return (
     <Animated.View style={[styles.marker, style]} pointerEvents="none">
       <View style={bottom ? styles.markerBottom : styles.markerCenter}>{children}</View>

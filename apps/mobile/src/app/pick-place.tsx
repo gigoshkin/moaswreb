@@ -13,6 +13,7 @@ import { Button } from '../ui/Button';
 import { Icon, type IconName } from '../ui/Icon';
 import { MapCanvas, type MapCanvasHandle } from '../ui/MapCanvas';
 import { Tap, haptic } from '../ui/Tap';
+import { SearchLoading } from '../ui/SearchLoading';
 import { Text } from '../ui/Text';
 import { MapButton, TopBar } from '../ui/kit';
 import { color, font, gutter, radius, shadow, spring } from '../ui/theme';
@@ -162,8 +163,9 @@ function Search({ kind, onPick, onMap }: { kind: PickKind; onPick: (p: Place) =>
           </Text>
         </Animated.View>
       )}
+      {status === 'searching' && <SearchLoading rows={!results.length} />}
       <FlatList
-        data={rows}
+        data={status === 'searching' && !results.length ? [mapRow] : rows}
         keyExtractor={(r) => r.key}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.list}
