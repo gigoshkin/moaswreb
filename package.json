@@ -14,5 +14,9 @@
   "devDependencies": {
     "dictionary-ka": "^2.0.0",
     "nspell": "^2.1.5"
+  },
+  "overrides": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   }
 }

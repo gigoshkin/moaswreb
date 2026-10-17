@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
+import type * as NotificationsModule from 'expo-notifications';
 import { Platform } from 'react-native';
 import { hasApi, registerPushToken, syncTrips } from './api';
 import { t } from './strings';
@@ -11,7 +11,10 @@ import { listTrips, toStored } from './trips';
 // Server pushes and local backups use this channel; high importance so they show on the lock screen.
 const CHANNEL = 'alerts';
 
-Notifications.setNotificationHandler({
+// Not loaded in Expo Go: expo-notifications 58.1 needs a native module Expo Go 58.0.4 lacks. Alerts need a dev build there anyway.
+const Notifications: typeof NotificationsModule | null = isExpoGo ? null : require('expo-notifications');
+
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
 });
 
@@ -20,6 +23,7 @@ Notifications.setNotificationHandler({
  * and trips to the server. Safe to call on every app start.
  */
 export async function setUpAlerts(): Promise<'ok' | 'denied' | 'no-server' | 'simulator' | 'expo-go'> {
+  if (!Notifications) return 'expo-go';
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(CHANNEL, {
       name: 'გასვლის შეხსენებები',
@@ -31,8 +35,6 @@ export async function setUpAlerts(): Promise<'ok' | 'denied' | 'no-server' | 'si
   if (!hasApi) return 'no-server';
   await syncTrips(toStored(listTrips()));
   if (!Device.isDevice) return 'simulator';
-  // Expo Go can't get push tokens (needs a dev build); local backup alerts still work.
-  if (isExpoGo) return 'expo-go';
   // projectId comes from the EAS project (app.json → extra.eas.projectId), set up by George.
   const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
   const { data } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
@@ -46,6 +48,7 @@ export async function setUpAlerts(): Promise<'ok' | 'denied' | 'no-server' | 'si
  * the timetable, not live delays. One per trip; rescheduling replaces it.
  */
 export async function scheduleBackup(tripId: string, tripName: string, leaveAt: number): Promise<void> {
+  if (!Notifications) return;
   const id = `backup-${tripId}`;
   await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
   if (leaveAt <= Date.now()) return;
