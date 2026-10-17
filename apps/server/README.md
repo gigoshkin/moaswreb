@@ -48,7 +48,7 @@ Same data as the chat tools (`src/ttc/lookups.ts`). Stop ids look like `1:1405` 
 - `GET /places?q=free university` → `{ places: PlaceHit[] }` (OSM via TTC: name, address, kind).
 
 ## Limits
-Per IP, per minute: `RATE_LIMIT_PER_MIN` (60) for all API routes, `CHAT_RATE_LIMIT_PER_MIN` (10) for `/chat`; 429 with `retry-after` past that. `/health` and `/…/stats` are exempt. Behind Caddy set `TRUST_PROXY` (docker compose does: `loopback,uniquelocal`) so the limit sees real clients. `API_KEY` ships inside the app, so it slows abuse but is not a secret.
+Per IP, per minute: `RATE_LIMIT_PER_MIN` (60) for all API routes, `CHAT_RATE_LIMIT_PER_MIN` (10) for `/chat`; 429 with `retry-after` past that. `/chat` also has daily caps (Tbilisi day, in memory): `CHAT_DAILY_LIMIT` (40) per IP and per `x-device-id`, `CHAT_DAILY_LIMIT_TOTAL` (1000) for everyone, which is the hard stop on the Claude bill; 429 with code `quota`. `/health` and `/…/stats` are exempt. Behind Caddy set `TRUST_PROXY` (docker compose does: `loopback,uniquelocal`) so the limit sees real clients. `API_KEY` ships inside the app, so it slows abuse but is not a secret.
 
 ## Tests
 ```bash

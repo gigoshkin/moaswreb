@@ -72,7 +72,7 @@ export async function send(text: string, attachment?: Attachment): Promise<void>
     chatStore.set([...chatStore.get(), { id: id(), role: 'assistant', text: res.reply, cards: res.cards }]);
   } catch (e) {
     const code = (e as { code?: string }).code;
-    const msg = code === 'rate_limited' ? 'Too many messages at once. Try again in a minute.' : code === 'timeout' ? 'That took too long. Try again.' : "Couldn't reach the server. Try again.";
+    const msg = code === 'quota' ? "You've used today's assistant messages. Try again tomorrow." : code === 'rate_limited' ? 'Too many messages at once. Try again in a minute.' : code === 'timeout' ? 'That took too long. Try again.' : "Couldn't reach the server. Try again.";
     chatStore.set([...chatStore.get(), { id: id(), role: 'assistant', text: msg, error: true }]);
   } finally {
     chatBusy.set(false);

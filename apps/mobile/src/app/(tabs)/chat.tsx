@@ -71,31 +71,32 @@ export default function Chat() {
     <View style={styles.screen}>
       <ScreenTitle title="Chat" bar />
       <Animated.View style={[styles.flex, lift]}>
-        <LayoutAnimationConfig skipEntering>
-          <FlatList
-            data={data}
-            inverted
-            keyExtractor={(m) => m.id}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            contentContainerStyle={styles.list}
-            showsVerticalScrollIndicator={false}
-            ListHeaderComponent={busy ? <Thinking /> : undefined}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <Text variant="body16" color={color.textSecondary} style={styles.emptyText}>
-                  Ask about a trip, send a photo of your timetable, or paste a notice.
-                </Text>
-                {SUGGESTIONS.map((s) => (
-                  <Tap key={s} onPress={() => (s.startsWith('Paste') ? input.current?.focus() : send(s))} style={styles.suggestion} scaleTo={0.97}>
-                    <Text variant="body15">{s}</Text>
-                  </Tap>
-                ))}
-              </View>
-            }
-            renderItem={({ item }) => <Message item={item} onEdit={(t) => (setText(t), input.current?.focus())} />}
-          />
-        </LayoutAnimationConfig>
+        {data.length === 0 ? (
+          <View style={styles.empty}>
+            <Text variant="body16" color={color.textSecondary} style={styles.emptyText}>
+              Ask about a trip, send a photo of your timetable, or paste a notice.
+            </Text>
+            {SUGGESTIONS.map((s) => (
+              <Tap key={s} onPress={() => (s.startsWith('Paste') ? input.current?.focus() : send(s))} style={styles.suggestion} scaleTo={0.97}>
+                <Text variant="body15">{s}</Text>
+              </Tap>
+            ))}
+          </View>
+        ) : (
+          <LayoutAnimationConfig skipEntering>
+            <FlatList
+              data={data}
+              inverted
+              keyExtractor={(m) => m.id}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              contentContainerStyle={styles.list}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={busy ? <Thinking /> : undefined}
+              renderItem={({ item }) => <Message item={item} onEdit={(t) => (setText(t), input.current?.focus())} />}
+            />
+          </LayoutAnimationConfig>
+        )}
 
         <View style={styles.inputArea}>
           {attachment && (
@@ -185,7 +186,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.bg },
   flex: { flex: 1 },
   list: { flexGrow: 1, paddingHorizontal: gutter, paddingVertical: 12, gap: 16 },
-  empty: { flex: 1, justifyContent: 'flex-end', gap: 8, transform: [{ scaleY: -1 }] },
+  // Not a ListEmptyComponent: inside an inverted list Android renders it mirrored.
+  empty: { flex: 1, justifyContent: 'flex-end', gap: 8, paddingHorizontal: gutter, paddingVertical: 12 },
   emptyText: { marginBottom: 8 },
   suggestion: { alignSelf: 'flex-start', backgroundColor: color.surface, borderRadius: radius.full, borderWidth: 1, borderColor: color.border, paddingHorizontal: 16, paddingVertical: 10 },
   userWrap: { alignItems: 'flex-end', gap: 8 },

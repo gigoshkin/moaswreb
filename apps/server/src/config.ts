@@ -16,6 +16,8 @@ export const config = {
   limits: {
     perMin: int(process.env.RATE_LIMIT_PER_MIN, 60),
     chatPerMin: int(process.env.CHAT_RATE_LIMIT_PER_MIN, 10),
+    chatPerDay: int(process.env.CHAT_DAILY_LIMIT, 40),
+    chatPerDayTotal: int(process.env.CHAT_DAILY_LIMIT_TOTAL, 1000),
   },
   /** Bearer key for /chat and /mcp. Unset = open (local dev only). */
   apiKey: process.env.API_KEY ?? '',

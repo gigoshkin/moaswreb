@@ -123,7 +123,7 @@ export const searchPlaces = async (q: string, locale: Locale = 'en', limit = 5):
 
 /** One chat turn: a short reply plus action cards (plans, arrivals, stops, trips/events to confirm). */
 export const sendChat = (req: ChatRequest): Promise<ChatResponse> =>
-  request<ChatResponse>('/chat', { method: 'POST', body: req, timeoutMs: CHAT_TIMEOUT_MS });
+  request<ChatResponse>('/chat', { method: 'POST', body: req, device: true, timeoutMs: CHAT_TIMEOUT_MS });
 
 // --- this device's data on the server (alerts) ---
 
