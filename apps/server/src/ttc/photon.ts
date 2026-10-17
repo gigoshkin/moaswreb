@@ -49,24 +49,60 @@ const remember = (key: string, hits: PlaceHit[]) => {
   cache.set(key, { at: Date.now(), hits });
 };
 
+/**
+ * What people type is not what OSM has: "7B Archil Mefe St," has a comma, a
+ * "St", and "Mefe" for "Mepe" (Georgian პ/ფ are easy to mix up). Returns the
+ * cleaned query first, then the same without the house number, so a street
+ * still shows up when OSM lacks that number.
+ */
+export function searchVariants(query: string): string[] {
+  const words = query
+    .replace(/[.,;:]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => (/^me[fp]e$/i.test(w) ? 'Mepe' : w))
+    .filter((w) => !/^(st|str|street|ave|avenue|ქ|ქუჩა)$/i.test(w));
+  const clean = words.join(' ');
+  const noNumber = words.filter((w) => !/^\d+[a-zA-Z]?(\/\d+)?$/.test(w)).join(' ');
+  return [...new Set([clean, noNumber].filter(Boolean))];
+}
+
 export async function photonSearch(query: string, limit = 5): Promise<PlaceHit[]> {
   const key = `s|${query.toLowerCase()}|${limit}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.hits;
-  const data = await fetchJson(`/api/?${new URLSearchParams({ q: query, limit: String(limit), lang: 'en', bbox: BBOX, lat: '41.7151', lon: '44.793' })}`);
-  const hits = (data?.features ?? []).flatMap((f) => toHit(f) ?? []);
-  if (data) remember(key, hits);
-  return hits;
+  let answered = false;
+  const hits: PlaceHit[] = [];
+  const results = await Promise.all(
+    searchVariants(query).map((q) => fetchJson(`/api/?${new URLSearchParams({ q, limit: String(limit), lang: 'en', bbox: BBOX, lat: '41.7151', lon: '44.793' })}`)),
+  );
+  for (const data of results) {
+    if (!data) continue;
+    answered = true;
+    for (const f of data.features ?? []) {
+      const h = toHit(f);
+      if (h && !hits.some((o) => Math.abs(o.lat - h.lat) < 0.0002 && Math.abs(o.lon - h.lon) < 0.0002)) hits.push(h);
+    }
+  }
+  if (answered) remember(key, hits);
+  return hits.slice(0, limit);
 }
 
-/** The address at a point, or null when OSM has nothing close. */
+/** The address at a point: a house or street within 150 m, else the nearest named thing within 600 m. Null when OSM has nothing. */
 export async function photonReverse(lat: number, lon: number): Promise<PlaceHit | null> {
   const key = `r|${lat.toFixed(4)}|${lon.toFixed(4)}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.hits[0] ?? null;
-  const data = await fetchJson(`/reverse?${new URLSearchParams({ lat: String(lat), lon: String(lon), lang: 'en', limit: '1', radius: '0.15' })}`);
-  const found = data?.features?.length ? toHit(data.features[0]) : null;
-  if (data) remember(key, found ? [found] : []);
+  let answered = false;
+  let found: PlaceHit | null = null;
+  for (const radius of ['0.15', '0.6']) {
+    const data = await fetchJson(`/reverse?${new URLSearchParams({ lat: String(lat), lon: String(lon), lang: 'en', limit: '1', radius })}`);
+    if (!data) continue;
+    answered = true;
+    found = data.features?.length ? toHit(data.features[0]) : null;
+    if (found) break;
+  }
+  if (answered) remember(key, found ? [found] : []);
   return found;
 }
 
