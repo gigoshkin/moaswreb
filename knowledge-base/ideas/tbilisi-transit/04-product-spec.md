@@ -4,7 +4,7 @@ Written Sat 17 Oct 2026, ~15:00 Tbilisi time. Supersedes the open questions in r
 
 ## 1. One-liner
 
-**Upload your work / uni schedule once; the app builds every trip from your home, tells you when to leave, and warns you, with a reason, when something changes.** No chat box: the AI works under the features.
+**Upload your work / uni schedule once; the app builds every trip from your home, tells you when to leave, and warns you, with a reason, when something changes.** The only chat is the input (see F2/F5, request 0001): every reply ends in a card the user confirms, never a paragraph.
 
 ## 2. Decisions
 
@@ -25,6 +25,9 @@ Written Sat 17 Oct 2026, ~15:00 Tbilisi time. Supersedes the open questions in r
 - All trips start or end here.
 
 ### F2. Schedule upload, AI-parsed [decided: all four inputs]
+
+> **Changed by request 0001 (approved by darya, 17 Oct):** no separate upload screen. Photos, PDFs, .ics links and text are sent through **one chat input**; the agent answers with action cards ("3 events found → confirm places"), and every change is confirmed by the user. The agent works through our own MCP server (code side: George). The confirm-places step below still applies.
+
 | Input | How it is read |
 |---|---|
 | Photo / screenshot (e.g. a printed uni timetable) | Claude vision |
@@ -48,6 +51,9 @@ Written Sat 17 Oct 2026, ~15:00 Tbilisi time. Supersedes the open questions in r
 - Trip detail shows the plan history: who changed it (planner / notice reader / you), when, and from which data.
 
 ### F5. Georgian notice reader [decided]
+
+> **Changed by request 0001:** the notice is pasted into the same chat input, not a separate screen. The reply is a card: "This notice affects your Tue/Thu trips → [re-plan]".
+
 - Paste a TTC / City Hall / news notice (Georgian or English).
 - Claude extracts `{area, streets, start, end, affected routes, modes}`, then checks it against **the user's own trips** and says which are affected and why.
 - Affected trips are re-planned with itineraries that avoid the affected routes, and the user gets an alert.
@@ -63,7 +69,7 @@ Written Sat 17 Oct 2026, ~15:00 Tbilisi time. Supersedes the open questions in r
 
 ### Not in the first build
 - Home-screen widget (stretch, Android only, see report 01 section 5).
-- iOS, accounts/login (device id only), payments, chat interface, marshrutka live data (none exists; show wider windows instead).
+- iOS, accounts/login (device id only), payments, a general-purpose chatbot (the chat input only takes schedules, notices and trip requests and always answers with cards), marshrutka live data (none exists; show wider windows instead).
 
 ## 4. What the AI does (for the pitch and Q&A)
 

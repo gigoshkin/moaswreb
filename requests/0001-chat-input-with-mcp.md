@@ -2,9 +2,9 @@
 id: 0001
 from: george
 to: darya
-status: pending        # pending | approved | rejected | changed
+status: approved       # pending | approved | rejected | changed
 created: 2026-10-17 (evening)
-decided: 
+decided: 2026-10-17 15:16 (Tbilisi)
 ---
 
 # Replace the upload/notice screens with one chat input, backed by our MCP server
@@ -33,3 +33,5 @@ decided:
 Keep the F2/F5 screens as specced, and build the MCP server anyway for the Elva prize and the Claude Desktop demo.
 
 ## Decision (owner fills in)
+
+Approved by darya (asked in chat), 2026-10-17 15:16 Tbilisi time. The chat input with confirm cards replaces the separate F2 upload and F5 notice screens; Today, Week, Trip detail, Scorecard and notifications stay. `04-product-spec.md` updated to match.
