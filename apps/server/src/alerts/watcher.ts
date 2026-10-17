@@ -23,11 +23,22 @@ const tbilisiDay = (now: number) => {
 const hm = (ms: number) => new Date(ms + TBILISI_MS).toISOString().slice(11, 16);
 const DAY_MS = 24 * 3600_000;
 
-/** The latest departure that still arrives on time. */
-const bestItinerary = (its: Itinerary[], arriveByMs: number): Itinerary | null =>
-  its
+/** Departures this close to the latest one count as equal; then less walking and fewer changes win. */
+const NEAR_TIE_MS = 5 * 60_000;
+
+/** The latest departure that still arrives on time (ties within 5 min: least walking, fewest changes). */
+export const bestItinerary = (its: Itinerary[], arriveByMs: number): Itinerary | null => {
+  const fits = its
     .filter((it) => Date.parse(it.arriveAt) <= arriveByMs)
-    .sort((a, b) => Date.parse(b.departAt) - Date.parse(a.departAt) || Date.parse(a.arriveAt) - Date.parse(b.arriveAt))[0] ?? null;
+    .sort((a, b) => Date.parse(b.departAt) - Date.parse(a.departAt) || Date.parse(a.arriveAt) - Date.parse(b.arriveAt));
+  if (!fits.length) return null;
+  const latest = Date.parse(fits[0].departAt);
+  return (
+    fits
+      .filter((it) => Date.parse(it.departAt) >= latest - NEAR_TIE_MS)
+      .sort((a, b) => Math.round(a.walkSec / 60) - Math.round(b.walkSec / 60) || a.transfers - b.transfers || Date.parse(b.departAt) - Date.parse(a.departAt))[0] ?? null
+  );
+};
 
 const routesOf = (it: Itinerary) =>
   it.legs

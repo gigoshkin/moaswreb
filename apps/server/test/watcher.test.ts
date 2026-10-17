@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
 import { leaveMarginMin, type PlanResponse } from '@transit/shared';
-import { AlertWatcher } from '../src/alerts/watcher.ts';
+import { AlertWatcher, bestItinerary } from '../src/alerts/watcher.ts';
 import type { PushMessage } from '../src/alerts/push.ts';
 import { normalizePlan } from '../src/plan/normalize.ts';
 import type { PlanService } from '../src/plan/service.ts';
@@ -12,13 +12,14 @@ import { StopIndex } from '../src/ttc/stops.ts';
 import { fakeTtc, rawPlan } from './fakes.ts';
 
 // Synthetic fixture (Mon 19 Oct 2026): bus 306+347 leaves 08:15, arrives 08:58 Tbilisi;
-// metro leaves 08:10, arrives 08:57. Latest departure that arrives by 09:00 = 08:15.
+// metro leaves 08:10, arrives 08:57 (the metro here is moved 3 min earlier below, so it is not a near tie).
+// Latest departure that arrives by 09:00 = 08:15.
 const at = (hhmm: string) => Date.parse(`2026-10-19T${hhmm}:00+04:00`);
 const DEVICE = 'dev-0123456789abcdefghijkl';
 
 const setup = () => {
   const ttc = fakeTtc();
-  let itineraries = normalizePlan(rawPlan);
+  let itineraries = normalizePlan(rawPlan).map((it) => (it.legs.some((l) => l.mode === 'SUBWAY') ? { ...it, departAt: new Date(Date.parse(it.departAt) - 3 * 60_000).toISOString() } : it));
   const queries: string[] = [];
   const plans = {
     plan: async (query: { arriveBy: string }) => (queries.push(query.arriveBy), { query, itineraries, source: 'ttc', fetchedAt: '' }) as unknown as PlanResponse,
@@ -90,4 +91,15 @@ test('a trip arriving just after midnight is watched from the evening before', a
 
 test('leave margin is 20% of the walk, 1 to 4 min', () => {
   assert.deepEqual([0, 5, 10, 12, 15, 20, 40].map(leaveMarginMin), [1, 1, 2, 2, 3, 4, 4]);
+});
+
+test('within 5 min of the latest departure, less walking beats a later start', () => {
+  const [bus, metro] = normalizePlan(rawPlan);
+  const base = Date.parse(bus.departAt);
+  const arrive = base + 3600_000;
+  const far = { ...bus, id: 'far', departAt: new Date(base).toISOString(), arriveAt: new Date(arrive).toISOString(), walkSec: 900, transfers: 0 };
+  const near = { ...bus, id: 'near', departAt: new Date(base - 60_000).toISOString(), arriveAt: new Date(arrive).toISOString(), walkSec: 300, transfers: 0 };
+  const way = { ...metro, id: 'way', departAt: new Date(base - 8 * 60_000).toISOString(), arriveAt: new Date(arrive).toISOString(), walkSec: 0, transfers: 0 };
+  assert.equal(bestItinerary([far, near], arrive)?.id, 'near', 'one minute earlier, ten minutes less walking');
+  assert.equal(bestItinerary([far, near, way], arrive)?.id, 'near', 'eight minutes earlier is no tie: not chosen over the latest pool');
 });

@@ -45,15 +45,23 @@ export type Choice =
 /** A leave time this far in the past still counts: you may be at the door. */
 const GRACE_MS = 60_000;
 
+/** Options leaving within this long of the latest one count as equal on time. */
+const NEAR_TIE_MS = 5 * 60_000;
+
 /**
  * The option to show: the latest one you can still catch that arrives by
- * `arriveByIso`, as the server's watcher does. Falls back to the soonest
+ * `arriveByIso` (ties within 5 min go to less walking, then fewer changes), as the server's watcher does. Falls back to the soonest
  * arrival when you can't make it on time any more.
  */
 export function choose(its: Itinerary[], arriveByLocal: string, now: number, bufferMin = 0): Choice {
   const deadline = Date.parse(tbilisiLocalToIso(arriveByLocal) ?? '') || Infinity;
   const catchable = its.map((it) => ({ it, leaveAt: leaveAt(it, bufferMin) })).filter((c) => c.leaveAt >= now - GRACE_MS);
-  const onTime = catchable.filter((c) => Date.parse(c.it.arriveAt) <= deadline).sort((a, b) => b.leaveAt - a.leaveAt || Date.parse(a.it.arriveAt) - Date.parse(b.it.arriveAt))[0];
+  const fits = catchable.filter((c) => Date.parse(c.it.arriveAt) <= deadline).sort((a, b) => b.leaveAt - a.leaveAt || Date.parse(a.it.arriveAt) - Date.parse(b.it.arriveAt));
+  // Leaving a minute later is no reason to walk more or change more: among options within
+  // NEAR_TIE_MS of the latest leave, take the least walking, then the fewest changes.
+  const onTime = fits
+    .filter((c) => c.leaveAt >= fits[0].leaveAt - NEAR_TIE_MS)
+    .sort((a, b) => Math.round(a.it.walkSec / 60) - Math.round(b.it.walkSec / 60) || a.it.transfers - b.it.transfers || b.leaveAt - a.leaveAt)[0];
   if (onTime) return { kind: 'onTime', ...onTime };
   const soonest = catchable.sort((a, b) => Date.parse(a.it.arriveAt) - Date.parse(b.it.arriveAt))[0];
   if (!soonest) return { kind: 'none' };
