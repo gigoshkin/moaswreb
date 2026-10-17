@@ -1,7 +1,7 @@
 import type { JourneyStep, StopHit, StopLine } from '@transit/shared';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nearStops, stopLines } from '../../lib/api';
@@ -18,7 +18,7 @@ import { Button } from '../../ui/Button';
 import { LineChain, Stack } from '../../ui/LineChain';
 import { MapCanvas, type MapCanvasHandle, type MapMarker, type MapRoute } from '../../ui/MapCanvas';
 import { EndRing, StopDot } from '../../ui/MapMarks';
-import { RoutePlate, kindColor } from '../../ui/RoutePlate';
+import { kindColor } from '../../ui/RoutePlate';
 import { Busy } from '../../ui/Spinner';
 import { Tap, haptic } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
@@ -30,8 +30,6 @@ import { color, gutter, radius, shadow, spring } from '../../ui/theme';
 const SNAP_PT = 14;
 /** Metres per screen point at an app zoom (Google zoom is that + 1, 256 points across the world at zoom 0). */
 const metresPerPoint = (lat: number, zoom: number) => (40_075_017 * Math.cos((lat * Math.PI) / 180)) / (256 * 2 ** (zoom + 1));
-/** A line within this of the pin counts as going there. */
-const NEAR_M = 300;
 const TBILISI = { lat: 41.7151, lon: 44.793 };
 type Point = { lat: number; lon: number };
 const distM = (a: Point, b: Point) => {
@@ -42,8 +40,9 @@ const kindOfLine = (l: StopLine): Kind => (l.mode === 'SUBWAY' ? 'metro' : l.min
 
 /**
  * Pick the rides on the map, like TTC's own app: every stop is a dot you can
- * tap. Tap where you board, see the lines there drawn on the map (switch off
- * any you never want), tap where you get off, then add another ride or finish.
+ * tap. Tap where you board and every line from there is drawn on the map in
+ * black. Drop the end pin on a stop they reach; the lines that go there are
+ * shown in their colours. Then add another ride or finish.
  * A ride keeps all the lines that fit; the planner compares them link by link
  * with live arrivals, like any other trip.
  */
@@ -56,11 +55,10 @@ export default function BuildRoute() {
   const [sheetH, setSheetH] = useState(220);
   const [anchor, setAnchor] = useState<StopHit | null>(null);
   const [board, setBoard] = useState<StopHit | null>(null);
-  const [off, setOff] = useState<string[]>([]);
   const [adding, setAdding] = useState(!init?.steps.length);
   const [centre, setCentre] = useState<Point | null>(null);
-  // Where the end pin was dropped. Nothing is drawn until it is.
-  const [placed, setPlaced] = useState<Point | null>(null);
+  // The stop the end pin was dropped on (only stops the lines reach can take it).
+  const [placed, setPlaced] = useState<StopHit | null>(null);
   const [hot, setHot] = useState<string | null>(null);
   const hotRef = useRef<string | null>(null);
 
@@ -82,43 +80,40 @@ export default function BuildRoute() {
   const nearby = useStopsNear(adding ? (centre ?? here) : null);
   // Lines at the boarding stop (get-off step).
   const { lines, error: linesError } = useLines(board?.id ?? null);
-  const onLines = useMemo(() => (lines ?? []).filter((l) => !off.includes(l.shortName)), [lines, off]);
+  const onLines = lines ?? [];
 
-  // Where the end pin was dropped: the lines that get closest to it. Lines that come within
-  // NEAR_M of it go there; if none do there is no direct line, and the closest stop is offered on the side.
+  // Stops any line from the boarding stop reaches: the only places the end pin can go.
+  const reachable = useMemo(() => {
+    const m = new Map<string, StopHit>();
+    for (const l of onLines) for (const s of l.next) if (s.id !== board?.id && !m.has(s.id)) m.set(s.id, { id: s.id, name: s.name, lat: s.lat, lon: s.lon, mode: l.mode });
+    return [...m.values()];
+  }, [onLines, board?.id]);
+  // The lines that reach the dropped stop, each up to it.
   const match = useMemo(() => {
-    if (!board || !placed) return null;
-    const per = onLines
-      .map((l) => {
-        const best = l.next.map((s) => ({ s, d: distM(s, placed) })).sort((a, b) => a.d - b.d)[0];
-        return best ? { line: l, stop: best.s, d: best.d, upto: l.next.slice(0, l.next.findIndex((x) => x.id === best.s.id) + 1) } : null;
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null)
-      .sort((a, b) => a.d - b.d);
-    if (!per.length) return null;
-    const direct = per.filter((x) => x.d <= NEAR_M);
-    return { direct, closest: per.filter((x) => x.stop.id === per[0].stop.id), d: per[0].d };
-  }, [board, placed, onLines]);
+    if (!placed) return null;
+    const used = onLines.flatMap((l) => {
+      const i = l.next.findIndex((x) => x.id === placed.id);
+      return i < 0 ? [] : [{ line: l, stop: placed, upto: l.next.slice(0, i + 1) }];
+    });
+    return used.length ? used : null;
+  }, [placed, onLines]);
 
   const pickBoard = (s: StopHit) => {
     haptic('selection');
     setBoard(s);
-    setOff([]);
     setPlaced(null);
     map.current?.flyTo(to, 15.5); // the pin starts at the end of the trip
   };
   const clearBoard = () => {
     setBoard(null);
-    setOff([]);
     setPlaced(null);
   };
-  const confirmRide = (used: NonNullable<typeof match>['direct']) => {
-    if (!board || !used.length) return;
+  const confirmRide = (used: NonNullable<typeof match>) => {
+    if (!board) return;
     haptic('success');
-    const stopIds = [...new Set(used.map((x) => x.stop.id))];
-    const names = [...new Set(used.map((x) => x.line.shortName))];
-    setSteps((s) => [...s, { fromStops: [board.id], toStops: stopIds, ...(off.length ? { routes: names } : {}) }]);
-    setAnchor({ id: used[0].stop.id, name: used[0].stop.name, lat: used[0].stop.lat, lon: used[0].stop.lon, mode: used[0].line.mode });
+    const stop = used[0].stop;
+    setSteps((s) => [...s, { fromStops: [board.id], toStops: [stop.id] }]);
+    setAnchor(stop);
     clearBoard();
     setAdding(false);
   };
@@ -132,20 +127,23 @@ export default function BuildRoute() {
       return { routes: planned.routes, markers: mk, points: [] as Point[] };
     }
     if (adding && board) {
-      // Only the lines that go where the pin is, from the boarding stop to the stop they get off at; other stops stay tappable to move the pin.
-      const mk: MapMarker[] = nearby.stops
-        .filter((s) => s.id !== board.id)
-        .map((s) => ({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, onPress: () => map.current?.flyTo(s, 17) }));
+      // Every line from here in the app's black, so you see where you can get to; the end pin only lands on a stop they reach.
+      // Once it is dropped, just the lines that go there, in their colours.
+      const mk: MapMarker[] = [];
       mk.push({ key: 'board', at: board, node: <StopDot on tint={color.ink} /> });
-      // Lines are drawn only once the end pin is dropped, and only when one goes there.
-      const used = match?.direct ?? [];
-      if (placed) mk.push({ key: 'end-pin', at: placed, node: <EndRing /> });
-      for (const x of used) if (!mk.some((m) => m.key === `off-${x.stop.id}`)) mk.push({ key: `off-${x.stop.id}`, at: x.stop, node: <StopDot on tint={kindColor[kindOfLine(x.line)]} /> });
-      const rt: MapRoute[] = used.map((x) => ({ points: [board, ...x.upto], color: kindColor[kindOfLine(x.line)] }));
+      if (placed) {
+        mk.push({ key: 'end-pin', at: placed, node: <EndRing /> });
+        const rt: MapRoute[] = (match ?? []).map((x) => ({ points: [board, ...x.upto], color: kindColor[kindOfLine(x.line)] }));
+        return { routes: rt, markers: mk, points: [board, placed] as Point[] };
+      }
+      const c = centre ?? to;
+      const shown = [...reachable].sort((a, b) => distM(a, c) - distM(b, c)).slice(0, 70);
+      for (const s of shown) mk.push({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, onPress: () => map.current?.flyTo(s, 17) });
+      const rt: MapRoute[] = onLines.map((l) => ({ points: [board, ...l.next] }));
       return { routes: rt, markers: mk, points: [board, to] as Point[] };
     }
     return { routes: planned.routes, markers: planned.markers, points: planned.points };
-  }, [adding, board, nearby.stops, match, planned, hot, placed]);
+  }, [adding, board, nearby.stops, reachable, onLines, match, planned, hot, placed, centre]);
 
   // Frame the map when the step changes (not on the first frame: the map starts framed).
   const fitKey = `${adding}|${board ? 1 : 0}|${it?.id ?? ''}`;
@@ -166,8 +164,9 @@ export default function BuildRoute() {
   }, [nearby.stops, centre, here.lat, here.lon]);
 
   // The stop under the pin (within SNAP_PT on screen) grows and ticks; settling beside one pulls the pin on.
+  // Before a boarding stop it is the stops around; after, only the ones the lines reach.
   const nearbyRef = useRef(nearby.stops);
-  nearbyRef.current = nearby.stops;
+  nearbyRef.current = board ? reachable : nearby.stops;
   const snapped = useRef<string | null>(null); // one pull per stop, so it can never loop
   const stopAt = (c: Point, zoom: number) => {
     const reach = SNAP_PT * metresPerPoint(c.lat, zoom);
@@ -280,62 +279,39 @@ export default function BuildRoute() {
             )}
             {lines && (
               <>
-                <Text variant="caption" color={color.textSecondary}>
-                  Lines at this stop. Tap one to leave it out.
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.plates}>
-                  {[...new Map(lines.map((l) => [l.shortName, l])).values()].map((l) => (
-                    <Tap
-                      key={l.shortName}
-                      onPress={() => {
-                        setOff((o) => (o.includes(l.shortName) ? o.filter((x) => x !== l.shortName) : [...o, l.shortName]));
-                      }}
-                      haptic="selection"
-                      style={off.includes(l.shortName) ? styles.off : undefined}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: !off.includes(l.shortName) }}
-                      accessibilityLabel={`Line ${l.shortName}`}
-                    >
-                      <RoutePlate label={l.shortName} kind={kindOfLine(l)} size="md" />
-                    </Tap>
-                  ))}
-                </ScrollView>
                 {!placed ? (
                   <View style={styles.gap}>
-                    <Text variant="body14">{onLines.length ? 'Move the map so the pin is where you get off, then drop it.' : 'Every line is switched off.'}</Text>
-                    <Button label="Drop end pin here" kind="secondary" onPress={() => { haptic('selection'); setPlaced(centre ?? to); }} disabled={!onLines.length || !centre} haptic="none" />
+                    <Text variant="body14">Every line from here is on the map. Move the pin onto a stop where you get off.</Text>
+                    <Button
+                      label={hot ? 'Get off here' : 'Move the pin onto a stop'}
+                      kind="secondary"
+                      onPress={() => {
+                        const stop = reachable.find((x) => x.id === hot);
+                        if (stop) {
+                          haptic('selection');
+                          setPlaced(stop);
+                        }
+                      }}
+                      disabled={!hot || !reachable.some((x) => x.id === hot)}
+                      haptic="none"
+                    />
                   </View>
-                ) : match?.direct.length ? (
+                ) : match ? (
                   <Animated.View entering={FadeIn.duration(160)} style={styles.gap}>
                     <View style={styles.destRow}>
-                      <Stack slot={[...new Map(match.direct.map((x) => [x.line.shortName, { label: x.line.shortName, kind: kindOfLine(x.line) }])).values()]} />
+                      <Stack slot={[...new Map(match.map((x) => [x.line.shortName, { label: x.line.shortName, kind: kindOfLine(x.line) }])).values()]} />
                       <Text variant="label16" style={styles.flex} numberOfLines={1}>
-                        {match.direct[0].stop.name}
+                        {placed.name}
                       </Text>
                     </View>
-                    <Button label="Add this ride" onPress={() => confirmRide(match.direct)} haptic="none" />
+                    <Button label="Add this ride" onPress={() => confirmRide(match)} haptic="none" />
                     <Tap onPress={() => setPlaced(null)} hitSlop={8} style={styles.moveLink}>
                       <Text variant="label14" color={color.textSecondary}>
                         Move the end pin
                       </Text>
                     </Tap>
                   </Animated.View>
-                ) : (
-                  <Animated.View entering={FadeIn.duration(160)} style={styles.gap}>
-                    <Text variant="label16">No direct line goes there</Text>
-                    {match && (
-                      <Text variant="caption" color={color.textSecondary}>
-                        The closest any line gets is {match.closest[0].stop.name}, {distanceLabel(match.d)} from the pin.
-                      </Text>
-                    )}
-                    {match && <Button label="Ride to that stop instead" kind="secondary" onPress={() => confirmRide(match.closest)} haptic="none" />}
-                    <Tap onPress={() => setPlaced(null)} hitSlop={8} style={styles.moveLink}>
-                      <Text variant="label14" color={color.textSecondary}>
-                        Move the end pin
-                      </Text>
-                    </Tap>
-                  </Animated.View>
-                )}
+                ) : null}
               </>
             )}
           </View>
@@ -448,8 +424,6 @@ const styles = StyleSheet.create({
   gap: { gap: 10, flexShrink: 1 },
   flex: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  plates: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
-  off: { opacity: 0.3 },
   moveLink: { alignSelf: 'center', paddingVertical: 4 },
   destRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   actions: { gap: 8, paddingTop: 4 },
