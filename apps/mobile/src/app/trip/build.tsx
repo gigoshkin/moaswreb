@@ -1,13 +1,14 @@
 import type { JourneyStep, StopHit, StopLine } from '@transit/shared';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nearStops, stopLines } from '../../lib/api';
 import * as Haptics from 'expo-haptics';
 import { finishSteps, stepsDraft } from '../../lib/handoff';
-import { leaveAt, type Kind } from '../../lib/plans';
+import { FAR_WALK_M, UNDO_DEPTH, distM, gapBefore, place, removeAt, stepOf, toggleLine, walkMinutes, type BuiltRide } from '../../lib/chain';
+import { kindOf, leaveAt } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { distanceLabel } from '../../lib/stops';
 import { hhmm, nextArriveBy } from '../../lib/time';
@@ -16,10 +17,10 @@ import { useTripPlan } from '../../lib/useTripPlan';
 import { slotsFor } from '../../lib/ways';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
-import { LineChain, Stack } from '../../ui/LineChain';
+import { LineChain, Stack, type LineRef } from '../../ui/LineChain';
 import { MapCanvas, type MapCanvasHandle, type MapMarker, type MapRoute } from '../../ui/MapCanvas';
 import { EndRing, StopDot } from '../../ui/MapMarks';
-import { kindColor } from '../../ui/RoutePlate';
+import { RoutePlate, kindColor } from '../../ui/RoutePlate';
 import { Busy } from '../../ui/Spinner';
 import { Tap, haptic } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
@@ -33,45 +34,58 @@ const SNAP_PT = 14;
 const metresPerPoint = (lat: number, zoom: number) => (40_075_017 * Math.cos((lat * Math.PI) / 180)) / (256 * 2 ** (zoom + 1));
 const TBILISI = { lat: 41.7151, lon: 44.793 };
 type Point = { lat: number; lon: number };
-const distM = (a: Point, b: Point) => {
-  const rad = Math.PI / 180;
-  return Math.hypot((b.lon - a.lon) * rad * Math.cos(((a.lat + b.lat) / 2) * rad), (b.lat - a.lat) * rad) * 6_371_000;
-};
 const kindOfLine = (l: StopLine): Kind => (l.mode === 'SUBWAY' ? 'metro' : l.minibus ? 'minibus' : 'bus');
 
+/** The sheet sits at a fixed height over the map while rides are picked, so the map doesn't jump at each step. */
+const PICK_INSET = 290;
+const REVIEW_INSET = 340;
+
+/** Where the ride being picked goes: after the last one, between two, or in place of one. */
+interface Slot {
+  at: number;
+  replace: boolean;
+}
+
+const lineRefs = (lines: StopLine[]): LineRef[] => {
+  const seen = new Map<string, LineRef>();
+  for (const l of lines) if (!seen.has(l.shortName)) seen.set(l.shortName, { label: l.shortName, kind: kindOfLine(l) });
+  return [...seen.values()];
+};
+
 /**
- * Pick the rides on the map, like TTC's own app: every stop is a dot you can
- * tap. Tap where you board and every line from there is drawn on the map in
- * black. Drop the end pin on a stop they reach; the lines that go there are
- * shown in their colours. Then add another ride or finish.
- * A ride keeps all the lines that fit; the planner compares them link by link
- * with live arrivals, like any other trip.
+ * Build a trip ride by ride. The sheet is a rail: start, walk, ride, walk,
+ * ride, destination. Pick a boarding stop on the map (every line from it is
+ * drawn in black), then a stop where you get off (only stops those lines
+ * reach); the ride is added straight away and its lines turn coloured.
+ * Tap a ride to replace or remove it, or the + between two rides to insert
+ * one; the rides after it stay. Undo takes the last change back.
  */
 export default function BuildRoute() {
   const insets = useSafeAreaInsets();
   const now = useNow(30_000);
   const [init] = useState(stepsDraft);
   const map = useRef<MapCanvasHandle>(null);
-  const [steps, setSteps] = useState<JourneyStep[]>(init?.steps ?? []);
-  const [sheetH, setSheetH] = useState(220);
-  const [anchor, setAnchor] = useState<StopHit | null>(null);
-  // The rides built so far, as the rail shows them (stops with names).
-  const [rides, setRides] = useState<Ride[]>([]);
+  const [rides, setRides] = useState<BuiltRide[]>([]);
+  const [history, setHistory] = useState<BuiltRide[][]>([]);
+  // Steps that came in from the route screen, until their rides are named from the planned legs.
+  const [seed] = useState<JourneyStep[]>(init?.steps ?? []);
+  const [slot, setSlot] = useState<Slot | null>(init?.steps.length ? null : { at: 0, replace: false });
   const [board, setBoard] = useState<StopHit | null>(null);
-  const [adding, setAdding] = useState(!init?.steps.length);
+  const [open, setOpen] = useState<number | null>(null);
+  const [metro, setMetro] = useState<StopHit | null>(null);
   const [centre, setCentre] = useState<Point | null>(null);
-  // The stop the end pin was dropped on (only stops the lines reach can take it).
-  const [placed, setPlaced] = useState<StopHit | null>(null);
   const [hot, setHot] = useState<string | null>(null);
   const hotRef = useRef<string | null>(null);
+  const adding = slot !== null;
 
   useEffect(() => () => finishSteps(null), []);
 
   const from = init?.from ?? { ...TBILISI, label: 'Start' };
   const to = init?.to ?? { ...TBILISI, label: 'End' };
+  const steps = useMemo(() => (rides.length ? rides.map(stepOf) : seed), [rides, seed]);
   // The preview plans only the rides built so far, from the first boarding stop to the last stop: the walk home
   // and the walk to the destination are not part of it, and a metro-only ride would otherwise fail on a long walk.
-  const ends = rides.length ? { from: { ...rides[0].board, label: rides[0].board.name }, to: { ...rides[rides.length - 1].off, label: rides[rides.length - 1].off.name } } : { from, to };
+  const ends = rides.length ? { from: { ...rides[0].board, label: rides[0].board.name }, to: { ...rides.at(-1)!.off, label: rides.at(-1)!.off.name } } : { from, to };
   const trip = useMemo(
     () => (steps.length ? { id: 'draft', name: '', from: ends.from, to: ends.to, arriveBy: init?.arriveBy ?? '09:00', days: init?.days ?? [1, 2, 3, 4, 5], steps, avoid: init?.avoid } : null),
     [steps, rides],
@@ -79,80 +93,122 @@ export default function BuildRoute() {
   const date = nextArriveBy(init?.arriveBy ?? '09:00', init?.days ?? [1, 2, 3, 4, 5], now).slice(0, 10);
   const plan = useTripPlan(trip, date, now);
   const it = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
-  const legs = it ? it.legs.filter((l) => l.mode !== 'WALK') : [];
-  const here: Point = anchor ?? (rides.length ? rides[rides.length - 1].off : from);
+  const here: Point = rides.length ? rides.at(-1)!.off : from;
 
-  // Steps that came in from the route screen: name their stops from the planned legs.
+  // Steps that came in from the route screen: name their stops and lines from the planned legs.
   useEffect(() => {
-    if (rides.length || !steps.length || legs.length !== steps.length) return;
-    if (legs.some((l) => !l.from.stopId || !l.to.stopId)) return;
-    setRides(legs.map((l) => ({ board: { id: l.from.stopId!, name: l.from.name, lat: l.from.lat, lon: l.from.lon, mode: l.mode }, off: { id: l.to.stopId!, name: l.to.name, lat: l.to.lat, lon: l.to.lon, mode: l.mode } })));
+    if (rides.length || !seed.length || !it) return;
+    const legs = it.legs.filter((l) => l.mode !== 'WALK');
+    if (!legs.length || legs.some((l) => !l.from.stopId || !l.to.stopId)) return;
+    setRides(
+      legs.map((l) => {
+        const a = { id: l.from.stopId!, name: l.from.name, lat: l.from.lat, lon: l.from.lon, mode: l.mode };
+        const b = { id: l.to.stopId!, name: l.to.name, lat: l.to.lat, lon: l.to.lon, mode: l.mode };
+        return { board: a, off: b, lines: l.route ? [{ label: l.route.shortName, kind: kindOf(l) }] : [], skipped: [], path: [a, b] };
+      }),
+    );
   }, [it?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Every change goes through here so Undo can take it back. */
+  const change = (next: BuiltRide[]) => {
+    setHistory((h) => [...h.slice(-(UNDO_DEPTH - 1)), rides]);
+    setRides(next);
+  };
+  const undo = () => {
+    const last = history.at(-1);
+    if (!last) return;
+    haptic('selection');
+    setHistory((h) => h.slice(0, -1));
+    setRides(last);
+    setOpen(null);
+    setBoard(null);
+    setMetro(null);
+    setSlot(last.length ? null : { at: 0, replace: false });
+  };
 
   // Stops around the middle of the map, loaded as the map settles.
   const nearby = useStopsNear(adding ? (centre ?? here) : null);
   // Lines at the boarding stop (get-off step).
-  const { lines, error: linesError } = useLines(board?.id ?? null);
+  const { lines, error: linesError, retry: retryLines } = useLines(board?.id ?? null);
   const onLines = lines ?? [];
 
-  // Stops any line from the boarding stop reaches: the only places the end pin can go.
+  // Stops any line from the boarding stop reaches: the only places you can get off.
   const reachable = useMemo(() => {
     const m = new Map<string, StopHit>();
     for (const l of onLines) for (const s of l.next) if (s.id !== board?.id && !m.has(s.id)) m.set(s.id, { id: s.id, name: s.name, lat: s.lat, lon: s.lon, mode: l.mode });
     return [...m.values()];
   }, [onLines, board?.id]);
-  // The lines that reach the dropped stop, each up to it.
-  const match = useMemo(() => {
-    if (!placed) return null;
-    const used = onLines.flatMap((l) => {
-      const i = l.next.findIndex((x) => x.id === placed.id);
-      return i < 0 ? [] : [{ line: l, stop: placed, upto: l.next.slice(0, i + 1) }];
-    });
-    return used.length ? used : null;
-  }, [placed, onLines]);
 
   const pickBoard = (s: StopHit) => {
     haptic('selection');
     setBoard(s);
-    setPlaced(null);
     map.current?.flyTo(to, 15.5); // the pin starts at the end of the trip
   };
-  const clearBoard = () => {
-    setBoard(null);
-    setPlaced(null);
+  const clearBoard = () => setBoard(null);
+
+  /** A metro station within a short walk of where a ride ended is offered as the next boarding stop, never picked for you. */
+  const suggestMetro = (stop: StopHit) => {
+    setMetro(null);
+    if (stop.mode === 'SUBWAY') return;
+    nearStops(stop, { radiusM: 250, limit: 3, mode: 'SUBWAY' }).then(
+      (r) => setMetro(r.find((x) => x.id !== stop.id) ?? null),
+      () => {},
+    );
   };
-  const confirmRide = (used: NonNullable<typeof match>) => {
-    if (!board) return;
+
+  /** Get off at `stop`: the ride is added (or replaces / is inserted) and its lines turn coloured. */
+  const getOff = (stop: StopHit) => {
+    if (!board || !slot) return;
+    const used = onLines.filter((l) => l.next.some((x) => x.id === stop.id));
+    if (!used.length) return;
     haptic('success');
-    const stop = used[0].stop;
-    setSteps((s) => [...s, { fromStops: [board.id], toStops: [stop.id] }]);
-    setRides((r) => [...r, { board, off: stop }]);
-    setAnchor(stop);
-    // The next ride starts where this one ended; a metro station next to the stop means a short walk first.
-    setBoard(stop);
-    setPlaced(null);
-    map.current?.flyTo(to, 15.5);
-    if (stop.mode !== 'SUBWAY') {
-      nearStops(stop, { radiusM: 250, limit: 3, mode: 'SUBWAY' }).then(
-        (r) => {
-          const metro = r.find((x) => x.id !== stop.id);
-          if (metro) setBoard((b) => (b?.id === stop.id ? metro : b));
-        },
-        () => {},
-      );
+    const path = [board, ...used[0].next.slice(0, used[0].next.findIndex((x) => x.id === stop.id) + 1)];
+    const next = place(rides, slot.at, { board, off: stop, lines: lineRefs(used), skipped: [], path }, slot.replace);
+    change(next);
+    setOpen(null);
+    setMetro(null);
+    const last = !slot.replace && slot.at === next.length - 1;
+    if (last) {
+      // Keep going from here: the next ride starts at the stop you got off at.
+      setSlot({ at: next.length, replace: false });
+      setBoard(stop);
+      suggestMetro(stop);
+      map.current?.flyTo(to, 15.5);
+    } else {
+      setSlot(null);
+      setBoard(null);
     }
   };
-  /** Drop a ride and everything after it (each ride starts where the one before ended). */
-  const removeFrom = (i: number) => {
+
+  const startPick = (s: Slot, at: StopHit | null) => {
     haptic('selection');
-    setSteps((s) => s.slice(0, i));
-    setRides((r) => r.slice(0, i));
-    setAnchor(null);
-    clearBoard();
-    setAdding(i === 0);
+    setSlot(s);
+    setBoard(at);
+    setOpen(null);
+    setMetro(null);
+    if (at) suggestMetro(at);
+  };
+  const removeRide = (i: number) => {
+    haptic('selection');
+    const next = removeAt(rides, i);
+    change(next);
+    setOpen(null);
+    setBoard(null);
+    setSlot(next.length ? null : { at: 0, replace: false });
+  };
+  const toggle = (i: number, label: string) => {
+    haptic('selection');
+    change(rides.map((r, j) => (j === i ? toggleLine(r, label) : r)));
+  };
+  const stopAdding = () => {
+    setSlot(null);
+    setBoard(null);
+    setMetro(null);
   };
 
   const planned = useMemo(() => overlay(from, to, it), [it]);
+  // Rides already built, in their colours but faded, so you can see where the next one joins.
+  const built: MapRoute[] = useMemo(() => rides.map((r) => ({ points: r.path, color: `${kindColor[r.lines[0]?.kind ?? 'bus']}99` })), [rides]);
 
   // The middle of the map to ~300 m, so the set of stop dots only changes when you have really moved.
   const mid = centre ?? to;
@@ -162,26 +218,19 @@ export default function BuildRoute() {
   const { routes, markers, points } = useMemo(() => {
     if (adding && !board) {
       const mk: MapMarker[] = nearby.stops.map((s) => ({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, sig: hot === s.id ? 'big' : '', onPress: () => pickBoard(s) }));
-      return { routes: planned.routes, markers: mk, points: [] as Point[] };
+      return { routes: built, markers: mk, points: [] as Point[] };
     }
     if (adding && board) {
-      // Every line from here in the app's black, so you see where you can get to; the end pin only lands on a stop they reach.
-      // Once it is dropped, just the lines that go there, in their colours.
-      const mk: MapMarker[] = [];
-      mk.push({ key: 'board', at: board, node: <StopDot on tint={color.ink} /> });
-      if (placed) {
-        mk.push({ key: 'end-pin', at: placed, node: <EndRing /> });
-        const rt: MapRoute[] = (match ?? []).map((x) => ({ points: [board, ...x.upto], color: kindColor[kindOfLine(x.line)] }));
-        return { routes: rt, markers: mk, points: [board, placed] as Point[] };
-      }
+      // Every line from here in the app's black, so you see where you can get to; only stops they reach take a tap or the pin.
+      const mk: MapMarker[] = [{ key: 'board', at: board, node: <StopDot on tint={color.ink} /> }];
       const c = { lat: Number(cellKey.split(',')[0]), lon: Number(cellKey.split(',')[1]) };
       const shown = [...reachable].sort((a, b) => distM(a, c) - distM(b, c)).slice(0, 70);
-      for (const s of shown) mk.push({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, sig: hot === s.id ? 'big' : '', onPress: () => map.current?.flyTo(s, 17) });
-      const rt: MapRoute[] = onLines.map((l) => ({ points: [board, ...l.next] }));
+      for (const s of shown) mk.push({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, sig: hot === s.id ? 'big' : '', onPress: () => getOff(s) });
+      const rt: MapRoute[] = [...built, ...onLines.map((l) => ({ points: [board, ...l.next] }))];
       return { routes: rt, markers: mk, points: [board, to] as Point[] };
     }
     return { routes: planned.routes, markers: planned.markers, points: planned.points };
-  }, [adding, board, nearby.stops, reachable, onLines, match, planned, hot, placed, cellKey]);
+  }, [adding, board, nearby.stops, reachable, onLines, built, planned, hot, cellKey, slot, rides]);
 
   // Frame the map when the step changes (not on the first frame: the map starts framed).
   const fitKey = `${adding}|${board ? 1 : 0}|${it?.id ?? ''}`;
@@ -202,9 +251,9 @@ export default function BuildRoute() {
   }, [nearby.stops, centre, here.lat, here.lon]);
 
   // The stop under the pin (within SNAP_PT on screen) grows and ticks; settling beside one pulls the pin on.
-  // Before a boarding stop it is the stops around; after, only the ones the lines reach.
-  const nearbyRef = useRef(nearby.stops);
-  nearbyRef.current = board ? reachable : nearby.stops;
+  // Before a boarding stop it is the stops around; after, only the ones the lines reach (the same ones that are drawn).
+  const nearbyRef = useRef<StopHit[]>(nearby.stops);
+  nearbyRef.current = board ? [...reachable].sort((a, b) => distM(a, mid) - distM(b, mid)).slice(0, 70) : nearby.stops;
   const snapped = useRef<string | null>(null); // one pull per stop, so it can never loop
   const stopAt = (c: Point, zoom: number) => {
     const reach = SNAP_PT * metresPerPoint(c.lat, zoom);
@@ -244,6 +293,7 @@ export default function BuildRoute() {
   };
 
   const start = it ? { fit: planned.points } : { center: here, zoom: 15.5 };
+  const hotStop = board && hot ? reachable.find((x) => x.id === hot) : undefined;
 
   return (
     <View style={styles.screen}>
@@ -253,10 +303,10 @@ export default function BuildRoute() {
         start={start}
         routes={routes}
         markers={markers}
-        pin={adding && !(board && placed)}
+        pin={adding}
         onMove={onMove}
         onIdle={onIdle}
-        inset={{ top: insets.top + 64, bottom: sheetH }}
+        inset={{ top: insets.top + 64, bottom: adding ? PICK_INSET : REVIEW_INSET }}
       />
       <View style={[styles.floating, { top: insets.top + 12 }]} pointerEvents="box-none">
         <MapButton icon="back" label="Back" onPress={() => router.back()} />
@@ -264,30 +314,37 @@ export default function BuildRoute() {
 
       <Animated.View
         entering={FadeInDown.springify().damping(spring.sheet.damping).stiffness(spring.sheet.stiffness)}
-        layout={LinearTransition.duration(240)}
-        style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}
-        onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
+        style={[styles.sheet, { paddingBottom: insets.bottom + 16, minHeight: adding ? PICK_INSET : REVIEW_INSET }]}
       >
-        {rides.length > 0 && <Rail rides={rides} onRemove={removeFrom} />}
+        <View style={styles.header}>
+          <Text variant="label16" numberOfLines={1} style={styles.flex}>
+            {from.label} → {to.label}
+          </Text>
+          {history.length > 0 && (
+            <Tap onPress={undo} hitSlop={8} haptic="none" style={styles.undo} accessibilityRole="button" accessibilityLabel="Undo the last change">
+              <Icon name="back" size={16} />
+              <Text variant="label14">Undo</Text>
+            </Tap>
+          )}
+        </View>
+
+        {(rides.length > 0 || slot) && (
+          <Rail
+            rides={rides}
+            from={from}
+            to={to}
+            open={open}
+            slot={slot}
+            onOpen={(i) => setOpen((o) => (o === i ? null : i))}
+            onToggle={toggle}
+            onReplace={(i) => startPick({ at: i, replace: true }, null)}
+            onRemove={removeRide}
+            onInsert={(i) => startPick({ at: i, replace: false }, rides[i - 1]?.off ?? null)}
+          />
+        )}
 
         {adding && (
-          <View style={styles.gap}>
-            <View style={styles.pair}>
-              <Tap onPress={board ? clearBoard : undefined} feedback="tint" style={styles.half} accessibilityRole="button" accessibilityLabel={board ? `Boarding at ${board.name}. Change` : 'Choose boarding stop'}>
-                <View style={styles.dot} />
-                <Text variant="label14" numberOfLines={1} color={board ? color.text : color.textSecondary} style={styles.flex}>
-                  {board ? board.name : 'Boarding stop'}
-                </Text>
-              </Tap>
-              <Icon name="chevron-right" size={18} color={color.textTertiary} />
-              <View style={styles.half}>
-                <Icon name="pin" size={16} color={placed ? color.ink : color.textTertiary} />
-                <Text variant="label14" numberOfLines={1} color={placed ? color.text : color.textSecondary} style={styles.flex}>
-                  {placed ? placed.name : 'Get off'}
-                </Text>
-              </View>
-            </View>
-
+          <Animated.View key={board ? 'off' : 'board'} entering={FadeIn.duration(160)} style={styles.gap}>
             {!board ? (
               <>
                 <Text variant="body14" color={color.textSecondary}>
@@ -296,65 +353,57 @@ export default function BuildRoute() {
                 {nearby.loading && !nearby.stops.length ? (
                   <Busy label="Loading stops…" />
                 ) : nearest ? (
-                  <Button label={`Use ${nearest.s.name} · ${distanceLabel(nearest.d)}`} kind="secondary" onPress={() => pickBoard(nearest.s)} haptic="none" />
+                  <Button label={`Board at ${nearest.s.name} · ${distanceLabel(nearest.d)}`} kind="secondary" onPress={() => pickBoard(nearest.s)} haptic="none" />
                 ) : (
-                  <Text variant="body14" color={color.textSecondary}>
-                    {nearby.error ? "Can't load stops right now." : 'No stops here. Move the map.'}
-                  </Text>
+                  <View style={styles.gap}>
+                    <Text variant="body14" color={color.textSecondary}>
+                      {nearby.error ? "Can't load stops right now." : 'No stops here. Move the map.'}
+                    </Text>
+                    {nearby.error && <Button label="Try again" kind="secondary" onPress={nearby.retry} haptic="none" />}
+                  </View>
                 )}
               </>
-            ) : !lines && !linesError ? (
-              <Busy label="Loading the lines at this stop…" />
-            ) : linesError ? (
-              <Text variant="body14" color={color.textSecondary}>
-                Can't load the lines for this stop right now.
-              </Text>
-            ) : !placed ? (
+            ) : (
               <>
-                {rides.length > 0 && distM(board, rides[rides.length - 1].off) > 30 && (
-                  <Text variant="caption" color={color.textSecondary}>
-                    Walk {distanceLabel(distM(board, rides[rides.length - 1].off))} to {board.name}.
-                  </Text>
-                )}
-                <Text variant="body14">Every line from here is on the map. Move the pin onto a stop where you get off.</Text>
-                <Button
-                  label={hot ? 'Get off here' : 'Move the pin onto a stop'}
-                  kind="secondary"
-                  onPress={() => {
-                    const stop = reachable.find((x) => x.id === hot);
-                    if (stop) {
-                      haptic('selection');
-                      setPlaced(stop);
-                    }
-                  }}
-                  disabled={!hot || !reachable.some((x) => x.id === hot)}
-                  haptic="none"
-                />
-              </>
-            ) : match ? (
-              <Animated.View entering={FadeIn.duration(160)} style={styles.gap}>
-                <View style={styles.destRow}>
-                  <Stack slot={[...new Map(match.map((x) => [x.line.shortName, { label: x.line.shortName, kind: kindOfLine(x.line) }])).values()]} />
-                  <Text variant="caption" color={color.textSecondary} style={styles.flex}>
-                    gets you there
-                  </Text>
+                <View style={styles.pair}>
+                  <Tap onPress={clearBoard} feedback="tint" style={styles.half} accessibilityRole="button" accessibilityLabel={`Boarding at ${board.name}. Change`}>
+                    <View style={styles.dot} />
+                    <Text variant="label14" numberOfLines={1} style={styles.flex}>
+                      {board.name}
+                    </Text>
+                  </Tap>
+                  <Icon name="chevron-right" size={18} color={color.textTertiary} />
+                  <View style={styles.half}>
+                    <Icon name="pin" size={16} color={hotStop ? color.ink : color.textTertiary} />
+                    <Text variant="label14" numberOfLines={1} color={hotStop ? color.text : color.textSecondary} style={styles.flex}>
+                      {hotStop ? hotStop.name : 'Get off'}
+                    </Text>
+                  </View>
                 </View>
-                <Button label="Add this ride" icon="plus" onPress={() => confirmRide(match)} haptic="none" />
-                <Tap onPress={() => setPlaced(null)} hitSlop={8} style={styles.moveLink}>
-                  <Text variant="label14" color={color.textSecondary}>
-                    Move the end pin
-                  </Text>
-                </Tap>
-              </Animated.View>
-            ) : null}
-            {rides.length > 0 && (
-              <Tap onPress={() => { clearBoard(); setAdding(false); }} hitSlop={8} style={styles.moveLink}>
-                <Text variant="label14" color={color.textSecondary}>
-                  Stop adding rides
-                </Text>
-              </Tap>
+                {!lines && !linesError ? (
+                  <Busy label="Loading the lines at this stop…" />
+                ) : linesError ? (
+                  <View style={styles.gap}>
+                    <Text variant="body14" color={color.textSecondary}>
+                      Can't load the lines for this stop right now.
+                    </Text>
+                    <Button label="Try again" kind="secondary" onPress={retryLines} haptic="none" />
+                  </View>
+                ) : (
+                  <>
+                    <Text variant="body14">Every line from here is on the map. Tap a stop, or move the pin onto it.</Text>
+                    <Button label={hotStop ? `Get off at ${hotStop.name}` : 'Move the pin onto a stop'} onPress={() => hotStop && getOff(hotStop)} disabled={!hotStop} haptic="none" />
+                  </>
+                )}
+                {metro && slot && slot.at === rides.length && board.id === rides.at(-1)?.off.id && (
+                  <Button label={`Metro ${metro.name} · ${distanceLabel(distM(board, metro))}`} icon="metro" kind="secondary" onPress={() => (pickBoard(metro), setMetro(null))} haptic="none" />
+                )}
+              </>
             )}
-          </View>
+            {(rides.length > 0 || slot.replace) && (
+              <Button label={slot.replace ? 'Cancel' : 'Stop adding rides'} kind="secondary" onPress={stopAdding} haptic="none" style={styles.slim} />
+            )}
+          </Animated.View>
         )}
 
         {!adding && (
@@ -363,7 +412,7 @@ export default function BuildRoute() {
               <View style={styles.gap}>
                 <LineChain slots={slotsFor(it, plan.itineraries)} />
                 <Text variant="caption" color={color.textSecondary}>
-                  Leave around {hhmm(leaveAt(it, settings.get().bufferMin))} · arrive {hhmm(it.arriveAt)}
+                  Board around {hhmm(leaveAt(it, settings.get().bufferMin))} · arrive {hhmm(it.arriveAt)}
                 </Text>
               </View>
             ) : plan.error ? (
@@ -379,7 +428,7 @@ export default function BuildRoute() {
             )}
             {it && (plan.refreshing || !plan.loaded) && <Busy label="Checking every line…" />}
             <View style={styles.actions}>
-              <Button label="Add another ride" icon="plus" kind="secondary" onPress={() => { setAdding(true); setBoard(rides.length ? rides[rides.length - 1].off : null); }} haptic="none" />
+              <Button label="Add another ride" icon="plus" kind="secondary" onPress={() => startPick({ at: rides.length, replace: false }, rides.at(-1)?.off ?? null)} haptic="none" />
               <Button label="Done" onPress={done} disabled={!steps.length} haptic="none" />
             </View>
           </View>
@@ -389,46 +438,108 @@ export default function BuildRoute() {
   );
 }
 
-interface Ride {
-  board: StopHit;
-  off: StopHit;
+interface RailProps {
+  rides: BuiltRide[];
+  from: { label: string };
+  to: { label: string };
+  open: number | null;
+  slot: Slot | null;
+  onOpen: (i: number) => void;
+  onToggle: (i: number, label: string) => void;
+  onReplace: (i: number) => void;
+  onRemove: (i: number) => void;
+  onInsert: (i: number) => void;
 }
 
-/** The rides so far as a rail: a dot per stop, the ride between, a walk where the next ride starts elsewhere. */
-function Rail({ rides, onRemove }: { rides: Ride[]; onRemove: (i: number) => void }) {
+/** The trip as a rail: start, then each ride with the walk before it, then the destination. Tap a ride to change it. */
+function Rail({ rides, from, to, open, slot, onOpen, onToggle, onReplace, onRemove, onInsert }: RailProps) {
+  const picking = slot?.replace ? slot.at : -1;
   return (
-    <View style={styles.rail}>
+    <ScrollView style={styles.railScroll} contentContainerStyle={styles.rail} showsVerticalScrollIndicator={false}>
+      <View style={styles.railRow}>
+        <View style={styles.railTrack}>
+          <View style={styles.endDot} />
+        </View>
+        <Text variant="caption" color={color.textSecondary} numberOfLines={1} style={styles.flex}>
+          {from.label}
+        </Text>
+      </View>
       {rides.map((r, i) => {
-        const prev = rides[i - 1];
-        const walk = prev ? distM(prev.off, r.board) : 0;
-        const kind: Kind = r.board.mode === 'SUBWAY' ? 'metro' : 'bus';
+        const walk = gapBefore(rides, i);
+        const far = walk > FAR_WALK_M;
+        const kind = r.lines[0]?.kind ?? 'bus';
+        const expanded = open === i;
         return (
-          <View key={`${r.board.id}-${i}`}>
-            {walk > 30 && (
+          <View key={`${r.board.id}-${r.off.id}-${i}`}>
+            {(walk > 30 || (i > 0 && !slot)) && (
               <View style={styles.railRow}>
                 <View style={styles.railTrack}>
                   <View style={styles.railDash} />
                 </View>
-                <Text variant="caption" color={color.textSecondary}>
-                  Walk {distanceLabel(walk)}
+                <Text variant="caption" color={far ? color.metro : color.textSecondary} style={styles.flex}>
+                  {walk > 30 ? `Walk ${distanceLabel(walk)} · about ${walkMinutes(walk)} min${far ? ' (far)' : ''}` : 'Change here'}
                 </Text>
+                {!slot && (
+                  <Tap onPress={() => onInsert(i)} hitSlop={8} style={styles.junction} accessibilityRole="button" accessibilityLabel={`Add a ride before ride ${i + 1}`}>
+                    <Icon name="plus" size={14} />
+                  </Tap>
+                )}
               </View>
             )}
-            <View style={styles.railRow}>
+            <Tap onPress={() => onOpen(i)} feedback="tint" style={[styles.ride, expanded && styles.rideOpen, picking === i && styles.rideReplacing]} accessibilityRole="button" accessibilityLabel={`Ride ${i + 1}: ${r.board.name} to ${r.off.name}. Edit`}>
               <View style={styles.railTrack}>
                 <View style={[styles.railBar, { backgroundColor: kindColor[kind] }]} />
               </View>
-              <Text variant="label14" style={styles.flex} numberOfLines={1}>
-                {r.board.name} → {r.off.name}
-              </Text>
-              <Tap onPress={() => onRemove(i)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove ride ${i + 1} and the ones after it`}>
-                <Icon name="close" size={16} color={color.textSecondary} />
-              </Tap>
-            </View>
+              <View style={styles.flex}>
+                <Text variant="label14" numberOfLines={1}>
+                  {r.board.name} → {r.off.name}
+                </Text>
+                {r.lines.length > 0 && (
+                  <View style={styles.plates}>
+                    <Stack slot={r.lines.filter((l) => !r.skipped.includes(l.label))} size="sm" />
+                  </View>
+                )}
+              </View>
+              <Icon name="chevron-right" size={18} color={color.textTertiary} />
+            </Tap>
+            {expanded && (
+              <Animated.View entering={FadeIn.duration(160)} style={styles.editBar}>
+                {r.lines.length > 1 && (
+                  <View style={styles.chips}>
+                    <Text variant="caption" color={color.textSecondary}>
+                      Lines on this ride (tap to switch off)
+                    </Text>
+                    <View style={styles.chipRow}>
+                      {r.lines.map((l) => {
+                        const off = r.skipped.includes(l.label);
+                        return (
+                          <Tap key={l.label} onPress={() => onToggle(i, l.label)} scaleTo={0.92} style={[styles.chip, off && styles.chipOff]} accessibilityRole="switch" accessibilityState={{ checked: !off }} accessibilityLabel={`Line ${l.label}`}>
+                            <RoutePlate label={l.label} kind={l.kind} size="sm" />
+                            <Icon name={off ? 'plus' : 'close'} size={12} color={color.textSecondary} />
+                          </Tap>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+                <View style={styles.editActions}>
+                  <Button label="Replace" kind="secondary" onPress={() => onReplace(i)} haptic="none" style={styles.editBtn} />
+                  <Button label="Remove" kind="secondary" onPress={() => onRemove(i)} haptic="none" style={styles.editBtn} />
+                </View>
+              </Animated.View>
+            )}
           </View>
         );
       })}
-    </View>
+      <View style={styles.railRow}>
+        <View style={styles.railTrack}>
+          <View style={styles.endDotRing} />
+        </View>
+        <Text variant="caption" color={color.textSecondary} numberOfLines={1} style={styles.flex}>
+          {to.label}
+        </Text>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -437,6 +548,7 @@ function useStopsNear(p: Point | null) {
   const [stops, setStops] = useState<StopHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const seen = useRef(new Map<string, StopHit>());
   const key = p ? `${p.lat.toFixed(4)},${p.lon.toFixed(4)}` : '';
   useEffect(() => {
@@ -461,15 +573,17 @@ function useStopsNear(p: Point | null) {
       live = false;
       clearTimeout(t);
     };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return { stops, loading, error };
+  }, [key, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { stops, loading, error, retry: () => setAttempt((n) => n + 1) };
 }
 
 /** Every line at a stop and where it goes next. */
 function useLines(stopId: string | null) {
   const [state, setState] = useState<{ id: string; lines: StopLine[] | null; error: boolean } | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!stopId) return;
+    setState(null);
     let live = true;
     stopLines(stopId).then(
       (r) => live && setState({ id: stopId, lines: r.lines, error: false }),
@@ -478,27 +592,42 @@ function useLines(stopId: string | null) {
     return () => {
       live = false;
     };
-  }, [stopId]);
+  }, [stopId, attempt]);
   const mine = state && state.id === stopId ? state : null;
-  return { lines: mine?.lines ?? null, error: mine?.error ?? false };
+  return { lines: mine?.lines ?? null, error: mine?.error ?? false, retry: () => setAttempt((n) => n + 1) };
 }
 
 const styles = StyleSheet.create({
-  rail: { gap: 2, paddingBottom: 8 },
-  railRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 28 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 10 },
+  undo: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 32, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: color.border, backgroundColor: color.surface, ...shadow.soft },
+  railScroll: { maxHeight: 188, flexGrow: 0, marginBottom: 8 },
+  rail: { gap: 2 },
+  railRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 26 },
   railTrack: { width: 14, alignItems: 'center', alignSelf: 'stretch', justifyContent: 'center' },
   railBar: { width: 5, flex: 1, borderRadius: 3, marginVertical: 2 },
   railDash: { width: 2, flex: 1, borderRadius: 1, backgroundColor: color.border },
+  endDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: color.ink },
+  endDotRing: { width: 12, height: 12, borderRadius: 6, borderWidth: 3, borderColor: color.ink },
+  junction: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: color.border, backgroundColor: color.surface },
+  ride: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, borderRadius: radius.sm, paddingVertical: 4, paddingRight: 6 },
+  rideOpen: { backgroundColor: color.surfaceMuted },
+  rideReplacing: { opacity: 0.4 },
+  plates: { flexDirection: 'row', marginTop: 2 },
+  editBar: { gap: 10, paddingLeft: 24, paddingTop: 8, paddingBottom: 6 },
+  chips: { gap: 6 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5, paddingLeft: 6, paddingRight: 8, borderRadius: 14, borderWidth: 1, borderColor: color.border, backgroundColor: color.surface },
+  chipOff: { opacity: 0.4 },
+  editActions: { flexDirection: 'row', gap: 8 },
+  editBtn: { flex: 1, height: 44 },
+  slim: { height: 44 },
   pair: { flexDirection: 'row', alignItems: 'center', backgroundColor: color.surfaceMuted, borderRadius: radius.md, height: 52, paddingHorizontal: 6 },
   half: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, height: 52 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: color.ink },
   screen: { flex: 1, backgroundColor: color.bg },
   floating: { position: 'absolute', left: 12 },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '55%', backgroundColor: color.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: gutter, paddingTop: 16, ...shadow.bar },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '62%', backgroundColor: color.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: gutter, paddingTop: 16, ...shadow.bar },
   gap: { gap: 10, flexShrink: 1 },
   flex: { flex: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  moveLink: { alignSelf: 'center', paddingVertical: 4 },
-  destRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   actions: { gap: 8, paddingTop: 4 },
 });
