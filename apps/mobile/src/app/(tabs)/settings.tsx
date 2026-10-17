@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { cancelBackups, setUpAlerts } from '../../lib/alerts';
 import { deleteMyData, hasApi } from '../../lib/api';
 import { clearChat } from '../../lib/chat';
 import { pickPlace } from '../../lib/handoff';
 import { bufferText, settings, updateSettings } from '../../lib/settings';
 import { clearTrips, syncNow } from '../../lib/trips';
+import { ask, notify } from '../../ui/Dialog';
 import { Icon } from '../../ui/Icon';
 import { haptic } from '../../ui/Tap';
 import { Group, GroupRow, ScreenTitle, Switch } from '../../ui/kit';
@@ -29,31 +30,30 @@ export default function Settings() {
     else cancelBackups();
   };
 
-  const deleteAll = () =>
-    Alert.alert('Delete my data?', 'Removes your trips, home and chat from this phone, and your trips and push token from our server.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          // Server first: if it can't be reached nothing is cleared, so Delete can be tried again.
-          if (hasApi) {
-            try {
-              await deleteMyData();
-            } catch {
-              haptic('error');
-              Alert.alert("Couldn't delete your data", 'The server could not be reached, so nothing was removed. Check your connection and try again.');
-              return;
-            }
-          }
-          clearTrips();
-          clearChat();
-          updateSettings({ home: null, bufferMin: 0 });
-          haptic('success');
-          Alert.alert('Your data was deleted', 'Your trips, home and chat are gone from this phone' + (hasApi ? ', and your trips and push token from our server.' : '.'));
-        },
-      },
-    ]);
+  const deleteAll = async () => {
+    const ok = await ask({
+      title: 'Delete my data?',
+      message: 'Removes your trips, home and chat from this phone, and your trips and push token from our server.',
+      confirm: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    // Server first: if it can't be reached nothing is cleared, so Delete can be tried again.
+    if (hasApi) {
+      try {
+        await deleteMyData();
+      } catch {
+        haptic('error');
+        notify("Couldn't delete your data", 'The server could not be reached, so nothing was removed. Check your connection and try again.');
+        return;
+      }
+    }
+    clearTrips();
+    clearChat();
+    updateSettings({ home: null, bufferMin: 0 });
+    haptic('success');
+    notify('Your data was deleted', 'Your trips, home and chat are gone from this phone' + (hasApi ? ', and your trips and push token from our server.' : '.'));
+  };
 
   return (
     <View style={styles.screen}>

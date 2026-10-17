@@ -1,7 +1,7 @@
 import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { buildRoute, takeDraft } from '../../lib/handoff';
@@ -13,6 +13,7 @@ import { DEFAULT_DAYS, getTrip, newTripId, removeTrip, saveTrip, withStops, type
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
+import { ask } from '../../ui/Dialog';
 import { Icon } from '../../ui/Icon';
 import { LineChain } from '../../ui/LineChain';
 import { StaticMap } from '../../ui/StaticMap';
@@ -103,18 +104,11 @@ export default function EditTrip() {
     router.back();
   };
 
-  const remove = () =>
-    Alert.alert('Delete this trip?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          removeTrip(existing!.id);
-          router.dismissAll();
-        },
-      },
-    ]);
+  const remove = async () => {
+    if (!(await ask({ title: 'Delete this trip?', confirm: 'Delete', destructive: true }))) return;
+    removeTrip(existing!.id);
+    router.dismissAll();
+  };
 
   const bufferMin = settings.use().bufferMin;
 

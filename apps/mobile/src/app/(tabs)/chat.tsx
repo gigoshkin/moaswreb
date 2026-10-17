@@ -1,11 +1,9 @@
-import * as DocumentPicker from 'expo-document-picker';
-import { File } from 'expo-file-system';
-import * as ImagePicker from 'expo-image-picker';
 import { useRef, useState } from 'react';
-import { Alert, FlatList, Image, StyleSheet, TextInput, View, type TextInputInstance } from 'react-native';
+import { FlatList, Image, StyleSheet, TextInput, View, type TextInputInstance } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LayoutAnimationConfig, LinearTransition, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { chatBusy, chatStore, send, type Attachment, type ChatItem } from '../../lib/chat';
+import { AttachSheet } from '../../ui/AttachSheet';
 import { ChatCard } from '../../ui/ChatCards';
 import { Icon } from '../../ui/Icon';
 import { TAB_BAR_HEIGHT } from '../../ui/TabBar';
@@ -24,6 +22,7 @@ export default function Chat() {
   const busy = chatBusy.use();
   const [text, setText] = useState('');
   const [attachment, setAttachment] = useState<Attachment | null>(null);
+  const [attaching, setAttaching] = useState(false);
   const input = useRef<TextInputInstance>(null);
 
   // The input rides on top of the keyboard, frame by frame. The tab bar sits
@@ -38,31 +37,6 @@ export default function Chat() {
     send(text.trim(), attachment ?? undefined);
     setText('');
     setAttachment(null);
-  };
-
-  const attach = () =>
-    Alert.alert('Attach', undefined, [
-      { text: 'Take a photo', onPress: () => photo(true) },
-      { text: 'Choose a photo', onPress: () => photo(false) },
-      { text: 'PDF', onPress: pdf },
-    ]);
-
-  const photo = async (camera: boolean) => {
-    const perm = camera ? await ImagePicker.requestCameraPermissionsAsync() : { granted: true };
-    if (!perm.granted) return;
-    const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.6, base64: true };
-    const res = camera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
-    const a = res.assets?.[0];
-    if (res.canceled || !a?.base64) return;
-    setAttachment({ kind: 'image', mediaType: a.mimeType ?? 'image/jpeg', data: a.base64, uri: a.uri });
-  };
-
-  const pdf = async () => {
-    const res = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
-    const a = res.assets?.[0];
-    if (res.canceled || !a) return;
-    const data = await new File(a.uri).base64();
-    setAttachment({ kind: 'pdf', mediaType: 'application/pdf', data, name: a.name });
   };
 
   const data = [...items].reverse();
@@ -122,7 +96,7 @@ export default function Chat() {
               maxFontSizeMultiplier={1.15}
             />
             <View style={styles.actions}>
-              <Tap onPress={attach} style={styles.small} scaleTo={0.9} hitSlop={6} accessibilityLabel="Add a photo or PDF">
+              <Tap onPress={() => setAttaching(true)} style={styles.small} scaleTo={0.9} hitSlop={6} accessibilityLabel="Add a photo or PDF">
                 <Icon name="plus" size={20} />
               </Tap>
               <Tap onPress={submit} disabled={!canSend} style={[styles.small, styles.send, !canSend && styles.sendOff]} scaleTo={0.9} haptic="light" hitSlop={6} accessibilityLabel="Send">
@@ -132,6 +106,7 @@ export default function Chat() {
           </View>
         </View>
       </Animated.View>
+      <AttachSheet visible={attaching} onClose={() => setAttaching(false)} onPick={setAttachment} />
     </View>
   );
 }

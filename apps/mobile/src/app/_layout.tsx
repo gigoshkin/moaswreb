@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onAlertTap, setUpAlerts } from '../lib/alerts';
 import { getTrip } from '../lib/trips';
+import { DialogHost } from '../ui/Dialog';
 import { color, fontFiles } from '../ui/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -43,6 +44,7 @@ export default function RootLayout() {
           <Stack.Screen name="buffer" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="privacy" />
         </Stack>
+        <DialogHost />
         <StatusBar style="dark" />
       </SafeAreaProvider>
     </GestureHandlerRootView>
