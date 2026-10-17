@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ka">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moaswreb Trip</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .top { padding: 8px 16px 0; display: flex; align-items: center; justify-content: space-between; }
+  .top .icon-btn { background: transparent; }
+  .head { padding: 20px 24px 0; }
+  .head .from { font-size: 15px; font-weight: 500; color: var(--ink-2); }
+  .head h1 { font-size: 30px; line-height: 38px; font-weight: 600; letter-spacing: -0.02em; margin-top: 2px; }
+  .summary { display: flex; gap: 28px; margin-top: 24px; }
+  .summary div { display: flex; flex-direction: column; gap: 2px; }
+  .summary .k { font-size: 13px; font-weight: 500; color: var(--ink-3); }
+  .summary .v { font-size: 22px; line-height: 28px; height: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  .summary .v.live { color: var(--accent); }
+
+  .timeline { margin: 36px 24px 0; position: relative; }
+  .step { display: grid; grid-template-columns: 52px 24px 1fr; column-gap: 12px; position: relative; }
+  .step .time { font-size: 15px; line-height: 22px; font-weight: 600; text-align: right; }
+  .step .time.muted { color: var(--ink-3); font-weight: 500; }
+  .rail { position: relative; display: flex; justify-content: center; }
+  .rail .node { width: 12px; height: 12px; border-radius: 6px; border: 2.5px solid var(--ink); background: var(--bg); margin-top: 4px; position: relative; z-index: 1; }
+  .rail .node.end { background: var(--ink); }
+  .rail .line { position: absolute; top: 16px; bottom: -4px; width: 4px; border-radius: 2px; background: var(--ink); }
+  .rail .line.walk { width: 3px; background: none; background-image: radial-gradient(circle, var(--ink-3) 1.5px, transparent 1.6px); background-size: 3px 7px; background-repeat: repeat-y; }
+  .body { padding-bottom: 28px; }
+  .body .title { font-size: 17px; font-weight: 600; line-height: 22px; }
+  .body .sub { font-size: 15px; color: var(--ink-2); margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+  .live-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
+  .live-pill .dot { width: 6px; height: 6px; }
+  .next { margin-top: 10px; display: flex; gap: 8px; }
+  .next span { font-size: 13px; font-weight: 500; color: var(--ink-2); background: var(--fill); border-radius: 8px; padding: 4px 8px; }
+
+  .settings { position: absolute; left: 24px; right: 24px; bottom: 40px; background: var(--fill); border-radius: 18px; }
+  .set { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; font-size: 16px; font-weight: 500; }
+  .set + .set { border-top: 1px solid #E6E6E9; }
+  .set .val { color: var(--ink-2); font-weight: 500; }
+  .switch { width: 44px; height: 26px; border-radius: 13px; background: var(--ink); position: relative; }
+  .switch::after { content: ""; position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 10px; background: #fff; }
+  .cta { position: absolute; left: 24px; right: 24px; bottom: 32px; height: 56px; border-radius: 16px; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status"><span>08:37</span><span class="sys"><svg width="16" height="12" viewBox="0 0 16 12"><path d="M1 11h2V8H1zM5 11h2V6H5zM9 11h2V3H9zM13 11h2V0h-2z" fill="#0B0B0C"/></svg><span class="bat"></span></span></div>
+  <div class="top">
+    <span class="icon-btn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0B0B0C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span>
+    <span class="icon-btn"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0B0B0C" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></span>
+  </div>
+
+  <div class="head">
+    <div class="from">სახლიდან</div>
+    <h1>უნივერსიტეტი</h1>
+    <div class="summary">
+      <div><span class="k">გასვლა</span><span class="v">08:44</span></div>
+      <div><span class="k">ჩასვლა</span><span class="v">08:57</span></div>
+      <div><span class="k">სულ</span><span class="v">13 წთ</span></div>
+    </div>
+  </div>
+
+  <div class="timeline">
+    <div class="step">
+      <span class="time">08:44</span>
+      <span class="rail"><span class="node"></span><span class="line walk"></span></span>
+      <div class="body"><div class="title">სახლი</div><div class="sub">6 წთ ფეხით · 450 მ</div></div>
+    </div>
+    <div class="step">
+      <span class="time">08:50</span>
+      <span class="rail"><span class="node"></span><span class="line"></span></span>
+      <div class="body">
+        <div class="title">ვაჟა-ფშაველას გამზირი</div>
+        <div class="sub"><span class="plate">306</span><span class="live-pill"><span class="dot"></span>2 წთ-ში</span></div>
+        <div class="next"><span>შემდეგი 08:58</span><span>09:06</span></div>
+      </div>
+    </div>
+    <div class="step">
+      <span class="time">08:55</span>
+      <span class="rail"><span class="node"></span><span class="line walk"></span></span>
+      <div class="body"><div class="title">უნივერსიტეტის გაჩერება</div><div class="sub">5 გაჩერება · 2 წთ ფეხით</div></div>
+    </div>
+    <div class="step">
+      <span class="time">08:57</span>
+      <span class="rail"><span class="node end"></span></span>
+      <div class="body"><div class="title">უნივერსიტეტი</div></div>
+    </div>
+  </div>
+
+  <div class="settings">
+    <div class="set"><span>შეხსენება</span><span class="switch"></span></div>
+    <div class="set"><span>დღეები</span><span class="val">ორშ–პარ</span></div>
+    <div class="set"><span>ჩასვლა</span><span class="val">09:00-მდე</span></div>
+  </div>
+</div>
+</body>
+</html>
