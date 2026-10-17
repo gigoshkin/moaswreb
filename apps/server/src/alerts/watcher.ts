@@ -23,10 +23,14 @@ const tbilisiDay = (now: number) => {
 const hm = (ms: number) => new Date(ms + TBILISI_MS).toISOString().slice(11, 16);
 const DAY_MS = 24 * 3600_000;
 
+/** Minutes of walking one change counts as; keep in step with the app's `choose`. */
+const TRANSFER_WALK_MIN = 8;
+const effort = (it: Itinerary) => Math.round(it.walkSec / 60) + TRANSFER_WALK_MIN * it.transfers;
+
 /** Departures this close to the latest one count as equal; then less walking and fewer changes win. */
 const NEAR_TIE_MS = 5 * 60_000;
 
-/** The latest departure that still arrives on time (ties within 5 min: least walking, fewest changes). */
+/** The latest departure that still arrives on time (ties within 5 min: least walking plus 8 min per change). */
 export const bestItinerary = (its: Itinerary[], arriveByMs: number): Itinerary | null => {
   const fits = its
     .filter((it) => Date.parse(it.arriveAt) <= arriveByMs)
@@ -36,7 +40,7 @@ export const bestItinerary = (its: Itinerary[], arriveByMs: number): Itinerary |
   return (
     fits
       .filter((it) => Date.parse(it.departAt) >= latest - NEAR_TIE_MS)
-      .sort((a, b) => Math.round(a.walkSec / 60) - Math.round(b.walkSec / 60) || a.transfers - b.transfers || Date.parse(b.departAt) - Date.parse(a.departAt))[0] ?? null
+      .sort((a, b) => effort(a) - effort(b) || Date.parse(b.departAt) - Date.parse(a.departAt))[0] ?? null
   );
 };
 

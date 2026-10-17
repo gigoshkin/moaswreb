@@ -124,7 +124,7 @@ function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSe
         <View style={styles.headMain}>
           <LineChain slots={way.slots} />
           <Text variant="caption" color={color.textSecondary}>
-            Arrive {hhmm(best.arriveAt)} · {min} min{best.transfers > 0 ? ` · ${best.transfers} change${best.transfers > 1 ? 's' : ''}` : ''}
+            Arrive {hhmm(best.arriveAt)} · {min} min · {Math.round(best.walkSec / 60)} min walk{best.transfers > 0 ? ` · ${best.transfers} change${best.transfers > 1 ? 's' : ''}` : ''}
             {best.id === chosenId ? ' · best' : ''}
           </Text>
         </View>
