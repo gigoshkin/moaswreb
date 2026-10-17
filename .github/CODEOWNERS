@@ -1,5 +1,5 @@
 # George owns code, stack and repo rules: PRs touching these need his approval.
-# Docs below have no owner, so docs-only PRs can be merged without review.
+# Docs below have no code owner; the ruleset still requires an approved review on every PR.
 *                 @gigoshkin
 /inbox/
 /knowledge-base/
