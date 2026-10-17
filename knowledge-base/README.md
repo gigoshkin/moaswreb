@@ -3,6 +3,7 @@
 - [ttc-pis-gateway-api.md](ttc-pis-gateway-api.md) — TTC's own transit API (stops, routes, live positions/arrivals, timetables, geocode, planner), mapped from transit.ttc.com.ge and tested live 17 Oct
 - [hf-challenge.md](hf-challenge.md) — Hacktoberfest Georgia 2026 opening deck: schedule, tracks, judging, prizes, support (source: opening.hacktoberfest.ge/deck/hf-challenge)
 - [georgian-glossary.md](georgian-glossary.md): approved, banned and proposed Georgian UI terms; formal register rule (George)
+- [vps-dev-setup.md](vps-dev-setup.md): step-by-step VPS setup (Claude Code + Remote Control, Tailscale, Expo Go live demos)
 - [data-and-privacy.md](data-and-privacy.md): what the app stores, where, for how long; source for the privacy policy
 - ideas/tbilisi-transit/ — idea exploration: AI-enhanced Tbilisi transport app (not a chatbot)
   - [01-feasibility-and-tech-plan.md](ideas/tbilisi-transit/01-feasibility-and-tech-plan.md) — data sources, stack, build plan, risks
