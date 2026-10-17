@@ -1,4 +1,4 @@
-import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { isRunningInExpoGo } from 'expo';
 
 /** Synchronous string store. MMKV in real builds; expo-sqlite's kv-store in Expo Go, which has no MMKV. */
 export interface KV {
@@ -6,7 +6,8 @@ export interface KV {
   set(key: string, value: string): void;
 }
 
-export const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+// Not Constants.executionEnvironment: its 'storeClient' also covers dev builds.
+export const isExpoGo = isRunningInExpoGo();
 
 export function createKV(id: string): KV {
   if (isExpoGo) {
