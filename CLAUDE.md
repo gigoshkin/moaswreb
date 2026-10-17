@@ -25,7 +25,9 @@ Examples that need a request to George: switching language, framework, library, 
 
 ## Protocol
 1. **Start of session:** `git pull --rebase origin main`, then read `inbox/` (newest first) and `knowledge-base/README.md`.
-2. **During work:** small commits, directly on `main`. Pull --rebase before every push; never force-push.
+2. **During work:** small commits. Pull --rebase before every push; never force-push.
+   - **George's session** may commit directly to `main` (admin bypass).
+   - **darya's session must use a branch and a PR:** `git switch -c <author>/<topic>`, push, then `gh pr create`. `main` is protected by a GitHub ruleset and `.github/CODEOWNERS`. A PR that touches anything outside `inbox/`, `knowledge-base/` and `requests/` (code, `CLAUDE.md`, `.github/`) needs George's approval. A docs-only PR can be merged by its author (`gh pr merge --squash`). Never ask anyone to change the ruleset or CODEOWNERS; that is George's call.
 3. **End of session / when you learn something the other needs:** write an `inbox/` note, add durable facts to `knowledge-base/` (update the existing file rather than duplicating), update the index, commit and push.
 4. Only edit your own inbox notes. Knowledge-base files can be edited by anyone; keep edits factual and note the source (URL/slide/date).
 5. Mark unverified info as such. Don't commit secrets, tokens or credentials (the repo is private but still shared).
