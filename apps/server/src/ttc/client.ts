@@ -31,7 +31,10 @@ export class TtcClient {
   private key: string | null = null;
   private queue: Promise<unknown> = Promise.resolve();
   private lastRequestAt = 0;
+  private consecutiveFailures = 0;
 
+  /** While set, every request waits; set by backoff after throttling or server errors. */
+  pausedUntil = 0;
   requests = 0;
   errors = 0;
   lastError: string | null = null;
@@ -91,7 +94,7 @@ export class TtcClient {
   }
 
   private async request<T>(path: string, params: Params, retryOn401: boolean): Promise<T> {
-    const wait = this.lastRequestAt + config.ttc.minIntervalMs - Date.now();
+    const wait = Math.max(this.lastRequestAt + config.ttc.minIntervalMs, this.pausedUntil) - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     this.lastRequestAt = Date.now();
 
@@ -111,12 +114,31 @@ export class TtcClient {
         await this.loadKey();
         return this.request<T>(path, params, false);
       }
-      if (!res.ok) throw new TtcError(res.status, path, await res.text());
-      return (await res.json()) as T;
+      if (!res.ok) {
+        if (res.status === 403 || res.status === 429 || res.status >= 500) {
+          this.backOff(Number(res.headers.get('retry-after')) || 0);
+        }
+        throw new TtcError(res.status, path, await res.text());
+      }
+      const data = (await res.json()) as T;
+      this.consecutiveFailures = 0;
+      return data;
     } catch (err) {
       this.errors++;
       this.lastError = `${new Date().toISOString()} ${(err as Error).message}`;
+      if (!(err instanceof TtcError)) this.backOff(0); // network error or timeout
       throw err;
     }
+  }
+
+  /**
+   * Throttled, blocked or failing: stop all traffic for 30 s, doubling per
+   * consecutive failure up to 30 min. Retry-After wins if TTC sends it.
+   */
+  private backOff(retryAfterSec: number): void {
+    this.consecutiveFailures++;
+    const exponential = Math.min(30 * 60_000, 30_000 * 2 ** (this.consecutiveFailures - 1));
+    this.pausedUntil = Date.now() + Math.max(exponential, retryAfterSec * 1000);
+    console.warn(`[ttc] backing off until ${new Date(this.pausedUntil).toISOString()}`);
   }
 }

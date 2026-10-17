@@ -1,4 +1,4 @@
-import { config } from '../config.ts';
+import { config, isQuietHours } from '../config.ts';
 import type { TtcClient } from '../ttc/client.ts';
 import type { RouteDetail, RouteSummary } from '../ttc/types.ts';
 import type { Recorder, SnapshotKind } from './recorder.ts';
@@ -38,10 +38,10 @@ export class Poller {
     const all = await this.capture('routes', 'BUS', () => this.ttc.routes());
     await this.resolveHotRoutes(all);
     await this.loadDetails(all.filter((r) => this.hotRouteIds.has(r.id)));
-    void this.loop('hot', config.logger.hotIntervalMs, () => this.hotCycle());
+    void this.loop('hot', () => (isQuietHours() ? config.logger.quietHotIntervalMs : config.logger.hotIntervalMs), () => this.hotCycle());
 
     await this.loadDetails(all.filter((r) => !this.hotRouteIds.has(r.id)));
-    void this.loop('routes', config.logger.routeRefreshMs, () => this.refreshRoutes(), true);
+    void this.loop('routes', () => config.logger.routeRefreshMs, () => this.refreshRoutes(), true);
     if (config.logger.sweepIntervalMs > 0) void this.sweepLoop();
   }
 
@@ -60,12 +60,14 @@ export class Poller {
       snapshotsWritten: this.recorder.written,
       ttcRequests: this.ttc.requests,
       ttcErrors: this.ttc.errors,
+      ttcPausedUntil: this.ttc.pausedUntil > Date.now() ? new Date(this.ttc.pausedUntil).toISOString() : null,
+      quietHours: isQuietHours(),
       lastError: this.ttc.lastError,
     };
   }
 
-  private async loop(name: string, intervalMs: number, fn: () => Promise<void>, skipFirst = false) {
-    if (skipFirst) await sleep(intervalMs);
+  private async loop(name: string, intervalMs: () => number, fn: () => Promise<void>, skipFirst = false) {
+    if (skipFirst) await sleep(intervalMs());
     while (this.running) {
       const started = Date.now();
       try {
@@ -73,7 +75,7 @@ export class Poller {
       } catch (err) {
         console.error(`[poller:${name}]`, (err as Error).message);
       }
-      await sleep(Math.max(0, intervalMs - (Date.now() - started)));
+      await sleep(Math.max(0, intervalMs() - (Date.now() - started)));
     }
   }
 
@@ -89,6 +91,7 @@ export class Poller {
     while (this.running) {
       for (const routeId of [...this.routes.keys()]) {
         if (!this.running) return;
+        while (this.running && isQuietHours()) await sleep(60_000);
         if (!this.hotRouteIds.has(routeId)) {
           await this.capturePositions(routeId).catch(() => undefined);
           await sleep(config.logger.sweepIntervalMs);

@@ -21,5 +21,18 @@ export const config = {
     hotRoutes: list(process.env.HOT_ROUTES),
     sweepIntervalMs: int(process.env.SWEEP_INTERVAL_MS, 1_500),
     routeRefreshMs: 6 * 60 * 60 * 1000,
+    // Tbilisi local hours with (almost) no buses: sweep off, hot set slowed down.
+    quietFromHour: int(process.env.QUIET_FROM_HOUR, 1),
+    quietToHour: int(process.env.QUIET_TO_HOUR, 6),
+    quietHotIntervalMs: 5 * 60_000,
   },
+};
+
+/** Current hour in Tbilisi (UTC+4, no DST). */
+export const tbilisiHour = (now = new Date()): number => (now.getUTCHours() + 4) % 24;
+
+export const isQuietHours = (now = new Date()): boolean => {
+  const h = tbilisiHour(now);
+  const { quietFromHour: from, quietToHour: to } = config.logger;
+  return from <= to ? h >= from && h < to : h >= from || h < to;
 };
