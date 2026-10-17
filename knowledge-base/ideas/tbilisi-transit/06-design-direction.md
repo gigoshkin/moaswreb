@@ -9,7 +9,7 @@ George loosened the appearance rules. Only these are fixed:
 3. **Premium feel with good animations.**
 4. **Must not look vibecoded** (see §7 for common signals).
 5. **White background** [George: "BACKGROUND MUST BE WHITE - I REQUIRE THIS", 17 Oct]. Pure white, not beige, cream or grey.
-6. **Minimal palette** [George, 17 Oct]. White, near-black text, two or three greys, and **black as the only accent** [George, 17 Oct: "color only black"]. Nothing else: no per-route colours (route numbers sit on neutral plates), no extra badge colours, no gradients or textures. A warning colour for "late" only if a screen truly needs it.
+6. **Minimal palette** [George, 17 Oct]. White, near-black text, two or three greys, and **one** accent colour (to be picked; v2 prototype is black-only and George asked why, 17 Oct). Nothing else: no per-route colours (route numbers sit on neutral plates), no extra badge colours, no gradients or textures. A warning colour for "late" only if a screen truly needs it.
 7. **App screens first, now** [George, 17 Oct: "I NEED APP IMMEDIATELY"]. No more brand boards, banners, mockup scenes or logo variants until the screens are done: Today, Trip detail, Chat (with the action cards), Add trip, Settings.
 8. **No explainer labels** [George, 17 Oct]. No small captions at the bottom of cards or boxes explaining what something is or where data comes from ("live data", "based on…", "updated…"). If a thing needs explaining, redesign it. No "live" label either.
 9. **No pulsing dots or decorative animation** [George, 17 Oct]. Motion only where it explains a change (a number updating, a screen transition).
