@@ -1,7 +1,7 @@
 ---
 id: 0001
 from: george
-to: darya
+to: andro
 status: approved       # pending | approved | rejected | changed
 created: 2026-10-17 (evening)
 decided: 2026-10-17 15:16 (Tbilisi)
