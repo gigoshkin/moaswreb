@@ -27,7 +27,9 @@
       "expo-font",
       "expo-router",
       "expo-sqlite",
-      "expo-notifications"
+      "expo-notifications",
+      "@react-native-community/datetimepicker",
+      "expo-splash-screen"
     ],
     "scheme": "tbilisitransit"
   }

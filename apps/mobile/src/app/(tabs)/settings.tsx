@@ -1,0 +1,73 @@
+import { router } from 'expo-router';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { cancelBackups, setUpAlerts } from '../../lib/alerts';
+import { deleteMyData, hasApi } from '../../lib/api';
+import { clearChat } from '../../lib/chat';
+import { pickPlace } from '../../lib/handoff';
+import { bufferText, settings, updateSettings } from '../../lib/settings';
+import { clearTrips, syncNow } from '../../lib/trips';
+import { Icon } from '../../ui/Icon';
+import { haptic } from '../../ui/Tap';
+import { Group, GroupRow, ScreenTitle, Switch } from '../../ui/kit';
+import { color, gutter } from '../../ui/theme';
+
+// Figma "Settings / default", without the Language row: the app is
+// English-only (George, 17 Oct).
+
+export default function Settings() {
+  const s = settings.use();
+
+  const setHome = async () => {
+    const place = await pickPlace('home');
+    if (place) updateSettings({ home: place });
+  };
+
+  const setAlerts = (on: boolean) => {
+    updateSettings({ alerts: on });
+    syncNow();
+    if (on) setUpAlerts().catch(() => {});
+    else cancelBackups();
+  };
+
+  const deleteAll = () =>
+    Alert.alert('Delete my data?', 'Removes your trips, home and chat from this phone, and your trips and push token from our server.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          if (hasApi) await deleteMyData().catch(() => {});
+          clearTrips();
+          clearChat();
+          updateSettings({ home: null, bufferMin: 0 });
+          haptic('success');
+        },
+      },
+    ]);
+
+  return (
+    <View style={styles.screen}>
+      <ScreenTitle title="Settings" right={<Icon name="bus-deco" size={24} color={color.textTertiary} />} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <Group>
+          <GroupRow label="Home" value={s.home?.label ?? 'Set'} onPress={setHome} />
+          <GroupRow label="Buffer time" value={bufferText(s.bufferMin)} onPress={() => router.push('/buffer')} last />
+        </Group>
+        <Group>
+          <GroupRow label="Notifications" right={<Switch value={s.alerts} onChange={setAlerts} label="Notifications" />} last />
+        </Group>
+        <Group>
+          <GroupRow label="Privacy" onPress={() => router.push('/privacy')} last />
+        </Group>
+        <Group>
+          <GroupRow label="Delete my data" icon="alert" onPress={deleteAll} right={<View />} last />
+        </Group>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: color.bg },
+  content: { paddingHorizontal: gutter, gap: 12, paddingBottom: 24 },
+});

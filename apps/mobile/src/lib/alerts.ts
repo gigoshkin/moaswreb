@@ -60,3 +60,23 @@ export async function scheduleBackup(tripId: string, tripName: string, leaveAt: 
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: leaveAt, channelId: CHANNEL, delivery: 'alarmClock' },
   });
 }
+
+/** Opens the trip when the user taps an alert (server push or local backup). Returns an unsubscribe. */
+export function onAlertTap(open: (tripId: string) => void): () => void {
+  if (!Notifications) return () => {};
+  const handle = (r: NotificationsModule.NotificationResponse | null) => {
+    const tripId = r?.notification.request.content.data?.tripId;
+    if (typeof tripId === 'string') open(tripId);
+  };
+  // A tap that launched the app. Throws where the native module lacks it (web previews).
+  try {
+    handle(Notifications.getLastNotificationResponse());
+  } catch {}
+  const sub = Notifications.addNotificationResponseReceivedListener(handle);
+  return () => sub.remove();
+}
+
+/** Alerts switched off in Settings: no local backups either (the server gets no trips, see toStored). */
+export async function cancelBackups(): Promise<void> {
+  await Notifications?.cancelAllScheduledNotificationsAsync().catch(() => {});
+}

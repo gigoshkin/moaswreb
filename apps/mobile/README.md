@@ -1,7 +1,7 @@
 # Mobile app
 
 Expo SDK 58, expo-router (routes in `src/app/`), TypeScript.
-**No screens yet:** the placeholder UI was removed on 17 Oct for andro's redesign. The MVP look is prototype Today v3 (`knowledge-base/ideas/tbilisi-transit/06-design-direction.md` §0).
+Screens follow andro's Figma ("Moaswreb App", page *Screens v2*), built 17 Oct. Tokens live in `src/ui/theme.ts`.
 
 ## Run
 **Expo Go (SDK 58, 58.0.4+; install the APK from expo.dev if the Play Store build is older):**
@@ -16,7 +16,23 @@ Set `EXPO_PUBLIC_API_URL` (e.g. in `apps/mobile/.env`) to the server, e.g. `http
 Without it the app shows synthetic sample trips.
 Note: `docker-compose.yml` binds the server to `127.0.0.1`, so a phone can't reach the laptop's Docker server; use the VPS (Caddy), or run `npm run dev -w @transit/server` directly.
 
+## Preview in a browser
+`npx expo start --web` renders the screens in a browser: good for checking layout, not motion. Without `EXPO_PUBLIC_API_URL` it uses the sample plan.
+
 ## Layout
-- `src/app/`: routes. `_layout` (stack + alert setup), `index` (empty)
-- `src/lib/`: `api` (client for `/plan`, stops, places, arrivals, chat, `/me`; plans cached), `usePlan` (cache first, then network), `trips` (saved trips, phone only), `kv` (MMKV or Expo Go fallback), `alerts`, `strings` (English copy; the app is English-only), `time`
-- `src/dev/samplePlan.ts`: synthetic plan used when `EXPO_PUBLIC_API_URL` is unset
+- `src/app/`: routes.
+  - `(tabs)/`: Today (`index`), Week, Chat, Settings, with the custom tab bar.
+  - `trip/[id]`: trip detail (saved trip, or a chat plan with `?preview=1`).
+  - `trip/edit`: add or edit a trip.
+  - `pick-place`, `buffer`, `privacy`.
+- `src/ui/`: design system.
+  - `theme`: colours, type scale, springs. `Text`, `Icon`, `Tap` (press feedback + haptics), `Button`, `RoutePlate`.
+  - Motion: `LeaveByBar`, `Countdown` (rolling number), `TabBar` (stretching pill), `StaticMap`, `ChatCards`, `kit` (top bar, cards, switch, chips, rows).
+- `src/lib/`:
+  - Server and storage: `api` (client for the server, plans cached), `kv`, `store` (subscribable values), `trips` (saved trips, synced to the server for alerts), `settings` (home, buffer, alerts).
+  - Planning: `plans` (best option and leave time, same rule as the server), `usePlan` / `useTripPlan`.
+  - Screen glue: `chat`, `handoff` (results passed between screens), `alerts`, `time`.
+- `src/dev/samplePlan.ts`: synthetic plan used when `EXPO_PUBLIC_API_URL` is unset.
+- `assets/fonts`: Metropolis (public domain), a free stand-in for the Figma's Gilroy, which is a paid font. To use Gilroy, drop in licensed files and change `font`/`fontFiles` in `src/ui/theme.ts`.
+- `assets/icons`: SVGs exported from the Figma, plus a few drawn in the same style. Run `node scripts/icons.mjs` after adding one.
+- Map tiles: Esri Light Gray Canvas. No key needed, attribution shown on the map. CARTO's light tiles now require a key.

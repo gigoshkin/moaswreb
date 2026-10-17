@@ -3,10 +3,15 @@ import type { Itinerary, PlanLeg, PlanResponse } from '@transit/shared';
 // SYNTHETIC preview data for the component kit, built relative to "now" so the
 // leave-by bar moves. Stops and colours are illustrative, not TTC data.
 
-const leg = (mode: string, short: string | null, color: string | null, start: number, min: number): PlanLeg => ({
+// Points between the sample start and end, slightly off the straight line so the map shows a route.
+const FROM = { lat: 41.7151, lon: 44.8271 };
+const TO = { lat: 41.7099, lon: 44.7929 };
+const point = (k: number) => ({ lat: FROM.lat + (TO.lat - FROM.lat) * k + Math.sin(k * Math.PI) * 0.004, lon: FROM.lon + (TO.lon - FROM.lon) * k });
+
+const leg = (mode: string, short: string | null, color: string | null, start: number, min: number, k0 = 0, k1 = 1): PlanLeg => ({
   mode,
-  from: { name: '', lat: 41.71, lon: 44.79, stopId: null },
-  to: { name: '', lat: 41.71, lon: 44.79, stopId: null },
+  from: { name: mode === 'WALK' ? '' : 'Sample stop', ...point(k0), stopId: null },
+  to: { name: '', ...point(k1), stopId: null },
   departAt: new Date(start).toISOString(),
   arriveAt: new Date(start + min * 60_000).toISOString(),
   durationSec: min * 60,
@@ -20,8 +25,8 @@ const leg = (mode: string, short: string | null, color: string | null, start: nu
 
 const itinerary = (id: string, start: number, legs: [string, string | null, string | null, number][]): Itinerary => {
   let t = start;
-  const built = legs.map(([mode, short, color, min]) => {
-    const l = leg(mode, short, color, t, min);
+  const built = legs.map(([mode, short, color, min], i) => {
+    const l = leg(mode, short, color, t, min, i / legs.length, (i + 1) / legs.length);
     t += min * 60_000;
     return l;
   });
@@ -41,7 +46,7 @@ const itinerary = (id: string, start: number, legs: [string, string | null, stri
 export const samplePlan = (now = Date.now()): PlanResponse => {
   const m = 60_000;
   return {
-    query: { from: { lat: 41.7151, lon: 44.8271 }, to: { lat: 41.7099, lon: 44.7929 }, arriveBy: '' },
+    query: { from: FROM, to: TO, arriveBy: '' },
     source: 'ttc',
     fetchedAt: new Date(now).toISOString(),
     itineraries: [
