@@ -10,7 +10,7 @@ Mapped 2026-10-17 from TTC's own web app JS bundle (`https://transit.ttc.com.ge/
 - `locale`: `ka` or `en` (TTC maps `ru` to `en`).
 - No CORS for third-party origins **[?]**, so call it from the backend.
 - Unofficial. Poll gently (≈1 req/s total), cache hard, and identify yourself with a User-Agent.
-- George already has a cached Symfony client for most of these endpoints: `~/Projects/web/moaswreb/moaswreb-api/src/Services/TtcClient.php` plus `src/Entity/TTC/*`. It was never pushed, so it exists only locally.
+- Reference only, **don't reuse** (George's decision): George's old local Symfony client `~/Projects/web/moaswreb/moaswreb-api/src/Services/TtcClient.php` (Dec 2025). It's useful for seeing how the API behaved then; the API may have changed since. This file is the current source of truth.
 
 ## Endpoints
 

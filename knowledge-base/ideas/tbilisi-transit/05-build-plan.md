@@ -28,8 +28,8 @@ Written Sat 17 Oct 2026, evening, from George's session. Builds on `04-product-s
 ## 3. Stack [proposed: needs George]
 | Layer | Proposal | Why | Alternative |
 |---|---|---|---|
-| Phone app | **Expo SDK 54 + expo-router + TS, Android dev build**. Reuse George's local `~/Projects/web/moaswreb/moaswreb-app` (scaffold, Inter font, route-builder, draggable stop list) | Already exists and is close to this idea; the `where-is-my-bus` remote it points to doesn't exist on GitHub | fresh `create-expo-app` |
-| Backend | **Option A: Symfony (reuse `moaswreb-api` TtcClient + entities + cache + auth)**. Option B: Node/TS (darya's proposal) | A: the hardest-to-get part (gateway client) is already written by the code owner. B: shared TS types with the app, mature MCP TS SDK | George picks |
+| Phone app | **Expo + expo-router + TS, Android dev build**, new project | — | — |
+| Backend | open: George picks the language/framework. Symfony not required | — | — |
 | DB | SQLite (one file, logs + trips + predictions) | zero ops | Postgres if A already uses it |
 | Logger / decision loop | Long-running worker (Symfony Scheduler/Messenger or a Node interval) | needs to run all night | cron every minute |
 | LLM | Claude API, model in env var | vision + PDF + Georgian | — |
@@ -40,7 +40,7 @@ Written Sat 17 Oct 2026, evening, from George's session. Builds on `04-product-s
 
 **Rule regardless of stack:** LLMs parse and phrase; numbers always come from code.
 
-**Is pre-hackathon code allowed?** **[?]** Ask in `#ask-okto` before reusing `moaswreb`. If it's not allowed, we rewrite the client from `ttc-pis-gateway-api.md` (~1–2 h).
+**No reuse of old code [decided by George, 17 Oct]:** `~/Projects/web/moaswreb` (Symfony API + Expo app) is old. Use it **only as a reference** for how the TTC API behaves and for UI ideas. Copy no files or modules; everything is written fresh here. The TTC API may have changed since then, so trust `ttc-pis-gateway-api.md` (tested 17 Oct) over the old code.
 
 ## 4. Screens (draft, darya to own and redo)
 1. Onboarding: language (ka/en), home point (search or GPS), notification permission.
