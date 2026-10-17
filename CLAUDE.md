@@ -2,6 +2,10 @@
 
 Two people (gigoshkin, AndroPetrosyan), each with their own Claude session, share this repo to exchange info. Treat it as the shared memory between sessions.
 
+## Roles (set by George, 17 Oct)
+- **George (gigoshkin): code owner.** Stack, libraries, data sources, architecture. Sessions may propose stack changes but must not decide them; mark them `[proposed: needs George]`.
+- **Partner (darya / AndroPetrosyan): features and user flows.** Owns the feature spec and is expected to come up with new flows.
+
 ## Layout
 - `knowledge-base/` — durable reference notes (one topic per file, markdown). Index in `knowledge-base/README.md`.
 - `inbox/` — handoff notes between people/sessions: `YYYY-MM-DD-<author>-<topic>.md`. Say what you did, what's open, what the other should do next.

@@ -8,11 +8,13 @@ Written Sat 17 Oct 2026, ~15:00 Tbilisi time. Supersedes the open questions in r
 
 ## 2. Decisions
 
+> **Note (George, 17 Oct):** George owns code and stack. The Platform / AI provider / Backend rows below are **proposals until George approves them** (see `05-build-plan.md` §3). Features (§3) remain darya's area.
+
 | Topic | Decision | Notes |
 |---|---|---|
 | Platform | **Expo (React Native) Android app** [decided] | Real native app for Track 03. Needs a dev build (not Expo Go) for remote push. iOS out of scope. Demo on a real Android phone. |
 | Track | **Track 03 Mobile native**, Track 01 language in the pitch | Per reports 01 to 03. |
-| Transit data | **Public TTC feeds, no key** [decided] | GTFS static + GTFS-RT vehicle positions + Transitous/MOTIS routing (sources in report 01 section 1). Not the unofficial TTC gateway; do not use the key published in third-party code. |
+| Transit data | ~~Public TTC feeds, no key~~ **Overridden by George (code owner), 17 Oct: use the TTC PIS gateway directly**, see `knowledge-base/ttc-pis-gateway-api.md` and `05-build-plan.md` §1. Original proposal: public TTC feeds, no key | GTFS static + GTFS-RT vehicle positions + Transitous/MOTIS routing (sources in report 01 section 1). Not the unofficial TTC gateway; do not use the key published in third-party code. |
 | AI provider | Claude API (`@anthropic-ai/sdk`), model configurable by env var | Vision and PDF input are needed for schedule upload. Key goes in an env var, never committed. |
 | Backend | Node + TypeScript, one always-on process, SQLite | Poller and decision loop need a long-running process (report 01 section 2). |
 
