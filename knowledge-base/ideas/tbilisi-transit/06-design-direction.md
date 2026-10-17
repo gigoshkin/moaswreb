@@ -4,14 +4,16 @@ Written 17 Oct 2026 from George's session, at George's request ("very good, beau
 
 ## 0. George's guidelines: the only fixed rules [decided by George, 17 Oct, later the same day]
 George loosened the appearance rules. Only these are fixed:
-1. **Georgian first.** Georgian is the default language and the copy is written in Georgian first; English is secondary.
+1. **Georgian first in the app, but design in English** [George, 17 Oct: "forget designing in Georgian, design in English only"]. Mockups and prototypes use English copy; Georgian copy is written later from `georgian-glossary.md`.
 2. **Light theme.** The app is light-themed. Dark mode is optional, andro's call.
 3. **Premium feel with good animations.**
 4. **Must not look vibecoded** (see §7 for common signals).
 5. **White background** [George: "BACKGROUND MUST BE WHITE - I REQUIRE THIS", 17 Oct]. Pure white, not beige, cream or grey.
-6. **Minimal palette** [George, 17 Oct]. White, near-black text, two or three greys, and **one** accent colour. Nothing else: no per-route colours (route numbers sit on neutral plates), no extra badge colours, no gradients or textures. A warning colour for "late" only if a screen truly needs it.
+6. **Minimal palette** [George, 17 Oct]. White, near-black text, two or three greys, and **black as the only accent** [George, 17 Oct: "color only black"]. Nothing else: no per-route colours (route numbers sit on neutral plates), no extra badge colours, no gradients or textures. A warning colour for "late" only if a screen truly needs it.
 7. **App screens first, now** [George, 17 Oct: "I NEED APP IMMEDIATELY"]. No more brand boards, banners, mockup scenes or logo variants until the screens are done: Today, Trip detail, Chat (with the action cards), Add trip, Settings.
-8. **No explainer labels** [George, 17 Oct]. No small captions at the bottom of cards or boxes explaining what something is or where data comes from ("live data", "based on…", "updated…"). If a thing needs explaining, redesign it. No "live" label either; a small dot is enough.
+8. **No explainer labels** [George, 17 Oct]. No small captions at the bottom of cards or boxes explaining what something is or where data comes from ("live data", "based on…", "updated…"). If a thing needs explaining, redesign it. No "live" label either.
+9. **No pulsing dots or decorative animation** [George, 17 Oct]. Motion only where it explains a change (a number updating, a screen transition).
+10. **Premium, not "Google app"** [George, 17 Oct]. Google Sans and Material patterns read as a Google app; the code prototype uses Inter. See `design/prototype/`.
 
 **Everything else about appearance is andro's to decide and may override this document:** fonts, colours, accent, shapes, icons, references, motion style, signature moments. §1–§5 and §7 are suggestions, not rules. No request is needed to change them; andro edits this file or says so in an inbox note. The current tokens in `apps/mobile/src/theme/tokens.ts` (Google Sans Flex + Noto Sans Georgian, white and neutral greys, green accent) are placeholders until andro picks, within rules 5 and 6. §6 (the libraries) stays George's area.
 
