@@ -1,7 +1,7 @@
 ---
 id: NNNN
-from: darya | george
-to: george | darya
+from: andro | george
+to: george | andro
 status: pending        # pending | approved | rejected | changed
 created: YYYY-MM-DD HH:MM
 decided: 
