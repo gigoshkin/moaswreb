@@ -64,6 +64,8 @@ Written Sat 17 Oct 2026, evening, from George's session. Builds on `04-product-s
 - The 3-minute stage demo, click by click
 
 ## 5. Design direction: must not look vibecoded
+
+> **Superseded in part by `06-design-direction.md`** (17 Oct): Google/Apple-level feel, not stock Material; Google Sans Flex + a Georgian font instead of Inter; springs and shared transitions instead of plain Material motion.
 Avoid the AI-template signals: purple/indigo gradients, glassmorphism, emoji as icons, "✨AI" badges, centred hero cards with huge rounded corners, generic shadcn grey-on-white, sparkle icons, lorem-like microcopy.
 
 Do:
@@ -91,3 +93,8 @@ Do:
 4. Gateway client + `plan` → week view end-to-end on the phone (first checkpoint from 04 §6).
 5. Leave-by engine + push; then notice reader; then scorecard; then polish/design; widget if time remains.
 6. Sun 09:00 freeze features; 09:00–11:30 demo rehearsal + backup recording; submit before 12:00.
+
+## 8. Data, learning and privacy [decided by George, 17 Oct]
+- **Logger:** keep the city-wide sweep, but never risk a block. Gentle rate (≤ 1.4 req/s), automatic backoff on 403/429/5xx/network errors (30 s doubling to 30 min), sweep paused 01:00–06:00 Tbilisi. Keep it only while it gives real benefit.
+- **Learning:** self-improving. Start from a wide safe window based on TTC's countdown; narrow it per line as observations accumulate (shrink toward the all-lines estimate when data is thin); always show the evidence ("learned from N arrivals").
+- **Privacy:** **no user-bound GPS or movement data is collected, ever.** Current location may be used on the phone only, to compute walking time; it isn't sent or stored. No "learn your walking speed" on the server. Uploaded files are deleted after parsing. The MCP endpoint needs a personal key. There's a delete-all button. Google sign-in is still undecided (see George's session).

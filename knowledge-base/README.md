@@ -8,4 +8,5 @@
   - [03-competition-and-judging-fit.md](ideas/tbilisi-transit/03-competition-and-judging-fit.md) — competitors, judge Q&A, pitch
   - [04-product-spec.md](ideas/tbilisi-transit/04-product-spec.md) — feature spec (darya): AI schedule upload, leave-by alerts, Georgian notice reader, scorecard, weekly plan. Stack/data rows overridden or pending George, see 05
   - [05-build-plan.md](ideas/tbilisi-transit/05-build-plan.md) — roles, stack proposal (needs George), screens, flows to define, design rules (not vibecoded), names, next steps
+  - [06-design-direction.md](ideas/tbilisi-transit/06-design-direction.md) — look & feel proposal: Google/Apple-level, references, motion, signature moments, native tech, don'ts
   - Reports are agent-written; claims marked "(verify)" are unconfirmed.
