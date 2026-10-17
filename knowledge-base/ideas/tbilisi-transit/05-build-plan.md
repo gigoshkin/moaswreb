@@ -73,7 +73,7 @@ Do:
 - Type: **Noto Sans Georgian + Inter** (or Noto Sans) with tabular figures. Two weights only.
 - One accent colour plus route colours; neutral greys; real dark mode.
 - Native Android feel: Material 3 motion, haptics on state changes, system back, real notifications and widget, no web-looking modals.
-- Short, specific microcopy in Georgian first ("გადი 7 წუთში"), English second. Reasons in one line with numbers.
+- Short, specific microcopy in Georgian first ("გასვლა 7 წუთში"; wording rules in [georgian-glossary.md](../../georgian-glossary.md)), English second. Reasons in one line with numbers.
 - Confidence shown as a **window bar** (06–09 min), not a percentage badge.
 - AI is invisible: no chat, no sparkle; show *what changed and why*.
 - Design in Figma first (Figma MCP is available but needs auth via `/mcp`), one screen at a time, 4 px grid.

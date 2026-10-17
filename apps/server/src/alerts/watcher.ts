@@ -123,15 +123,15 @@ export class AlertWatcher {
     if (prev && Math.abs(leaveAt - prev.leaveAt) >= CHANGE_MIN * 60_000 && now < leaveAt) {
       msg = {
         to,
-        title: 'გეგმა შეიცვალა',
-        body: `გადი ${hm(leaveAt)}-ზე (იყო ${hm(prev.leaveAt)}). ${routes}`,
+        title: 'გასვლის დრო შეიცვალა',
+        body: `გასვლა ${hm(leaveAt)}-ზე (იყო ${hm(prev.leaveAt)}). ${routes}`,
         data: data('plan_changed'),
       };
     } else if (!prev?.sentSoon && now >= leaveAt - LEAVE_SOON_MIN * 60_000 && now < leaveAt + 60_000) {
       const mins = Math.max(0, Math.round((leaveAt - now) / 60_000));
       msg = {
         to,
-        title: mins > 0 ? `გადი ${mins} წუთში` : 'გადი ახლა',
+        title: mins > 0 ? `გასვლა ${mins} წუთში` : 'გასვლა ახლა',
         body: `${hm(leaveAt)} · ${routes}`,
         data: data('leave_soon'),
       };

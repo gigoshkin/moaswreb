@@ -31,3 +31,11 @@ Examples that need a request to George: switching language, framework, library, 
 3. **End of session / when you learn something the other needs:** write an `inbox/` note, add durable facts to `knowledge-base/` (update the existing file rather than duplicating), update the index, commit and push.
 4. Only edit your own inbox notes. Knowledge-base files can be edited by anyone; keep edits factual and note the source (URL/slide/date).
 5. Mark unverified info as such. Don't commit secrets, tokens or credentials (the repo is private but still shared).
+
+## Georgian text (MANDATORY, set by George 17 Oct)
+Any Georgian the app shows (screens, alerts, chat prompts, Figma copy, store text):
+- Formal register (თქვენ forms). Real Georgian UI terms, never word-for-word translations from English (e.g. "გასვლა 08:14-ზე", not "გადი").
+- Take terms from `knowledge-base/georgian-glossary.md`. New terms go to its **Proposed** table and need a native speaker (George or andro) before they're final.
+- Run `npm run ka-check` (or `node scripts/ka-check.mjs --text "…"`) before committing copy. It fails on banned terms and flags spelling; it can't judge tone, so ask your human when unsure.
+- In Figma, follow "Georgian text in Figma" in `knowledge-base/ideas/tbilisi-transit/06-design-direction.md` §8.
+

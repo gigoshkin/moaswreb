@@ -1,9 +1,10 @@
 // UI copy. Georgian is the default language; English is secondary.
-// Wording is a placeholder until andro writes the real copy.
+// Wording is a placeholder until andro writes the real copy. Every Georgian
+// string must follow knowledge-base/georgian-glossary.md (npm run ka-check).
 
 const ka = {
-  leaveIn: (min: number) => `გადი ${min} წუთში`,
-  leaveNow: 'გადი ახლა',
+  leaveIn: (min: number) => `გასვლა ${min} წუთში`,
+  leaveNow: 'გასვლა ახლა',
   options: 'ვარიანტები',
   min: (n: number) => `${n} წთ`,
   walk: (n: number) => `${n} წთ ფეხით`,

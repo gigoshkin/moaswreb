@@ -36,7 +36,7 @@ test('silent until 10 min before leaving (08:15 bus − 5 min walk = leave 08:10
   assert.equal((await watcher.tick(at('06:30'))).length, 0, 'not watched yet (> 2 h before)');
   assert.equal((await watcher.tick(at('07:55'))).length, 0);
   const [msg] = await watcher.tick(at('08:01'));
-  assert.equal(msg.title, 'გადი 9 წუთში');
+  assert.equal(msg.title, 'გასვლა 9 წუთში');
   assert.equal(msg.body, '08:10 · 306 → 347');
   assert.equal(msg.data.kind, 'leave_soon');
   assert.equal((await watcher.tick(at('08:02'))).length, 0, 'no repeat');
@@ -49,7 +49,7 @@ test('pushes when the plan shifts by 3+ minutes', async () => {
   shift(4);
   const [msg] = await watcher.tick(at('07:45'));
   assert.equal(msg.data.kind, 'plan_changed');
-  assert.equal(msg.body, 'გადი 08:14-ზე (იყო 08:10). 306 → 347');
+  assert.equal(msg.body, 'გასვლა 08:14-ზე (იყო 08:10). 306 → 347');
   shift(1);
   assert.equal((await watcher.tick(at('07:46'))).length, 0, 'small drift is ignored');
 });

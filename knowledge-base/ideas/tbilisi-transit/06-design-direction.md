@@ -33,7 +33,7 @@ George loosened the appearance rules. Only these four are fixed:
   - Two or three sizes per screen, with big contrast between them.
 - **Shapes:** large-radius cards. The shape changes with state (a card that's "about to leave" gets tighter corners and a solid fill), in the M3 Expressive spirit, not just colour swaps.
 - **Icons:** one consistent set (Material Symbols Rounded, or Lucide at one stroke weight). No emoji, no sparkles, no "AI" badges.
-- **Copy:** Georgian first, short, with numbers ("გადი 7 წუთში"). Reasons in one line: "306 is 4 min late → take 17".
+- **Copy:** Georgian first, short, with numbers ("გასვლა 7 წუთში"; formal register, terms from [georgian-glossary.md](../../georgian-glossary.md), George 17 Oct). Reasons in one line: "306 is 4 min late → take 17".
 
 ## 4. Motion and snappiness (where "Google/Apple level" is actually won)
 - **Everything is a spring,** with no linear fades. Sheets, cards and the chat's action cards follow the finger and settle with physics.
@@ -78,4 +78,14 @@ Purple/indigo gradients · glassmorphism everywhere · default Material buttons 
    - Motion can't live in Figma: describe it in a frame note or the inbox ("card springs up", "number rolls").
 3. **Handoff:** when a screen is ready, andro writes an inbox note with the Figma link (frame link if possible). George's session reads the frame with the Figma connector and builds it in React Native.
 4. The current code kit (`apps/mobile/src/components`, `tokens.ts`) is a placeholder; it gets restyled to match Figma.
-4. Demo-phone check every few hours: start time, scroll, transitions.
+5. Demo-phone check every few hours: start time, scroll, transitions.
+
+### Georgian text in Figma [George's quality rule, 17 Oct]
+Agent-made frames had broken Georgian. These rules are technical; the choice of font and style stays with andro.
+- **Only fonts that contain Georgian (Mkhedruli) letters.** When a font has no Georgian, Figma swaps in another font for those letters, so weights and widths don't match the Latin text. Before using a font, render a Georgian test string in it and compare. Fonts in this Figma account that have Georgian (checked 17 Oct with `listAvailableFontsAsync`): 123-Antena (the wordmark) and Noto Sans Georgian. Inter, Google Sans Flex and most Google fonts have none.
+- **Don't apply UPPERCASE to Georgian.** Figma turns it into Mtavruli capitals, which reads as shouting and breaks line lengths.
+- **Line height at least 1.3× for Georgian body text.** Mkhedruli letters reach far above and below the line; check the screenshot for clipped letters.
+- **Georgian strings run 20–40% longer than English.** Use auto-layout and text that grows in height, and test with the longest real string.
+- **Copy comes from [georgian-glossary.md](../../georgian-glossary.md):** formal register, no word-for-word translations, no lorem ipsum.
+- **Build screens from shared text styles, variables and components**, not one-off values. That's where the "clean" look comes from; an agent placing loose layers produces a vibecoded look whichever MCP it uses.
+- **Before calling a frame done:** screenshot it and check for fallback fonts, clipped letters, overlaps and leftover test layers.
