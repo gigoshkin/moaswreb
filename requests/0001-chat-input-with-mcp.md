@@ -34,4 +34,4 @@ Keep the F2/F5 screens as specced, and build the MCP server anyway for the Elva 
 
 ## Decision (owner fills in)
 
-Approved by darya (asked in chat), 2026-10-17 15:16 Tbilisi time. The chat input with confirm cards replaces the separate F2 upload and F5 notice screens; Today, Week, Trip detail, Scorecard and notifications stay. `04-product-spec.md` updated to match.
+Approved by andro (asked in chat), 2026-10-17 15:16 Tbilisi time. The chat input with confirm cards replaces the separate F2 upload and F5 notice screens; Today, Week, Trip detail, Scorecard and notifications stay. `04-product-spec.md` updated to match.

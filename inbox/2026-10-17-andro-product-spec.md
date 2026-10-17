@@ -1,4 +1,4 @@
-# Product spec agreed — darya, 2026-10-17
+# Product spec agreed — andro, 2026-10-17
 
 - Wrote `knowledge-base/ideas/tbilisi-transit/04-product-spec.md`: the decisions for the app we're building.
 - Decided: Expo Android app (Track 03), public TTC feeds with no key (GTFS + GTFS-RT + Transitous), Claude for AI.
