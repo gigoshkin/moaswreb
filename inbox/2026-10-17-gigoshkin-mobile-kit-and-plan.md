@@ -1,6 +1,6 @@
 # Mobile scaffold, component kit, /plan endpoint (gigoshkin, 2026-10-17)
 
-Written from George's cloud session while George was on a break. Branch `main-cx2gcl` (not merged to main yet).
+Written from George's cloud session while George was on a break. Pushed to `main` the same day.
 
 ## What's done
 - **`packages/shared`**: normalised trip-planner types (`PlanQuery`, `Itinerary`, `PlanLeg`, `PlanResponse`) and a Tbilisi time helper. Types only, no runtime deps; the server runs it with Node type stripping, Metro bundles it for the app.
