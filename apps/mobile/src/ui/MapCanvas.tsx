@@ -31,6 +31,8 @@ export interface MapMarker {
   node: ReactNode;
   /** Makes the marker tappable. */
   onPress?: () => void;
+  /** Changes when the marker should be redrawn (e.g. grown); the node itself is not compared. */
+  sig?: string;
 }
 
 export interface MapCanvasHandle {
@@ -220,7 +222,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
           zoomControlEnabled={false}
           moveOnMarkerPress={false}
           onRegionChangeStart={regionStart}
-          onRegionChange={regionMoving}
+          onRegionChange={onMove ? regionMoving : undefined}
           onRegionChangeComplete={regionDone}
         >
           {lines.map((l, i) => (
@@ -245,7 +247,7 @@ function MapMark({ m }: { m: MapMarker }) {
     setTrack(true);
     const t = setTimeout(() => setTrack(false), 600);
     return () => clearTimeout(t);
-  }, [m.node]);
+  }, [m.key, m.sig]); // the node is rebuilt every render; redrawing every marker each time would stall the map
   return (
     <Marker coordinate={ll(m.at)} anchor={{ x: 0.5, y: m.anchor === 'bottom' ? 1 : 0.5 }} tracksViewChanges={track} tappable={!!m.onPress} onPress={m.onPress}>
       {m.node}

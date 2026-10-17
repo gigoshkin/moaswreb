@@ -120,10 +120,14 @@ export default function BuildRoute() {
 
   const planned = useMemo(() => overlay(from, to, it), [it]);
 
+  // The middle of the map to ~300 m, so the set of stop dots only changes when you have really moved.
+  const mid = centre ?? to;
+  const cellKey = `${(Math.round(mid.lat / 0.003) * 0.003).toFixed(4)},${(Math.round(mid.lon / 0.003) * 0.003).toFixed(4)}`;
+
   // What the map shows depends on the step: stops to board at, the lines and stops to get off at, or the planned route.
   const { routes, markers, points } = useMemo(() => {
     if (adding && !board) {
-      const mk: MapMarker[] = nearby.stops.map((s) => ({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, onPress: () => pickBoard(s) }));
+      const mk: MapMarker[] = nearby.stops.map((s) => ({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, sig: hot === s.id ? 'big' : '', onPress: () => pickBoard(s) }));
       return { routes: planned.routes, markers: mk, points: [] as Point[] };
     }
     if (adding && board) {
@@ -136,14 +140,14 @@ export default function BuildRoute() {
         const rt: MapRoute[] = (match ?? []).map((x) => ({ points: [board, ...x.upto], color: kindColor[kindOfLine(x.line)] }));
         return { routes: rt, markers: mk, points: [board, placed] as Point[] };
       }
-      const c = centre ?? to;
+      const c = { lat: Number(cellKey.split(',')[0]), lon: Number(cellKey.split(',')[1]) };
       const shown = [...reachable].sort((a, b) => distM(a, c) - distM(b, c)).slice(0, 70);
-      for (const s of shown) mk.push({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, onPress: () => map.current?.flyTo(s, 17) });
+      for (const s of shown) mk.push({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, sig: hot === s.id ? 'big' : '', onPress: () => map.current?.flyTo(s, 17) });
       const rt: MapRoute[] = onLines.map((l) => ({ points: [board, ...l.next] }));
       return { routes: rt, markers: mk, points: [board, to] as Point[] };
     }
     return { routes: planned.routes, markers: planned.markers, points: planned.points };
-  }, [adding, board, nearby.stops, reachable, onLines, match, planned, hot, placed, centre]);
+  }, [adding, board, nearby.stops, reachable, onLines, match, planned, hot, placed, cellKey]);
 
   // Frame the map when the step changes (not on the first frame: the map starts framed).
   const fitKey = `${adding}|${board ? 1 : 0}|${it?.id ?? ''}`;
