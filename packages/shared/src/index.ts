@@ -8,3 +8,4 @@ export type * from './trips.ts';
 export type * from './stops.ts';
 export { TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from './time.ts';
 export { STOP_ID_PATTERN } from './stops.ts';
+export { leaveAtMs, leaveMarginMin } from './leave.ts';

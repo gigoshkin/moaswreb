@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
-import type { PlanResponse } from '@transit/shared';
+import { leaveMarginMin, type PlanResponse } from '@transit/shared';
 import { AlertWatcher } from '../src/alerts/watcher.ts';
 import type { PushMessage } from '../src/alerts/push.ts';
 import { normalizePlan } from '../src/plan/normalize.ts';
@@ -39,13 +39,13 @@ const setup = () => {
   return { watcher, sent, store, shift, setExpo, queries };
 };
 
-test('silent until 10 min before leaving (08:15 bus − 5 min walk = leave 08:10), then one push', async () => {
+test('silent until 10 min before leaving (08:15 bus − 5 min walk − 1 min margin = leave 08:09), then one push', async () => {
   const { watcher, sent } = setup();
   assert.equal((await watcher.tick(at('06:30'))).length, 0, 'not watched yet (> 2 h before)');
   assert.equal((await watcher.tick(at('07:55'))).length, 0);
   const [msg] = await watcher.tick(at('08:01'));
-  assert.equal(msg.title, 'Leave in 9 min');
-  assert.equal(msg.body, '08:10 · 306 → 347');
+  assert.equal(msg.title, 'Leave in 8 min');
+  assert.equal(msg.body, '08:09 · 306 → 347');
   assert.equal(msg.data.kind, 'leave_soon');
   assert.equal((await watcher.tick(at('08:02'))).length, 0, 'no repeat');
   assert.equal(sent.length, 1);
@@ -57,7 +57,7 @@ test('pushes when the plan shifts by 3+ minutes', async () => {
   shift(4);
   const [msg] = await watcher.tick(at('07:45'));
   assert.equal(msg.data.kind, 'plan_changed');
-  assert.equal(msg.body, 'Leave at 08:14 (was 08:10). 306 → 347');
+  assert.equal(msg.body, 'Leave at 08:13 (was 08:09). 306 → 347');
   shift(1);
   assert.equal((await watcher.tick(at('07:46'))).length, 0, 'small drift is ignored');
 });
@@ -86,4 +86,8 @@ test('a trip arriving just after midnight is watched from the evening before', a
   store.putTrips(DEVICE, [{ id: 't3', fromStopId: '1:1000', toStopId: '1:1405', arriveBy: '00:30', days: [1], walkMin: 0 }]);
   await watcher.tick(Date.parse('2026-10-18T23:00:00+04:00')); // Sunday 23:00, trip is Monday 00:30
   assert.deepEqual(queries, ['2026-10-19T00:30']);
+});
+
+test('leave margin is 20% of the walk, 1 to 4 min', () => {
+  assert.deepEqual([0, 5, 10, 12, 15, 20, 40].map(leaveMarginMin), [1, 1, 2, 2, 3, 4, 4]);
 });

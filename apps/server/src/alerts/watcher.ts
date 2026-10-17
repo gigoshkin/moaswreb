@@ -1,4 +1,4 @@
-import type { Itinerary, StoredTrip } from '@transit/shared';
+import { leaveAtMs, type Itinerary, type StoredTrip } from '@transit/shared';
 import type { PlanService } from '../plan/service.ts';
 import type { StopIndex } from '../ttc/stops.ts';
 import type { TripStore } from '../store/trips.ts';
@@ -124,7 +124,8 @@ export class AlertWatcher {
     const best = bestItinerary(plan.itineraries, arriveByMs);
     if (!best) return null;
 
-    const leaveAt = Date.parse(best.departAt) - trip.walkMin * 60_000;
+    // Walk plus a margin for buses that come early.
+    const leaveAt = leaveAtMs(Date.parse(best.departAt), trip.walkMin);
     const key = `${device}|${trip.id}|${date}`;
     const prev = this.state.get(key);
     const data = (kind: PushMessage['data']['kind']) => ({ kind, tripId: trip.id, leaveAt: new Date(leaveAt).toISOString() });

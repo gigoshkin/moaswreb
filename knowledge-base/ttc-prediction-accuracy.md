@@ -39,6 +39,6 @@ Predictions of 21+ min matched badly (median −17 min). The feed probably skips
 ## What it means for the app
 - **Mid-route errors go both ways.** History-based correction (learning that "line X runs N min late") would add little there.
 - **End-of-line stops lean one way** (late). That could be learned per stop, but needs more than 6 buses.
-- **About 2 min of margin on the leave time** covers the costly case: with TTC saying 6–10 min, the bus came 2+ min early 17% of the time.
+- **Margin on the leave time** covers the costly case, a bus that comes early: with TTC saying 6–10 min, the bus came 2+ min early 17% of the time; at 11–15 min, 30%. **In use since 17 Oct:** leave time = departure − walk − 20% of the walk (1–4 min), `leaveMarginMin` in `packages/shared/src/leave.ts`. The bus is about one walk away when you leave, and research finds error grows with the horizon ([Cats & Loutos 2013](https://swopec.hhs.se/ctswps/abs/ctswps2013_025.htm), [Dublin study](https://ceur-ws.org/Vol-1392/paper-13.pdf)). It's a rule of thumb; check it against more data. End-of-line stops don't need it (buses leave late there), but we can't tell those apart yet.
 - **Predictions 15+ min out are rough** (80% within 7.5–8 min). Alerts re-plan every minute, so their times sharpen as the bus gets closer.
 - Not measured: weekday rush, other lines, mid-route stops away from a terminus. All are needed before deciding on a history model.
