@@ -303,7 +303,7 @@ function MapPick({ kind, onPick, onBack }: { kind: PickKind; onPick: (p: Place) 
           )}
         </View>
         {stops.length > 0 && (
-          <Animated.View entering={FadeIn.duration(200)} layout={LinearTransition.springify()}>
+          <Animated.View entering={FadeIn.duration(200)} layout={LinearTransition.duration(240)}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
               {stops.map((s) => (
                 <Tap key={s.id} onPress={() => snap(s)} scaleTo={0.95} style={[styles.chip, snapped?.id === s.id && styles.chipOn]} accessibilityRole="button" accessibilityLabel={`${s.name}, ${s.distanceM} metres`}>

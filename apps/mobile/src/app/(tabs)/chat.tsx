@@ -139,7 +139,7 @@ export default function Chat() {
 function Message({ item, onEdit }: { item: ChatItem; onEdit: (prefill: string) => void }) {
   if (item.role === 'user') {
     return (
-      <Animated.View entering={enter} layout={LinearTransition.springify()} style={styles.userWrap}>
+      <Animated.View entering={enter} layout={LinearTransition.duration(240)} style={styles.userWrap}>
         {item.image && <Image source={{ uri: item.image }} style={styles.sentImage} />}
         {item.file && (
           <View style={styles.sentFile}>

@@ -55,7 +55,7 @@ export default function Today() {
       {hero ? <Hero trip={hero} date={today} now={now} plan={plan} /> : trips.length ? <NothingLeft trips={trips} now={now} /> : <FirstRun />}
 
       {later.length > 0 && (
-        <Animated.View layout={LinearTransition.springify()}>
+        <Animated.View layout={LinearTransition.duration(240)}>
           <Text variant="label14" color={color.textSecondary} style={styles.sectionLabel}>
             Later today
           </Text>

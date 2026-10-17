@@ -21,7 +21,7 @@ const WORD_OFFSET = fromBottom(type.display.fontSize!, type.display.lineHeight!)
 
 const enter = FadeInDown.springify().damping(spring.smooth.damping).stiffness(spring.smooth.stiffness).withInitialValues({ transform: [{ translateY: 36 }] });
 const exit = FadeOutUp.duration(220).withInitialValues({ transform: [{ translateY: 0 }] });
-const layout = LinearTransition.springify().damping(spring.smooth.damping).stiffness(spring.smooth.stiffness);
+const layout = LinearTransition.duration(240);
 
 /** "Leave in 7 min": the number rolls up when it changes, the words make room on a spring. */
 export function Countdown({ prefix, value, suffix, tint = color.text }: Props) {

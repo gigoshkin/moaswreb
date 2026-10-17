@@ -180,7 +180,7 @@ export default function BuildRoute() {
 
       <Animated.View
         entering={FadeInDown.springify().damping(spring.sheet.damping).stiffness(spring.sheet.stiffness)}
-        layout={LinearTransition.springify().damping(spring.sheet.damping).stiffness(spring.sheet.stiffness)}
+        layout={LinearTransition.duration(240)}
         style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}
         onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
       >
