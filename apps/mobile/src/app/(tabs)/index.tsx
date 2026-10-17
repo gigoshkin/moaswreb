@@ -234,7 +234,7 @@ function FirstRun() {
       <View style={styles.firstRunActions}>
         <Button label="Add a trip" onPress={() => openNewTrip()} />
         <Tap onPress={() => router.navigate('/chat')} style={styles.textButton} scaleTo={0.96}>
-          <Text variant="label14">Or send your timetable in Chat</Text>
+          <Text variant="label14">Or ask the assistant to set it up</Text>
         </Tap>
       </View>
     </View>

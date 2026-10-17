@@ -14,7 +14,7 @@ import { Text } from '../../ui/Text';
 import { ScreenTitle } from '../../ui/kit';
 import { color, font, gutter, radius, shadow, spring } from '../../ui/theme';
 
-const SUGGESTIONS = ['When should I leave for university tomorrow?', 'What comes next at my stop?', 'Paste a TTC notice to check my trips'];
+const SUGGESTIONS = ['When should I leave for work tomorrow?', 'What comes next at my stop?', 'How do I get from Vake to Rustaveli?'];
 
 const enter = FadeInDown.springify().damping(spring.smooth.damping).stiffness(spring.smooth.stiffness);
 
@@ -41,7 +41,7 @@ export default function Chat() {
   };
 
   const attach = () =>
-    Alert.alert('Add your schedule', undefined, [
+    Alert.alert('Attach', undefined, [
       { text: 'Take a photo', onPress: () => photo(true) },
       { text: 'Choose a photo', onPress: () => photo(false) },
       { text: 'PDF', onPress: pdf },
@@ -74,10 +74,10 @@ export default function Chat() {
         {data.length === 0 ? (
           <View style={styles.empty}>
             <Text variant="body16" color={color.textSecondary} style={styles.emptyText}>
-              Ask about a trip, send a photo of your timetable, or paste a notice.
+              Ask about your trips, stops or buses. You can also send a photo or a PDF.
             </Text>
             {SUGGESTIONS.map((s) => (
-              <Tap key={s} onPress={() => (s.startsWith('Paste') ? input.current?.focus() : send(s))} style={styles.suggestion} scaleTo={0.97}>
+              <Tap key={s} onPress={() => send(s)} style={styles.suggestion} scaleTo={0.97}>
                 <Text variant="body15">{s}</Text>
               </Tap>
             ))}
@@ -115,7 +115,7 @@ export default function Chat() {
               ref={input}
               value={text}
               onChangeText={setText}
-              placeholder="Message or upload a timetable"
+              placeholder="Ask anything"
               placeholderTextColor={color.textSecondary}
               style={styles.input}
               multiline
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   // Not a ListEmptyComponent: inside an inverted list Android renders it mirrored.
   empty: { flex: 1, justifyContent: 'flex-end', gap: 8, paddingHorizontal: gutter, paddingVertical: 12 },
   emptyText: { marginBottom: 8 },
-  suggestion: { alignSelf: 'flex-start', backgroundColor: color.surface, borderRadius: radius.full, borderWidth: 1, borderColor: color.border, paddingHorizontal: 16, paddingVertical: 10 },
+  suggestion: { alignSelf: 'flex-start', backgroundColor: color.surface, borderRadius: 18, borderWidth: 1, borderColor: color.border, paddingHorizontal: 16, paddingVertical: 10 },
   userWrap: { alignItems: 'flex-end', gap: 8 },
   bubble: { maxWidth: 272, backgroundColor: color.ink, paddingHorizontal: 16, paddingVertical: 12, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 6 },
   sentImage: { width: 132, height: 96, borderRadius: radius.md, backgroundColor: color.surfaceMuted },
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
   assistant: { gap: 12 },
   thinking: { paddingVertical: 4 },
   inputArea: { backgroundColor: color.bg, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 },
-  composer: { backgroundColor: color.surface, borderRadius: 26, borderWidth: 1, borderColor: color.border, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, gap: 4, ...shadow.soft },
+  composer: { backgroundColor: color.surface, borderRadius: 22, borderWidth: 1, borderColor: color.border, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, gap: 4, ...shadow.soft },
   attachment: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.surfaceMuted, borderRadius: radius.md, padding: 8 },
   thumb: { width: 40, height: 40, borderRadius: 8 },
   input: { fontFamily: font.regular, fontSize: 16, lineHeight: 22, color: color.text, minHeight: 28, maxHeight: 132, paddingHorizontal: 6, paddingVertical: 3, includeFontPadding: false, textAlignVertical: 'top' },
