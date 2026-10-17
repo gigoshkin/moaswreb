@@ -19,6 +19,10 @@ const BEFORE_MS = 6 * 3_600_000;
 const AFTER_MS = 3 * 3_600_000;
 /** A "leave now" option that arrives more than this before the deadline is dropped. */
 const EARLY_MS = 90 * MIN;
+/** A deadline further away than this is planned from timetables alone. */
+const SOON_MS = 12 * 3_600_000;
+/** Boarding/alighting stop pairs kept per line (the ones with the least walking). */
+const KEEP_PER_LINE = 2;
 
 export const tbilisiDate = (ms: number) => new Date(ms + TBILISI_MS).toISOString().slice(0, 10);
 const dayStart = (date: string) => Date.parse(`${date}T00:00:00Z`) - TBILISI_MS;
@@ -75,8 +79,8 @@ export class Engine {
     this.src = src;
   }
 
-  /** All ways to do one step, with their departures between `lo` and `hi`. */
-  private async alts(step: JourneyStep, input: JourneyInput, lo: number, hi: number): Promise<Alt[]> {
+  /** All ways to do one step (no departures yet). */
+  private async alts(step: JourneyStep, input: JourneyInput): Promise<Alt[]> {
     const out: Alt[] = [];
     const allowed = step.routes?.length ? new Set(step.routes) : null;
     const seen = new Set<string>();
@@ -93,9 +97,7 @@ export class Engine {
           const key = `${p.routeId}|${p.suffix}|${fromId}|${toId}`;
           if (seen.has(key)) continue;
           seen.add(key);
-          const alt: Alt = { p, b, a, board: p.stops[b], alight: p.stops[a], deps: [] };
-          alt.deps = await this.departures(alt, lo, hi, input.now);
-          if (alt.deps.length) out.push(alt);
+          out.push({ p, b, a, board: p.stops[b], alight: p.stops[a], deps: [] });
         }
       }
     }
@@ -140,17 +142,28 @@ export class Engine {
   /** Itineraries for the first ride's alternatives, each arriving by the deadline with the latest possible start; then, for what's still catchable now, the soonest ones. */
   async solve(input: JourneyInput): Promise<Itinerary[]> {
     if (!input.steps.length) return [];
-    const lo = Math.min(input.deadline - BEFORE_MS, input.now);
-    const hi = Math.max(input.deadline + AFTER_MS, input.now + AFTER_MS);
+    // "Leave now" and live vehicles only matter when the deadline is near; a trip for the day after tomorrow is the timetable's.
+    const soon = input.deadline - input.now < SOON_MS;
+    const lo = soon ? Math.min(input.deadline - BEFORE_MS, input.now) : input.deadline - BEFORE_MS;
+    const hi = soon ? Math.max(input.deadline + AFTER_MS, input.now + AFTER_MS) : input.deadline + AFTER_MS;
     const altsByStep: Alt[][] = [];
-    for (const step of input.steps) altsByStep.push(await this.alts(step, input, lo, hi));
+    for (const [i, step] of input.steps.entries()) {
+      const all = await this.alts(step, input);
+      // Walking times are asked from TTC one by one, so only the stops that look closest are kept per line.
+      const near = (a: Alt) => (i === 0 ? distanceM(input.from, a.board) : 0) + (i === input.steps.length - 1 ? distanceM(a.alight, input.to) : 0);
+      const perLine = new Map<string, Alt[]>();
+      for (const a of all) perLine.set(a.p.shortName, [...(perLine.get(a.p.shortName) ?? []), a]);
+      const kept = [...perLine.values()].flatMap((g) => g.sort((x, y) => near(x) - near(y)).slice(0, KEEP_PER_LINE));
+      for (const a of kept) a.deps = await this.departures(a, lo, hi, input.now);
+      altsByStep.push(kept.filter((a) => a.deps.length));
+    }
     if (altsByStep.some((a) => !a.length)) return [];
 
     const back = await this.backward(altsByStep, input);
     // A line whose on-time ride can still be caught needs no "leave now" version.
     const catchable = new Set(back.filter((n) => n.dep.dep - 0 >= input.now).map((n) => n.alt.p.shortName));
     // And one that arrives long before the deadline is not an answer to "arrive by": that line has no ride near the time.
-    const fwd = (await this.forward(altsByStep, input)).filter((n) => {
+    const fwd = (soon ? await this.forward(altsByStep, input) : []).filter((n) => {
       if (catchable.has(n.alt.p.shortName)) return false;
       let last = n;
       while (last.next) last = last.next;

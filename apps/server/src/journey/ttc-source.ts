@@ -87,7 +87,7 @@ export class TtcSource implements Source {
     this.cache.set(key, { at: Date.now(), value });
     value.then(
       (v) => {
-        if (this.file && /^(route|stops|patterns|schedule|routes):/.test(key) && key !== 'routes') {
+        if (this.file && /^(route|stops|patterns|schedule|walk):/.test(key)) {
           this.saved.set(key, { at: Date.now(), value: v });
           this.dirty = true;
         }

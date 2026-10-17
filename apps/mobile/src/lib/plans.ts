@@ -49,7 +49,7 @@ const GRACE_MS = 60_000;
 export function choose(its: Itinerary[], arriveByLocal: string, now: number, bufferMin = 0): Choice {
   const deadline = Date.parse(tbilisiLocalToIso(arriveByLocal) ?? '') || Infinity;
   const catchable = its.map((it) => ({ it, leaveAt: leaveAt(it, bufferMin) })).filter((c) => c.leaveAt >= now - GRACE_MS);
-  const onTime = catchable.filter((c) => Date.parse(c.it.arriveAt) <= deadline).sort((a, b) => b.leaveAt - a.leaveAt)[0];
+  const onTime = catchable.filter((c) => Date.parse(c.it.arriveAt) <= deadline).sort((a, b) => b.leaveAt - a.leaveAt || Date.parse(a.it.arriveAt) - Date.parse(b.it.arriveAt))[0];
   if (onTime) return { kind: 'onTime', ...onTime };
   const soonest = catchable.sort((a, b) => Date.parse(a.it.arriveAt) - Date.parse(b.it.arriveAt))[0];
   if (!soonest) return { kind: 'none' };
