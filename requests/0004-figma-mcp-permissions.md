@@ -2,9 +2,9 @@
 id: 0004
 from: andro
 to: george
-status: pending        # pending | approved | rejected | changed
+status: approved       # pending | approved | rejected | changed
 created: 2026-10-17 17:10
-decided: 
+decided: 2026-10-17 (Tbilisi)
 ---
 
 # Let Claude sessions use the Figma MCP without a permission prompt each time
@@ -28,3 +28,5 @@ Repo config is George's area (`CODEOWNERS`). This adds a new `.claude/settings.j
 andro approves Figma calls by hand each time.
 
 ## Decision (owner fills in)
+
+Approved by George (asked in chat), 17 Oct 2026. PR #6 merged with the 12 Figma tools as listed; `generate_image` stays out. Any later additions to `.claude/settings.json` go through a request to George.
