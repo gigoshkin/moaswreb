@@ -54,7 +54,7 @@ interface Props {
   /** Called when the map comes to rest, with the point under the focus. */
   onIdle?: (center: LatLon, zoom: number) => void;
   /** Called while the map moves, with the point under the focus (for feedback as the pin passes things). */
-  onMove?: (center: LatLon) => void;
+  onMove?: (center: LatLon, zoom: number) => void;
   onMoveStart?: () => void;
   style?: StyleProp<ViewStyle>;
 }
@@ -160,7 +160,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     const { w, dy: off } = live.current;
     if (!onMoveRef.current || !w || !r.longitudeDelta) return;
     const g = Math.log2((360 * w) / (WORLD * r.longitudeDelta));
-    onMoveRef.current(shiftDown({ lat: r.latitude, lon: r.longitude }, g, off));
+    onMoveRef.current(shiftDown({ lat: r.latitude, lon: r.longitude }, g, off), fromG(g));
   }, []);
 
   const regionDone = useCallback(

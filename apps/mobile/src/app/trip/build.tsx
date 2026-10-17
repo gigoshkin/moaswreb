@@ -26,10 +26,10 @@ import { MapButton } from '../../ui/kit';
 import { overlay } from '../../ui/overlay';
 import { color, gutter, radius, shadow, spring } from '../../ui/theme';
 
-/** The pin "touches" a stop this close: a tick as it passes. */
-const TOUCH_M = 18;
-/** When the map settles with the pin this close to a stop, it eases onto it. */
-const SNAP_M = 35;
+/** The pin is "on" a stop this close, measured on screen so it feels the same at every zoom: the stop grows, a tick, and a settle pulls it on. */
+const SNAP_PT = 14;
+/** Metres per screen point at an app zoom (Google zoom is that + 1, 256 points across the world at zoom 0). */
+const metresPerPoint = (lat: number, zoom: number) => (40_075_017 * Math.cos((lat * Math.PI) / 180)) / (256 * 2 ** (zoom + 1));
 /** A line within this of the pin counts as going there. */
 const NEAR_M = 300;
 const TBILISI = { lat: 41.7151, lon: 44.793 };
@@ -59,6 +59,8 @@ export default function BuildRoute() {
   const [off, setOff] = useState<string[]>([]);
   const [adding, setAdding] = useState(!init?.steps.length);
   const [centre, setCentre] = useState<Point | null>(null);
+  const [hot, setHot] = useState<string | null>(null);
+  const hotRef = useRef<string | null>(null);
 
   useEffect(() => () => finishSteps(null), []);
 
@@ -123,14 +125,14 @@ export default function BuildRoute() {
   // What the map shows depends on the step: stops to board at, the lines and stops to get off at, or the planned route.
   const { routes, markers, points } = useMemo(() => {
     if (adding && !board) {
-      const mk: MapMarker[] = nearby.stops.map((s) => ({ key: s.id, at: s, node: <StopDot />, onPress: () => pickBoard(s) }));
+      const mk: MapMarker[] = nearby.stops.map((s) => ({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, onPress: () => pickBoard(s) }));
       return { routes: planned.routes, markers: mk, points: [] as Point[] };
     }
     if (adding && board) {
       // Only the lines that go where the pin is, from the boarding stop to the stop they get off at; other stops stay tappable to move the pin.
       const mk: MapMarker[] = nearby.stops
         .filter((s) => s.id !== board.id)
-        .map((s) => ({ key: s.id, at: s, node: <StopDot />, onPress: () => map.current?.flyTo(s, 17) }));
+        .map((s) => ({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, onPress: () => map.current?.flyTo(s, 17) }));
       mk.push({ key: 'board', at: board, node: <StopDot on tint={color.ink} /> });
       const used = match?.used ?? [];
       for (const x of used) mk.push({ key: `off-${x.stop.id}`, at: x.stop, node: <StopDot on tint={kindColor[kindOfLine(x.line)]} /> });
@@ -138,7 +140,7 @@ export default function BuildRoute() {
       return { routes: rt, markers: mk, points: [board, to] as Point[] };
     }
     return { routes: planned.routes, markers: planned.markers, points: planned.points };
-  }, [adding, board, nearby.stops, match, planned]);
+  }, [adding, board, nearby.stops, match, planned, hot]);
 
   // Frame the map when the step changes (not on the first frame: the map starts framed).
   const fitKey = `${adding}|${board ? 1 : 0}|${it?.id ?? ''}`;
@@ -158,38 +160,38 @@ export default function BuildRoute() {
     return nearby.stops.map((s) => ({ s, d: distM(c, s) })).sort((a, b) => a.d - b.d)[0] ?? null;
   }, [nearby.stops, centre, here.lat, here.lon]);
 
-  // The pin passing over a stop ticks; settling close to one pulls it on (a slight magnet).
+  // The stop under the pin (within SNAP_PT on screen) grows and ticks; settling beside one pulls the pin on.
   const nearbyRef = useRef(nearby.stops);
   nearbyRef.current = nearby.stops;
-  const touching = useRef<string | null>(null);
   const snapped = useRef<string | null>(null); // one pull per stop, so it can never loop
-  const closest = (c: Point) => {
+  const stopAt = (c: Point, zoom: number) => {
+    const reach = SNAP_PT * metresPerPoint(c.lat, zoom);
     let best: { s: StopHit; d: number } | null = null;
     for (const s of nearbyRef.current) {
+      if (s.id === board?.id) continue;
       const d = distM(c, s);
-      if (!best || d < best.d) best = { s, d };
+      if (d <= reach && (!best || d < best.d)) best = { s, d };
     }
-    return best;
+    return best ? { ...best, pt: best.d / metresPerPoint(c.lat, zoom) } : null;
   };
-  const onMove = (c: Point) => {
-    if (!adding) return;
-    const b = closest(c);
-    const id = b && b.d <= TOUCH_M ? b.s.id : null;
-    if (!id || id !== snapped.current) snapped.current = null;
-    if (id !== touching.current) {
-      touching.current = id;
-      if (id) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    }
+  const mark = (id: string | null) => {
+    if (id === hotRef.current) return;
+    hotRef.current = id;
+    setHot(id);
+    if (id) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   };
-  const onIdle = (c: Point) => {
-    const b = adding ? closest(c) : null;
-    if (b && b.d <= SNAP_M && b.d > 4 && b.s.id !== board?.id && b.s.id !== snapped.current) {
-      touching.current = b.s.id;
+  const onMove = (c: Point, zoom: number) => {
+    if (adding) mark(stopAt(c, zoom)?.s.id ?? null);
+  };
+  const onIdle = (c: Point, zoom: number) => {
+    const b = adding ? stopAt(c, zoom) : null;
+    mark(b?.s.id ?? null);
+    if (b && b.pt > 1.5 && b.s.id !== snapped.current) {
       snapped.current = b.s.id;
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      map.current?.flyTo(b.s); // eases the pin onto the stop; the next idle reports the stop itself
+      map.current?.flyTo(b.s, zoom); // eases the pin onto the stop; the next idle reports the stop itself
       return;
     }
+    if (!b) snapped.current = null;
     setCentre(c);
   };
 
