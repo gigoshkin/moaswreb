@@ -11,6 +11,7 @@ George loosened the appearance rules. Only these are fixed:
 5. **White background** [George: "BACKGROUND MUST BE WHITE - I REQUIRE THIS", 17 Oct]. Pure white, not beige, cream or grey.
 6. **Minimal palette** [George, 17 Oct]. White, near-black text, two or three greys, and **one** accent colour. Nothing else: no per-route colours (route numbers sit on neutral plates), no extra badge colours, no gradients or textures. A warning colour for "late" only if a screen truly needs it.
 7. **App screens first, now** [George, 17 Oct: "I NEED APP IMMEDIATELY"]. No more brand boards, banners, mockup scenes or logo variants until the screens are done: Today, Trip detail, Chat (with the action cards), Add trip, Settings.
+8. **No explainer labels** [George, 17 Oct]. No small captions at the bottom of cards or boxes explaining what something is or where data comes from ("live data", "based on…", "updated…"). If a thing needs explaining, redesign it. No "live" label either; a small dot is enough.
 
 **Everything else about appearance is andro's to decide and may override this document:** fonts, colours, accent, shapes, icons, references, motion style, signature moments. §1–§5 and §7 are suggestions, not rules. No request is needed to change them; andro edits this file or says so in an inbox note. The current tokens in `apps/mobile/src/theme/tokens.ts` (Google Sans Flex + Noto Sans Georgian, white and neutral greys, green accent) are placeholders until andro picks, within rules 5 and 6. §6 (the libraries) stays George's area.
 

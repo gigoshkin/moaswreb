@@ -17,6 +17,7 @@ Every Georgian word or phrase the app shows (screens, notifications, chat replie
 |---|---|---|---|
 | გადი | Informal command ("get out / go!"), wrong tone for a label or alert | გასვლა | George, chat, 17 Oct 2026 |
 | დაგეხმარები | Informal "you" | დაგეხმარებით | George's formal-register rule, 17 Oct 2026 |
+| ცოცხლად | Literal translation of "live" (means "alive"); not how Georgian apps say live data | Preferably no label at all (a small pulsing dot is enough); if a word is needed, "ლაივი" (proposed) | George, chat, 17 Oct 2026 |
 
 ## Proposed (needs a native speaker)
 Already used in the code or the Figma file, not yet reviewed. Move a row to **Approved** or **Banned** after review.
@@ -36,6 +37,7 @@ Already used in the code or the Figma file, not yet reviewed. Move a row to **Ap
 | კავშირი ვერ დამყარდა, ნაჩვენებია ბოლო შედეგი | couldn't connect; showing the last result | app (`offline`) | |
 | სანიმუშო მონაცემები | sample data | app, dev only | |
 | ამაში ვერ დაგეხმარებით | I can't help with that | chat refusal | |
+| ლაივი | live (real-time data) | — | Only if a label is really needed; George prefers no label |
 | გაჩერება | stop (bus stop) | — | Standard; TTC uses it (unverified, TTC site blocked from the cloud sandbox) |
 | გადაჯდომა | transfer | — | |
 | მოასწრებ | (app name) you'll make it | Figma wordmark | Brand name, informal on purpose? Ask andro |

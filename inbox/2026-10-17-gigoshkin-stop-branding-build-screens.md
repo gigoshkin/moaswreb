@@ -15,3 +15,7 @@ Also in the Today frame:
 - Less on screen: one hero (the next departure), then a calm list. No extra pills and labels.
 
 The code side already follows these rules: white background, neutral greys, neutral route plates (`apps/mobile/src/theme/tokens.ts`).
+
+## Two more from George
+- **"ცოცხლად" is banned** for "live". It's a literal translation and is used everywhere in the Figma file. Best is no label at all; a small pulsing dot says "live". If a word is truly needed, "ლაივი" (proposed in the glossary).
+- **No explainer labels** (06 §0 rule 8). Drop the small captions at the bottom of cards that explain something nobody asked about ("live data", "based on…", "updated…"). If something needs explaining, the design is wrong.
