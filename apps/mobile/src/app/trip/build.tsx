@@ -15,6 +15,7 @@ import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { slotsFor } from '../../lib/ways';
 import { Button } from '../../ui/Button';
+import { Icon } from '../../ui/Icon';
 import { LineChain, Stack } from '../../ui/LineChain';
 import { MapCanvas, type MapCanvasHandle, type MapMarker, type MapRoute } from '../../ui/MapCanvas';
 import { EndRing, StopDot } from '../../ui/MapMarks';
@@ -54,6 +55,8 @@ export default function BuildRoute() {
   const [steps, setSteps] = useState<JourneyStep[]>(init?.steps ?? []);
   const [sheetH, setSheetH] = useState(220);
   const [anchor, setAnchor] = useState<StopHit | null>(null);
+  // The rides built so far, as the rail shows them (stops with names).
+  const [rides, setRides] = useState<Ride[]>([]);
   const [board, setBoard] = useState<StopHit | null>(null);
   const [adding, setAdding] = useState(!init?.steps.length);
   const [centre, setCentre] = useState<Point | null>(null);
@@ -66,15 +69,25 @@ export default function BuildRoute() {
 
   const from = init?.from ?? { ...TBILISI, label: 'Start' };
   const to = init?.to ?? { ...TBILISI, label: 'End' };
+  // The preview plans only the rides built so far, from the first boarding stop to the last stop: the walk home
+  // and the walk to the destination are not part of it, and a metro-only ride would otherwise fail on a long walk.
+  const ends = rides.length ? { from: { ...rides[0].board, label: rides[0].board.name }, to: { ...rides[rides.length - 1].off, label: rides[rides.length - 1].off.name } } : { from, to };
   const trip = useMemo(
-    () => (steps.length ? { id: 'draft', name: '', from, to, arriveBy: init?.arriveBy ?? '09:00', days: init?.days ?? [1, 2, 3, 4, 5], steps, avoid: init?.avoid } : null),
-    [steps],
+    () => (steps.length ? { id: 'draft', name: '', from: ends.from, to: ends.to, arriveBy: init?.arriveBy ?? '09:00', days: init?.days ?? [1, 2, 3, 4, 5], steps, avoid: init?.avoid } : null),
+    [steps, rides],
   );
   const date = nextArriveBy(init?.arriveBy ?? '09:00', init?.days ?? [1, 2, 3, 4, 5], now).slice(0, 10);
   const plan = useTripPlan(trip, date, now);
   const it = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
-  const rides = it ? it.legs.filter((l) => l.mode !== 'WALK') : [];
-  const here: Point = anchor ?? (rides.length ? rides.at(-1)!.to : from);
+  const legs = it ? it.legs.filter((l) => l.mode !== 'WALK') : [];
+  const here: Point = anchor ?? (rides.length ? rides[rides.length - 1].off : from);
+
+  // Steps that came in from the route screen: name their stops from the planned legs.
+  useEffect(() => {
+    if (rides.length || !steps.length || legs.length !== steps.length) return;
+    if (legs.some((l) => !l.from.stopId || !l.to.stopId)) return;
+    setRides(legs.map((l) => ({ board: { id: l.from.stopId!, name: l.from.name, lat: l.from.lat, lon: l.from.lon, mode: l.mode }, off: { id: l.to.stopId!, name: l.to.name, lat: l.to.lat, lon: l.to.lon, mode: l.mode } })));
+  }, [it?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stops around the middle of the map, loaded as the map settles.
   const nearby = useStopsNear(adding ? (centre ?? here) : null);
@@ -113,9 +126,30 @@ export default function BuildRoute() {
     haptic('success');
     const stop = used[0].stop;
     setSteps((s) => [...s, { fromStops: [board.id], toStops: [stop.id] }]);
+    setRides((r) => [...r, { board, off: stop }]);
     setAnchor(stop);
+    // The next ride starts where this one ended; a metro station next to the stop means a short walk first.
+    setBoard(stop);
+    setPlaced(null);
+    map.current?.flyTo(to, 15.5);
+    if (stop.mode !== 'SUBWAY') {
+      nearStops(stop, { radiusM: 250, limit: 3, mode: 'SUBWAY' }).then(
+        (r) => {
+          const metro = r.find((x) => x.id !== stop.id);
+          if (metro) setBoard((b) => (b?.id === stop.id ? metro : b));
+        },
+        () => {},
+      );
+    }
+  };
+  /** Drop a ride and everything after it (each ride starts where the one before ended). */
+  const removeFrom = (i: number) => {
+    haptic('selection');
+    setSteps((s) => s.slice(0, i));
+    setRides((r) => r.slice(0, i));
+    setAnchor(null);
     clearBoard();
-    setAdding(false);
+    setAdding(i === 0);
   };
 
   const planned = useMemo(() => overlay(from, to, it), [it]);
@@ -234,104 +268,100 @@ export default function BuildRoute() {
         style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}
         onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
       >
-        {adding && !board && (
-          <View style={styles.gap}>
-            <View style={styles.titleRow}>
-              <Text variant="title18" style={styles.flex}>
-                {steps.length ? 'Where do you board next?' : 'Where do you board?'}
-              </Text>
-              {steps.length > 0 && (
-                <Tap onPress={() => setAdding(false)} hitSlop={8}>
-                  <Text variant="label14" color={color.textSecondary}>
-                    Cancel
-                  </Text>
-                </Tap>
-              )}
-            </View>
-            <Text variant="body14" color={color.textSecondary}>
-              Tap a stop on the map, or move the map so the pin is by the stop.
-            </Text>
-            {nearby.loading && !nearby.stops.length ? (
-              <Busy label="Loading stops…" />
-            ) : nearest ? (
-              <Button label={`Use ${nearest.s.name} · ${distanceLabel(nearest.d)}`} kind="secondary" onPress={() => pickBoard(nearest.s)} haptic="none" />
-            ) : (
-              <Text variant="body14" color={color.textSecondary}>
-                {nearby.error ? "Can't load stops right now." : 'No stops here. Move the map.'}
-              </Text>
-            )}
-          </View>
-        )}
+        {rides.length > 0 && <Rail rides={rides} onRemove={removeFrom} />}
 
-        {adding && board && (
+        {adding && (
           <View style={styles.gap}>
-            <View style={styles.titleRow}>
-              <Text variant="title18" style={styles.flex} numberOfLines={1}>
-                {board.name}
-              </Text>
-              <Tap onPress={clearBoard} hitSlop={8}>
-                <Text variant="label14" color={color.textSecondary}>
-                  Change stop
+            <View style={styles.pair}>
+              <Tap onPress={board ? clearBoard : undefined} feedback="tint" style={styles.half} accessibilityRole="button" accessibilityLabel={board ? `Boarding at ${board.name}. Change` : 'Choose boarding stop'}>
+                <View style={styles.dot} />
+                <Text variant="label14" numberOfLines={1} color={board ? color.text : color.textSecondary} style={styles.flex}>
+                  {board ? board.name : 'Boarding stop'}
                 </Text>
               </Tap>
+              <Icon name="chevron-right" size={18} color={color.textTertiary} />
+              <View style={styles.half}>
+                <Icon name="pin" size={16} color={placed ? color.ink : color.textTertiary} />
+                <Text variant="label14" numberOfLines={1} color={placed ? color.text : color.textSecondary} style={styles.flex}>
+                  {placed ? placed.name : 'Get off'}
+                </Text>
+              </View>
             </View>
-            {!lines && !linesError && <Busy label="Loading the lines at this stop…" />}
-            {linesError && (
+
+            {!board ? (
+              <>
+                <Text variant="body14" color={color.textSecondary}>
+                  Tap a stop on the map, or move the map so the pin is by the stop.
+                </Text>
+                {nearby.loading && !nearby.stops.length ? (
+                  <Busy label="Loading stops…" />
+                ) : nearest ? (
+                  <Button label={`Use ${nearest.s.name} · ${distanceLabel(nearest.d)}`} kind="secondary" onPress={() => pickBoard(nearest.s)} haptic="none" />
+                ) : (
+                  <Text variant="body14" color={color.textSecondary}>
+                    {nearby.error ? "Can't load stops right now." : 'No stops here. Move the map.'}
+                  </Text>
+                )}
+              </>
+            ) : !lines && !linesError ? (
+              <Busy label="Loading the lines at this stop…" />
+            ) : linesError ? (
               <Text variant="body14" color={color.textSecondary}>
                 Can't load the lines for this stop right now.
               </Text>
-            )}
-            {lines && (
+            ) : !placed ? (
               <>
-                {!placed ? (
-                  <View style={styles.gap}>
-                    <Text variant="body14">Every line from here is on the map. Move the pin onto a stop where you get off.</Text>
-                    <Button
-                      label={hot ? 'Get off here' : 'Move the pin onto a stop'}
-                      kind="secondary"
-                      onPress={() => {
-                        const stop = reachable.find((x) => x.id === hot);
-                        if (stop) {
-                          haptic('selection');
-                          setPlaced(stop);
-                        }
-                      }}
-                      disabled={!hot || !reachable.some((x) => x.id === hot)}
-                      haptic="none"
-                    />
-                  </View>
-                ) : match ? (
-                  <Animated.View entering={FadeIn.duration(160)} style={styles.gap}>
-                    <View style={styles.destRow}>
-                      <Stack slot={[...new Map(match.map((x) => [x.line.shortName, { label: x.line.shortName, kind: kindOfLine(x.line) }])).values()]} />
-                      <Text variant="label16" style={styles.flex} numberOfLines={1}>
-                        {placed.name}
-                      </Text>
-                    </View>
-                    <Button label="Add this ride" onPress={() => confirmRide(match)} haptic="none" />
-                    <Tap onPress={() => setPlaced(null)} hitSlop={8} style={styles.moveLink}>
-                      <Text variant="label14" color={color.textSecondary}>
-                        Move the end pin
-                      </Text>
-                    </Tap>
-                  </Animated.View>
-                ) : null}
+                {rides.length > 0 && distM(board, rides[rides.length - 1].off) > 30 && (
+                  <Text variant="caption" color={color.textSecondary}>
+                    Walk {distanceLabel(distM(board, rides[rides.length - 1].off))} to {board.name}.
+                  </Text>
+                )}
+                <Text variant="body14">Every line from here is on the map. Move the pin onto a stop where you get off.</Text>
+                <Button
+                  label={hot ? 'Get off here' : 'Move the pin onto a stop'}
+                  kind="secondary"
+                  onPress={() => {
+                    const stop = reachable.find((x) => x.id === hot);
+                    if (stop) {
+                      haptic('selection');
+                      setPlaced(stop);
+                    }
+                  }}
+                  disabled={!hot || !reachable.some((x) => x.id === hot)}
+                  haptic="none"
+                />
               </>
+            ) : match ? (
+              <Animated.View entering={FadeIn.duration(160)} style={styles.gap}>
+                <View style={styles.destRow}>
+                  <Stack slot={[...new Map(match.map((x) => [x.line.shortName, { label: x.line.shortName, kind: kindOfLine(x.line) }])).values()]} />
+                  <Text variant="caption" color={color.textSecondary} style={styles.flex}>
+                    gets you there
+                  </Text>
+                </View>
+                <Button label="Add this ride" icon="plus" onPress={() => confirmRide(match)} haptic="none" />
+                <Tap onPress={() => setPlaced(null)} hitSlop={8} style={styles.moveLink}>
+                  <Text variant="label14" color={color.textSecondary}>
+                    Move the end pin
+                  </Text>
+                </Tap>
+              </Animated.View>
+            ) : null}
+            {rides.length > 0 && (
+              <Tap onPress={() => { clearBoard(); setAdding(false); }} hitSlop={8} style={styles.moveLink}>
+                <Text variant="label14" color={color.textSecondary}>
+                  Stop adding rides
+                </Text>
+              </Tap>
             )}
           </View>
         )}
 
         {!adding && (
           <View style={styles.gap}>
-            <Text variant="title18">Your route</Text>
             {it ? (
               <View style={styles.gap}>
                 <LineChain slots={slotsFor(it, plan.itineraries)} />
-                {rides.map((l, i) => (
-                  <Text key={i} variant="body14" numberOfLines={1}>
-                    {l.from.name} → {l.to.name}
-                  </Text>
-                ))}
                 <Text variant="caption" color={color.textSecondary}>
                   Leave around {hhmm(leaveAt(it, settings.get().bufferMin))} · arrive {hhmm(it.arriveAt)}
                 </Text>
@@ -349,23 +379,55 @@ export default function BuildRoute() {
             )}
             {it && (plan.refreshing || !plan.loaded) && <Busy label="Checking every line…" />}
             <View style={styles.actions}>
-              <Button label="Add another ride" kind="secondary" onPress={() => setAdding(true)} haptic="none" />
-              {steps.length > 0 && (
-                <Button
-                  label="Remove last ride"
-                  kind="secondary"
-                  onPress={() => {
-                    setSteps((s) => s.slice(0, -1));
-                    setAnchor(null);
-                  }}
-                  haptic="none"
-                />
-              )}
+              <Button label="Add another ride" icon="plus" kind="secondary" onPress={() => { setAdding(true); setBoard(rides.length ? rides[rides.length - 1].off : null); }} haptic="none" />
               <Button label="Done" onPress={done} disabled={!steps.length} haptic="none" />
             </View>
           </View>
         )}
       </Animated.View>
+    </View>
+  );
+}
+
+interface Ride {
+  board: StopHit;
+  off: StopHit;
+}
+
+/** The rides so far as a rail: a dot per stop, the ride between, a walk where the next ride starts elsewhere. */
+function Rail({ rides, onRemove }: { rides: Ride[]; onRemove: (i: number) => void }) {
+  return (
+    <View style={styles.rail}>
+      {rides.map((r, i) => {
+        const prev = rides[i - 1];
+        const walk = prev ? distM(prev.off, r.board) : 0;
+        const kind: Kind = r.board.mode === 'SUBWAY' ? 'metro' : 'bus';
+        return (
+          <View key={`${r.board.id}-${i}`}>
+            {walk > 30 && (
+              <View style={styles.railRow}>
+                <View style={styles.railTrack}>
+                  <View style={styles.railDash} />
+                </View>
+                <Text variant="caption" color={color.textSecondary}>
+                  Walk {distanceLabel(walk)}
+                </Text>
+              </View>
+            )}
+            <View style={styles.railRow}>
+              <View style={styles.railTrack}>
+                <View style={[styles.railBar, { backgroundColor: kindColor[kind] }]} />
+              </View>
+              <Text variant="label14" style={styles.flex} numberOfLines={1}>
+                {r.board.name} → {r.off.name}
+              </Text>
+              <Tap onPress={() => onRemove(i)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove ride ${i + 1} and the ones after it`}>
+                <Icon name="close" size={16} color={color.textSecondary} />
+              </Tap>
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -422,6 +484,14 @@ function useLines(stopId: string | null) {
 }
 
 const styles = StyleSheet.create({
+  rail: { gap: 2, paddingBottom: 8 },
+  railRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 28 },
+  railTrack: { width: 14, alignItems: 'center', alignSelf: 'stretch', justifyContent: 'center' },
+  railBar: { width: 5, flex: 1, borderRadius: 3, marginVertical: 2 },
+  railDash: { width: 2, flex: 1, borderRadius: 1, backgroundColor: color.border },
+  pair: { flexDirection: 'row', alignItems: 'center', backgroundColor: color.surfaceMuted, borderRadius: radius.md, height: 52, paddingHorizontal: 6 },
+  half: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, height: 52 },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: color.ink },
   screen: { flex: 1, backgroundColor: color.bg },
   floating: { position: 'absolute', left: 12 },
   sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '55%', backgroundColor: color.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: gutter, paddingTop: 16, ...shadow.bar },
