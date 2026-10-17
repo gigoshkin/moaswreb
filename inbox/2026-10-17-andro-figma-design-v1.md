@@ -16,7 +16,7 @@ The old v1 screens and image concepts are archived on pages "Archive · screens 
 | Today / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-3 |
 | Today / late | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-91 |
 | Today / leave now | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-206 |
-| Trip detail / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-300 |
+| Trip detail / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=57-1625 |
 | Chat / timetable (Events panel) | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-370 |
 | Chat / plan (Plan panel) | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-503 |
 | Chat / notice (Notice panel) | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-640 |
@@ -24,6 +24,7 @@ The old v1 screens and image concepts are archived on pages "Archive · screens 
 | Settings / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-811 |
 
 - **Add trip** collects what the alerts need: the start place with its first stop and walk time, the destination with its last stop, the arrive-by time and the weekdays.
+- **Trip detail** follows the approved concept: muted greyscale map (MapLibre style) fading into white, ink route line, mint bus node (pulses when live), huge display time, icon timeline with durations on the right.
 - **Settings** has "ჩემი მონაცემების წაშლა" (calls `deleteMyData()`) and a privacy-policy row.
 
 ## Components (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-3)
