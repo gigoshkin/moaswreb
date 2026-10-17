@@ -8,7 +8,7 @@ Written Sat 17 Oct 2026, ~15:00 Tbilisi time. Supersedes the open questions in r
 
 ## 2. Decisions
 
-> **Note (George, 17 Oct):** George owns code and stack. The Platform / AI provider / Backend rows below are **proposals until George approves them** (see `05-build-plan.md` §3). Features (§3) remain darya's area.
+> **Note (George, 17 Oct):** George owns code and stack. Stack is now decided by George: see `05-build-plan.md` §3 (TypeScript, Expo, Node/Fastify, SQLite, Docker on George's VPS). Features (§3) remain darya's area.
 
 | Topic | Decision | Notes |
 |---|---|---|

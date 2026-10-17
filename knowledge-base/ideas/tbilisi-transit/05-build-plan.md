@@ -25,18 +25,20 @@ Written Sat 17 Oct 2026, evening, from George's session. Builds on `04-product-s
 | F6 Reliability scorecard | Our own logs vs `schedule` timetables | M | Only as good as hours logged → start logger first |
 | Widget | n/a | L | Stretch, Android only |
 
-## 3. Stack [proposed: needs George]
-| Layer | Proposal | Why | Alternative |
-|---|---|---|---|
-| Phone app | **Expo + expo-router + TS, Android dev build**, new project | — | — |
-| Backend | open: George picks the language/framework. Symfony not required | — | — |
-| DB | SQLite (one file, logs + trips + predictions) | zero ops | Postgres if A already uses it |
-| Logger / decision loop | Long-running worker (Symfony Scheduler/Messenger or a Node interval) | needs to run all night | cron every minute |
-| LLM | Claude API, model in env var | vision + PDF + Georgian | — |
-| Maps in app | MapLibre RN + free OSM vector tiles (e.g. OpenFreeMap) **[?]** | no key; TTC's Mapbox token is TTC's, don't reuse it | react-native-maps (Google key) |
-| Push | expo-notifications + FCM (dev build) | Track 03 "real app" | local notifications scheduled by the app as a fallback |
-| Hosting for demo | laptop or one VPS + Cloudflare tunnel | judges' Wi-Fi independent | — |
-| MCP (later) | Expose backend as an MCP server: `get_my_trips`, `when_to_leave`, `next_arrivals(stop)`, `parse_notice`, `scorecard`. Try Elva/Theneo to generate it from the repo (partner prize: $4,800 Theneo + $7,200 Elva credits) | "also works from any AI tool" fits Track 03 wording on Elva's slide | hand-written with MCP SDK |
+## 3. Stack [decided by George, 17 Oct: "pick what gives the best result; backend runs on my VPS in Docker"]
+| Layer | Choice | Why |
+|---|---|---|
+| Language | **TypeScript everywhere** | One language for app, server and shared types |
+| Repo | npm workspaces monorepo: `apps/server`, `apps/mobile`, `packages/shared` | Shared trip/event/API types and schemas |
+| Phone app | **Expo + expo-router, Android dev build built in the cloud with EAS** (no local Android SDK) | Real native app (Track 03): push, widget later, haptics |
+| UI | Own design tokens + StyleSheet + Reanimated; no generic UI kit | Avoid the template / vibecoded look (§5) |
+| Maps in app | MapLibre RN + free OSM vector tiles **[?]** | No key; don't reuse TTC's Mapbox token |
+| Server | **Node 24 + Fastify**, running `.ts` directly (Node type stripping, no build step) | Fast to write; one process for API, poller, decision loop and MCP |
+| Storage | Raw TTC snapshots as hourly JSONL (gzipped) = replay source; **SQLite** for app data (users, trips, predictions) | Zero ops; one Docker volume |
+| AI | Claude API (`@anthropic-ai/sdk`), model in env var | Vision + PDF + Georgian |
+| Chat agent + MCP | Official MCP TypeScript SDK, Streamable HTTP at `/mcp` on the same server; the app's chat agent and Claude Desktop use the same tools | Request 0001; Elva/Theneo prize |
+| Push | expo-notifications + Expo push service | Works with an EAS dev build |
+| Hosting | **Docker Compose on George's VPS**: `server` + `caddy` (automatic HTTPS). Data in a named volume | HTTPS is needed for MCP and push. Until the VPS is ready, run it locally |
 
 **Rule regardless of stack:** LLMs parse and phrase; numbers always come from code.
 
