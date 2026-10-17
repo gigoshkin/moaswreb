@@ -25,6 +25,8 @@ import { MapButton } from '../../ui/kit';
 import { overlay } from '../../ui/overlay';
 import { color, gutter, radius, shadow, spring } from '../../ui/theme';
 
+/** A line within this of the pin counts as going there. */
+const NEAR_M = 300;
 const TBILISI = { lat: 41.7151, lon: 44.793 };
 type Point = { lat: number; lon: number };
 const distM = (a: Point, b: Point) => {
@@ -49,7 +51,6 @@ export default function BuildRoute() {
   const [sheetH, setSheetH] = useState(220);
   const [anchor, setAnchor] = useState<StopHit | null>(null);
   const [board, setBoard] = useState<StopHit | null>(null);
-  const [dest, setDest] = useState<StopHit | null>(null);
   const [off, setOff] = useState<string[]>([]);
   const [adding, setAdding] = useState(!init?.steps.length);
   const [centre, setCentre] = useState<Point | null>(null);
@@ -68,47 +69,46 @@ export default function BuildRoute() {
   const rides = it ? it.legs.filter((l) => l.mode !== 'WALK') : [];
   const here: Point = anchor ?? (rides.length ? rides.at(-1)!.to : from);
 
-  // Stops around the middle of the map (board phase), loaded as the map settles.
-  const nearby = useStopsNear(adding && !board ? (centre ?? here) : null);
-  // Lines at the boarding stop (get-off phase).
+  // Stops around the middle of the map, loaded as the map settles.
+  const nearby = useStopsNear(adding ? (centre ?? here) : null);
+  // Lines at the boarding stop (get-off step).
   const { lines, error: linesError } = useLines(board?.id ?? null);
   const onLines = useMemo(() => (lines ?? []).filter((l) => !off.includes(l.shortName)), [lines, off]);
 
-  // Stops you can get off at, with the lines that reach each.
-  const reach = useMemo(() => {
-    const m = new Map<string, { stop: StopHit; lines: StopLine[] }>();
-    for (const l of onLines) {
-      for (const s of l.next) {
-        const e = m.get(s.id) ?? { stop: { id: s.id, name: s.name, lat: s.lat, lon: s.lon, mode: l.mode }, lines: [] };
-        e.lines.push(l);
-        m.set(s.id, e);
-      }
-    }
-    return m;
-  }, [onLines]);
-  const destLines = dest ? (reach.get(dest.id)?.lines ?? []) : [];
+  // Where the pin is, in the get-off step: the lines that get closest to it. Lines that come within
+  // NEAR_M of the pin count as going there; if none do, the closest stop on any line is offered instead.
+  const match = useMemo(() => {
+    if (!board || !centre) return null;
+    const per = onLines
+      .map((l) => {
+        const best = l.next.map((s) => ({ s, d: distM(s, centre) })).sort((a, b) => a.d - b.d)[0];
+        return best ? { line: l, stop: best.s, d: best.d, upto: l.next.slice(0, l.next.findIndex((x) => x.id === best.s.id) + 1) } : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => a.d - b.d);
+    if (!per.length) return null;
+    const direct = per.filter((x) => x.d <= NEAR_M);
+    const used = direct.length ? direct : per.filter((x) => x.stop.id === per[0].stop.id);
+    return { direct: direct.length > 0, used, d: used[0].d };
+  }, [board, centre, onLines]);
 
   const pickBoard = (s: StopHit) => {
     haptic('selection');
     setBoard(s);
-    setDest(null);
     setOff([]);
-  };
-  const pickDest = (s: StopHit) => {
-    haptic('selection');
-    setDest(s);
+    map.current?.flyTo(to, 15.5); // the pin starts at the end of the trip
   };
   const clearBoard = () => {
     setBoard(null);
-    setDest(null);
     setOff([]);
   };
   const confirmRide = () => {
-    if (!board || !dest) return;
+    if (!board || !match) return;
     haptic('success');
-    const names = [...new Set(destLines.map((l) => l.shortName))];
-    setSteps((s) => [...s, { fromStops: [board.id], toStops: [dest.id], ...(off.length ? { routes: names } : {}) }]);
-    setAnchor(dest);
+    const stopIds = [...new Set(match.used.map((x) => x.stop.id))];
+    const names = [...new Set(match.used.map((x) => x.line.shortName))];
+    setSteps((s) => [...s, { fromStops: [board.id], toStops: stopIds, ...(off.length ? { routes: names } : {}) }]);
+    setAnchor({ id: match.used[0].stop.id, name: match.used[0].stop.name, lat: match.used[0].stop.lat, lon: match.used[0].stop.lon, mode: match.used[0].line.mode });
     clearBoard();
     setAdding(false);
   };
@@ -122,31 +122,30 @@ export default function BuildRoute() {
       return { routes: planned.routes, markers: mk, points: [] as Point[] };
     }
     if (adding && board) {
-      const mk: MapMarker[] = [...reach.values()].map(({ stop, lines: ls }) => ({
-        key: stop.id,
-        at: stop,
-        node: <StopDot on={dest?.id === stop.id} tint={kindColor[kindOfLine(ls[0])]} />,
-        onPress: () => pickDest(stop),
-      }));
+      // Only the lines that go where the pin is, from the boarding stop to the stop they get off at; other stops stay tappable to move the pin.
+      const mk: MapMarker[] = nearby.stops
+        .filter((s) => s.id !== board.id)
+        .map((s) => ({ key: s.id, at: s, node: <StopDot />, onPress: () => map.current?.flyTo(s, 17) }));
       mk.push({ key: 'board', at: board, node: <StopDot on tint={color.ink} /> });
-      const rt: MapRoute[] = onLines.map((l) => ({ points: [board, ...l.next], color: kindColor[kindOfLine(l)] }));
-      // Frame the boarding stop and the part of the lines nearest the destination.
-      const close = [...reach.values()].map((r) => r.stop).sort((a, b) => distM(a, to) - distM(b, to))[0];
-      return { routes: rt, markers: mk, points: [board, ...(close ? [close] : []), to] as Point[] };
+      const used = match?.used ?? [];
+      for (const x of used) mk.push({ key: `off-${x.stop.id}`, at: x.stop, node: <StopDot on tint={kindColor[kindOfLine(x.line)]} /> });
+      const rt: MapRoute[] = used.map((x) => ({ points: [board, ...x.upto], color: kindColor[kindOfLine(x.line)] }));
+      return { routes: rt, markers: mk, points: [board, to] as Point[] };
     }
     return { routes: planned.routes, markers: planned.markers, points: planned.points };
-  }, [adding, board, nearby.stops, reach, onLines, dest?.id, planned]);
+  }, [adding, board, nearby.stops, match, planned]);
 
   // Frame the map when the step changes (not on the first frame: the map starts framed).
-  const fitKey = `${adding}|${board?.id ?? ''}|${it?.id ?? ''}|${lines?.length ?? ''}`;
+  const fitKey = `${adding}|${board ? 1 : 0}|${it?.id ?? ''}`;
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
       first.current = false;
       return;
     }
+    if (adding && board) return; // pickBoard already moved the map to the trip's end
     if (points.length) map.current?.fit(points);
-    else if (adding && !board) map.current?.flyTo(here, 15.5);
+    else if (adding) map.current?.flyTo(here, 15.5);
   }, [fitKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nearest = useMemo(() => {
@@ -170,7 +169,7 @@ export default function BuildRoute() {
         start={start}
         routes={routes}
         markers={markers}
-        pin={adding && !board}
+        pin={adding}
         onIdle={(c) => setCentre(c)}
         inset={{ top: insets.top + 64, bottom: sheetH }}
       />
@@ -234,7 +233,7 @@ export default function BuildRoute() {
             {lines && (
               <>
                 <Text variant="caption" color={color.textSecondary}>
-                  Lines here, drawn on the map. Tap one to leave it out.
+                  Lines at this stop. Tap one to leave it out.
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.plates}>
                   {[...new Map(lines.map((l) => [l.shortName, l])).values()].map((l) => (
@@ -242,7 +241,6 @@ export default function BuildRoute() {
                       key={l.shortName}
                       onPress={() => {
                         setOff((o) => (o.includes(l.shortName) ? o.filter((x) => x !== l.shortName) : [...o, l.shortName]));
-                        setDest(null);
                       }}
                       haptic="selection"
                       style={off.includes(l.shortName) ? styles.off : undefined}
@@ -254,18 +252,21 @@ export default function BuildRoute() {
                     </Tap>
                   ))}
                 </ScrollView>
-                {dest ? (
+                {match ? (
                   <Animated.View entering={FadeIn.duration(160)} style={styles.gap}>
                     <View style={styles.destRow}>
-                      <Stack slot={[...new Map(destLines.map((l) => [l.shortName, { label: l.shortName, kind: kindOfLine(l) }])).values()]} />
+                      <Stack slot={[...new Map(match.used.map((x) => [x.line.shortName, { label: x.line.shortName, kind: kindOfLine(x.line) }])).values()]} />
                       <Text variant="label16" style={styles.flex} numberOfLines={1}>
-                        Get off at {dest.name}
+                        {match.used[0].stop.name}
                       </Text>
                     </View>
+                    <Text variant="caption" color={color.textSecondary}>
+                      {match.direct ? `Gets off ${distanceLabel(match.d)} from the pin.` : `No line here gets within ${NEAR_M} m of the pin. This is the closest: ${distanceLabel(match.d)} away.`}
+                    </Text>
                     <Button label="Add this ride" onPress={confirmRide} haptic="none" />
                   </Animated.View>
                 ) : (
-                  <Text variant="body14">{onLines.length ? 'Now tap the stop where you get off.' : 'Every line is switched off.'}</Text>
+                  <Text variant="body14">{onLines.length ? 'Move the map so the pin is where you want to get off.' : 'Every line is switched off.'}</Text>
                 )}
               </>
             )}
