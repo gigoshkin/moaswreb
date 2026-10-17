@@ -45,7 +45,7 @@ Written Sat 17 Oct 2026, evening, from George's session. Builds on `04-product-s
 **No reuse of old code [decided by George, 17 Oct]:** `~/Projects/web/moaswreb` (Symfony API + Expo app) is old. Use it **only as a reference** for how the TTC API behaves and for UI ideas. Copy no files or modules; everything is written fresh here. The TTC API may have changed since then, so trust `ttc-pis-gateway-api.md` (tested 17 Oct) over the old code.
 
 ## 4. Screens (draft, andro to own and redo)
-1. Onboarding: language (ka/en), home point (search or GPS), notification permission.
+1. Onboarding: ~~language (ka/en),~~ home point (search or GPS), notification permission. [No language step: the app is English-only, George 17 Oct.]
 2. **Today**: one big "next trip" card: *leave in 7 min (06–09)*, route chips in TTC route colours, live bus dot ETA, confidence. Below it, the rest of today's trips.
 3. **Week**: 7-day list of trips (from F3).
 4. **Trip detail**: itinerary legs, mini map with live buses, "why this plan" plus plan-change history (who/what/when).
@@ -65,15 +65,15 @@ Written Sat 17 Oct 2026, evening, from George's session. Builds on `04-product-s
 
 ## 5. Design direction: must not look vibecoded
 
-> **Superseded in part by `06-design-direction.md`** (17 Oct): Google/Apple-level feel, not stock Material; Google Sans Flex + a Georgian font instead of Inter; springs and shared transitions instead of plain Material motion.
+> **Superseded in part by `06-design-direction.md`** (17 Oct): Google/Apple-level feel, not stock Material; Inter (prototype v3); springs and shared transitions instead of plain Material motion. The app is English-only (George, 17 Oct).
 Avoid the AI-template signals: purple/indigo gradients, glassmorphism, emoji as icons, "✨AI" badges, centred hero cards with huge rounded corners, generic shadcn grey-on-white, sparkle icons, lorem-like microcopy.
 
 Do:
 - **Transit-signage language**: dense, high-contrast, numbers first. Big tabular numerals for minutes (`7 min`), route numbers as coloured plates using **TTC's real route colours from the API** (`color` field).
-- Type: **Noto Sans Georgian + Inter** (or Noto Sans) with tabular figures. Two weights only.
+- Type: **Inter** with tabular figures. Two weights only. (No Georgian font: English-only.)
 - One accent colour plus route colours; neutral greys; real dark mode.
 - Native Android feel: Material 3 motion, haptics on state changes, system back, real notifications and widget, no web-looking modals.
-- Short, specific microcopy in Georgian first ("გასვლა 7 წუთში"; wording rules in [georgian-glossary.md](../../georgian-glossary.md)), English second. Reasons in one line with numbers.
+- Short, specific microcopy in English ("Leave in 7 min"). Reasons in one line with numbers.
 - Confidence shown as a **window bar** (06–09 min), not a percentage badge.
 - AI is invisible: no chat, no sparkle; show *what changed and why*.
 - Design in Figma first (Figma MCP is available but needs auth via `/mcp`), one screen at a time, 4 px grid.

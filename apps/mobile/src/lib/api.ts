@@ -101,7 +101,7 @@ export async function fetchPlan(q: PlanQuery): Promise<PlanResponse> {
 // --- stops and places (Today countdown, Add-trip pickers) ---
 
 /** Stops by name (ka or en) or stop code. */
-export const searchStops = async (q: string, locale: Locale = 'ka', limit = 5): Promise<StopHit[]> =>
+export const searchStops = async (q: string, locale: Locale = 'en', limit = 5): Promise<StopHit[]> =>
   (await request<{ stops: StopHit[] }>(`/stops?${qs({ q, locale, limit })}`)).stops;
 
 /** Closest stops to a point, nearest first, with `distanceM`. */
@@ -112,11 +112,11 @@ export const nearStops = async (
   (await request<NearStopsResponse>(`/stops/near?${qs({ lat: p.lat, lon: p.lon, radius: opts.radiusM, limit: opts.limit, mode: opts.mode, locale: opts.locale })}`)).stops;
 
 /** Live countdown at a stop, soonest first. */
-export const fetchArrivals = (stopId: string, locale: Locale = 'ka'): Promise<ArrivalsResponse> =>
+export const fetchArrivals = (stopId: string, locale: Locale = 'en'): Promise<ArrivalsResponse> =>
   request<ArrivalsResponse>(`/stops/${encodeURIComponent(stopId)}/arrivals?${qs({ locale })}`);
 
 /** Addresses and landmarks in Tbilisi. */
-export const searchPlaces = async (q: string, locale: Locale = 'ka', limit = 5): Promise<PlaceHit[]> =>
+export const searchPlaces = async (q: string, locale: Locale = 'en', limit = 5): Promise<PlaceHit[]> =>
   (await request<{ places: PlaceHit[] }>(`/places?${qs({ q, locale, limit })}`)).places;
 
 // --- chat ---

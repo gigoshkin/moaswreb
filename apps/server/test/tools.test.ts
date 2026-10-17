@@ -21,7 +21,7 @@ test('find_stop matches Georgian, English and codes; loads stops once', async ()
   assert.equal((await run('find_stop', { query: 'უნივერსიტეტი' })).card?.type, 'stops');
   const en = await run('find_stop', { query: 'free univ' });
   assert.match(en.text, /1:1405/);
-  assert.match((await run('find_stop', { query: '1000' })).text, /რუსთაველის/);
+  assert.match((await run('find_stop', { query: '1000' })).text, /Rustaveli Avenue/);
   assert.match((await run('find_stop', { query: 'zzz' })).text, /No stops/);
   assert.deepEqual(ttc.calls, ['stops:ka', 'stops:en']);
 });
@@ -34,7 +34,7 @@ test('next_arrivals sorts by minutes and uses the timetable only when not live',
   assert.deepEqual(res.card.arrivals.map((a) => [a.route, a.minutes]), [['306', 2], ['347', 4], ['558', 11]]);
   assert.equal(res.card.arrivals[0].color, '#E02B2B');
   assert.equal(res.card.arrivals[2].color, null);
-  assert.equal(res.card.stop.name, 'თავისუფალი უნივერსიტეტი');
+  assert.equal(res.card.stop.name, 'Free University');
   assert.match(res.text, /558 → Didube: 11 min \(timetable\)/);
 });
 

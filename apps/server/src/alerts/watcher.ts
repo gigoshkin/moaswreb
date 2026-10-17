@@ -119,7 +119,7 @@ export class AlertWatcher {
       from: { lat: from.lat, lon: from.lon },
       to: { lat: dest.lat, lon: dest.lon },
       arriveBy: `${date}T${trip.arriveBy}`,
-      locale: 'ka',
+      locale: 'en',
     });
     const best = bestItinerary(plan.itineraries, arriveByMs);
     if (!best) return null;
@@ -134,15 +134,15 @@ export class AlertWatcher {
     if (prev && Math.abs(leaveAt - prev.leaveAt) >= CHANGE_MIN * 60_000 && now < leaveAt) {
       msg = {
         to,
-        title: 'გასვლის დრო შეიცვალა',
-        body: `გასვლა ${hm(leaveAt)}-ზე (იყო ${hm(prev.leaveAt)}). ${routes}`,
+        title: 'Departure time changed',
+        body: `Leave at ${hm(leaveAt)} (was ${hm(prev.leaveAt)}). ${routes}`,
         data: data('plan_changed'),
       };
     } else if (!prev?.sentSoon && now >= leaveAt - LEAVE_SOON_MIN * 60_000 && now < leaveAt + 60_000) {
       const mins = Math.max(0, Math.round((leaveAt - now) / 60_000));
       msg = {
         to,
-        title: mins > 0 ? `გასვლა ${mins} წუთში` : 'გასვლა ახლა',
+        title: mins > 0 ? `Leave in ${mins} min` : 'Leave now',
         body: `${hm(leaveAt)} · ${routes}`,
         data: data('leave_soon'),
       };

@@ -12,13 +12,13 @@ const setup = (ttc = fakeTtc()) => {
   return { app, ttc };
 };
 
-test('GET /stops searches by name in either language and returns the asked locale', async () => {
+test('GET /stops matches Georgian or English names; English by default, Georgian on request', async () => {
   const { app } = setup();
-  const ka = (await app.inject('/stops?q=free')).json();
-  assert.equal(ka.stops[0].id, '1:1405');
-  assert.equal(ka.stops[0].name, 'თავისუფალი უნივერსიტეტი');
-  const en = (await app.inject('/stops?q=უნივერსიტეტი&locale=en')).json();
+  const en = (await app.inject('/stops?q=უნივერსიტეტი')).json();
+  assert.equal(en.stops[0].id, '1:1405');
   assert.equal(en.stops[0].name, 'Free University');
+  const ka = (await app.inject('/stops?q=free&locale=ka')).json();
+  assert.equal(ka.stops[0].name, 'თავისუფალი უნივერსიტეტი');
   assert.equal((await app.inject('/stops')).statusCode, 400);
 });
 
@@ -36,7 +36,7 @@ test('GET /stops/near returns nearest first with distance, filters by mode, reje
 test('GET /stops/:id/arrivals sorts live first and skips TTC for unknown or malformed ids', async () => {
   const { app, ttc } = setup();
   const body = (await app.inject('/stops/1:1405/arrivals')).json();
-  assert.equal(body.stop.name, 'თავისუფალი უნივერსიტეტი');
+  assert.equal(body.stop.name, 'Free University');
   assert.deepEqual(body.arrivals.map((a: { route: string }) => a.route), ['306', '347', '558']);
   assert.equal(body.arrivals[2].realtime, false);
   assert.equal((await app.inject('/stops/1:9999/arrivals')).statusCode, 404);

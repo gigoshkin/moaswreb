@@ -34,7 +34,7 @@ test('maps query to TTC arriveBy call and normalises', async () => {
     time: '09:00',
     modes: ['BUS'],
     optimize: 'quick',
-    locale: 'ka',
+    locale: 'en',
   });
 });
 

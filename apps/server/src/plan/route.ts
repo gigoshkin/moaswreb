@@ -70,7 +70,7 @@ export const registerPlanRoute = (app: FastifyInstance, plans: PlanService): voi
         arriveBy: q.arriveBy,
         modes: q.modes ? [...new Set(q.modes.split(',') as PlanMode[])] : ALL_MODES,
         optimize: q.optimize ?? 'quick',
-        locale: q.locale ?? 'ka',
+        locale: q.locale ?? 'en',
       };
       try {
         return await plans.plan(query);

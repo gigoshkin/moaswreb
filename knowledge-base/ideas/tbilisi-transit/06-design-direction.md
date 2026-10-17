@@ -4,7 +4,7 @@ Written 17 Oct 2026 from George's session, at George's request ("very good, beau
 
 ## 0. George's guidelines: the only fixed rules [decided by George, 17 Oct, later the same day]
 George loosened the appearance rules. Only these are fixed:
-1. **Georgian first in the app, but design in English** [George, 17 Oct: "forget designing in Georgian, design in English only"]. Mockups and prototypes use English copy; Georgian copy is written later from `georgian-glossary.md`.
+1. **English only** [George, 17 Oct, later the same day: "app is no more Georgian first. Georgian removed and moved to English"]. The app, mockups and prototypes are all in English; there is no Georgian UI. (Replaces "Georgian first in the app, but design in English".)
 2. **Light theme.** The app is light-themed. Dark mode is optional, andro's call.
 3. **Premium feel with good animations.**
 4. **Must not look vibecoded** (see §7 for common signals).
@@ -16,7 +16,7 @@ George loosened the appearance rules. Only these are fixed:
 10. **Premium, not "Google app"** [George, 17 Oct]. Google Sans and Material patterns read as a Google app; the code prototype uses Inter. See `design/prototype/`.
 11. **MVP look = prototype Today v3** [George, 17 Oct: "closest to what I like, leave it as MVP style"]: `design/prototype/today-v3.png`, source `design/prototype/v2/today.html` + `base.css`. White, Inter, black/grey, lime leave block with the countdown, grey stop card, plain list. v4 (energetic display type) and v5 (serif, editorial) were rejected.
 
-**Everything else about appearance is andro's to decide and may override this document:** fonts, colours, accent, shapes, icons, references, motion style, signature moments. §1–§5 and §7 are suggestions, not rules. No request is needed to change them; andro edits this file or says so in an inbox note. The current tokens in `apps/mobile/src/theme/tokens.ts` (Google Sans Flex + Noto Sans Georgian, white and neutral greys, green accent) are placeholders until andro picks, within rules 5 and 6. §6 (the libraries) stays George's area.
+**Everything else about appearance is andro's to decide and may override this document:** fonts, colours, accent, shapes, icons, references, motion style, signature moments. §1–§5 and §7 are suggestions, not rules. No request is needed to change them; andro edits this file or says so in an inbox note. The placeholder theme and components were removed from the app on 17 Oct; the next tokens follow prototype v3 (rule 11) and andro's Figma. §6 (the libraries) stays George's area.
 
 ## 1. The feel in one line
 **A calm, confident instrument:** one big number that's always right, surfaces that move like physical objects, and nothing on screen that doesn't help you leave on time.
@@ -36,11 +36,11 @@ George loosened the appearance rules. Only these are fixed:
 - **Neutral base, one accent.** Warm off-white in light mode; true near-black in dark mode with lifted surfaces (Transit's "neon" dark is a good benchmark). ~~Make dark mode first-class from day one.~~ Light theme first (§0); dark mode is optional.
 - **Type:**
   - **Google Sans Flex** for Latin and numerals. It has been free under SIL OFL since Nov 2025 ([9to5Google](https://9to5google.com/2025/11/18/google-sans-flex-font-available/)), and its variable axes allow a heavier, rounder weight for the hero number.
-  - Georgian: Noto Sans Georgian or FiraGO. Check that Google Sans Flex has no Georgian glyphs **[?]**, and pick the Georgian font that matches its x-height.
+  - ~~Georgian: Noto Sans Georgian or FiraGO.~~ No Georgian font needed: the app is English-only (rule 1).
   - Two or three sizes per screen, with big contrast between them.
 - **Shapes:** large-radius cards. The shape changes with state (a card that's "about to leave" gets tighter corners and a solid fill), in the M3 Expressive spirit, not just colour swaps.
 - **Icons:** one consistent set (Material Symbols Rounded, or Lucide at one stroke weight). No emoji, no sparkles, no "AI" badges.
-- **Copy:** Georgian first, short, with numbers ("გასვლა 7 წუთში"; formal register, terms from [georgian-glossary.md](../../georgian-glossary.md), George 17 Oct). Reasons in one line: "306 is 4 min late → take 17".
+- **Copy:** English, short, with numbers ("Leave in 7 min"). Reasons in one line: "306 is 4 min late → take 17".
 
 ## 4. Motion and snappiness (where "Google/Apple level" is actually won)
 - **Everything is a spring,** with no linear fades. Sheets, cards and the chat's action cards follow the finger and settle with physics.
@@ -84,15 +84,18 @@ Purple/indigo gradients · glassmorphism everywhere · default Material buttons 
    - Auto-layout everywhere, so spacing reads cleanly into code.
    - Motion can't live in Figma: describe it in a frame note or the inbox ("card springs up", "number rolls").
 3. **Handoff:** when a screen is ready, andro writes an inbox note with the Figma link (frame link if possible). George's session reads the frame with the Figma connector and builds it in React Native.
-4. The current code kit (`apps/mobile/src/components`, `tokens.ts`) is a placeholder; it gets restyled to match Figma.
+4. The placeholder code kit was removed (17 Oct); screens are built fresh from Figma on `apps/mobile/src/lib`.
 5. Demo-phone check every few hours: start time, scroll, transitions.
 
-### Georgian text in Figma [George's quality rule, 17 Oct]
-Agent-made frames had broken Georgian. These rules are technical; the choice of font and style stays with andro.
+### ~~Georgian text in Figma~~ [dropped 17 Oct: the app is English-only, rule 1]
+Kept for reference in case Georgian returns.
 - **Only fonts that contain Georgian (Mkhedruli) letters.** When a font has no Georgian, Figma swaps in another font for those letters, so weights and widths don't match the Latin text. Before using a font, render a Georgian test string in it and compare. Fonts in this Figma account that have Georgian (checked 17 Oct with `listAvailableFontsAsync`): 123-Antena (the wordmark) and Noto Sans Georgian. Inter, Google Sans Flex and most Google fonts have none.
 - **Don't apply UPPERCASE to Georgian.** Figma turns it into Mtavruli capitals, which reads as shouting and breaks line lengths.
 - **Line height at least 1.3× for Georgian body text.** Mkhedruli letters reach far above and below the line; check the screenshot for clipped letters.
 - **Georgian strings run 20–40% longer than English.** Use auto-layout and text that grows in height, and test with the longest real string.
 - **Copy comes from [georgian-glossary.md](../../georgian-glossary.md):** formal register, no word-for-word translations, no lorem ipsum.
+
+### Building frames (still applies)
+- **Use real English copy,** never lorem ipsum.
 - **Build screens from shared text styles, variables and components**, not one-off values. That's where the "clean" look comes from; an agent placing loose layers produces a vibecoded look whichever MCP it uses.
 - **Before calling a frame done:** screenshot it and check for fallback fonts, clipped letters, overlaps and leftover test layers.

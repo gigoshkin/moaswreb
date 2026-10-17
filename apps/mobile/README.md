@@ -18,5 +18,5 @@ Note: `docker-compose.yml` binds the server to `127.0.0.1`, so a phone can't rea
 
 ## Layout
 - `src/app/`: routes. `_layout` (stack + alert setup), `index` (empty)
-- `src/lib/`: `api` (`/plan` client + cache), `usePlan` (cache first, then network), `trips` (saved trips, phone only), `kv` (MMKV or Expo Go fallback), `alerts`, `strings` (ka/en copy), `time`
+- `src/lib/`: `api` (client for `/plan`, stops, places, arrivals, chat, `/me`; plans cached), `usePlan` (cache first, then network), `trips` (saved trips, phone only), `kv` (MMKV or Expo Go fallback), `alerts`, `strings` (English copy; the app is English-only), `time`
 - `src/dev/samplePlan.ts`: synthetic plan used when `EXPO_PUBLIC_API_URL` is unset

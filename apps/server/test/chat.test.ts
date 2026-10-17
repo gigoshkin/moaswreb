@@ -35,7 +35,7 @@ const setup = (responses: object[]) => {
 test('tool calls become cards; the reply is the model text', async () => {
   const { app, requests } = setup([
     message([{ type: 'tool_use', id: 'tu_1', name: 'next_arrivals', input: { stopId: '1:1405' } }], 'tool_use'),
-    message([{ type: 'text', text: '306 მოდის 2 წუთში.' }], 'end_turn'),
+    message([{ type: 'text', text: '306 arrives in 2 min.' }], 'end_turn'),
   ]);
   const res = await app.inject({
     method: 'POST', url: '/chat',
@@ -43,7 +43,7 @@ test('tool calls become cards; the reply is the model text', async () => {
   });
   assert.equal(res.statusCode, 200);
   const body = res.json();
-  assert.equal(body.reply, '306 მოდის 2 წუთში.');
+  assert.equal(body.reply, '306 arrives in 2 min.');
   assert.deepEqual(body.cards.map((c: { type: string }) => c.type), ['arrivals']);
 
   // Request shape: fallback beta, cached system prompt, context as a trailing system message, tool result fed back.
@@ -69,10 +69,10 @@ test('photos are sent as image blocks on the last user message', async () => {
   assert.equal(content[1].text, '(see attachment)');
 });
 
-test('a refusal returns a short Georgian reply and no cards', async () => {
+test('a refusal returns a short reply and no cards', async () => {
   const { app } = setup([message([], 'refusal')]);
   const res = await app.inject({ method: 'POST', url: '/chat', payload: { messages: [{ role: 'user', text: 'x' }] } });
-  assert.deepEqual(res.json(), { reply: 'ამაში ვერ დაგეხმარებით.', cards: [] });
+  assert.deepEqual(res.json(), { reply: "I can't help with that.", cards: [] });
 });
 
 test('rejects a conversation that does not end with the user', async () => {

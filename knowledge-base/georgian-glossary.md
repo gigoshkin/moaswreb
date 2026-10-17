@@ -1,5 +1,7 @@
 # Georgian UI glossary
 
+> **Not in use (17 Oct):** the app is English-only (George). This file and `scripts/ka-check.mjs` are kept for reference in case Georgian copy comes back.
+
 Every Georgian word or phrase the app shows (screens, notifications, chat replies, store listing) should come from this file. `scripts/ka-check.mjs` reads the tables below: it fails on anything in **Banned** and skips the spellcheck for words in **Approved** and **Proposed**.
 
 ## Rules (George, 17 Oct)

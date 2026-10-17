@@ -42,7 +42,7 @@ const latLon = z
 const place = z.object({ label: z.string(), lat: z.number(), lon: z.number() });
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:mm');
 
-export const createTools = ({ ttc, stops, plans, locale = 'ka' }: ToolDeps): ToolDef[] => [
+export const createTools = ({ ttc, stops, plans, locale = 'en' }: ToolDeps): ToolDef[] => [
   tool({
     name: 'find_stop',
     description:

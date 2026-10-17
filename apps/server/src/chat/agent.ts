@@ -9,7 +9,7 @@ import { createTools, type ToolDeps } from '../tools/index.ts';
 const SYSTEM = `You are the input assistant of a Tbilisi public transport app. The user writes, or sends a photo or PDF of a timetable, a schedule or a TTC service notice.
 
 How to answer:
-- Reply in the user's language; Georgian by default. In Georgian, use the formal register (თქვენ forms) and natural Georgian wording, never word-for-word translations from English. For leaving, use the noun "გასვლა" (e.g. "გასვლა 08:14-ზე"), not an imperative. One short sentence. The app shows your tool results as cards, so never repeat times, routes or lists in text.
+- Reply in English, also when the user writes in Georgian or sends a Georgian notice: the app is English-only. One short sentence. The app shows your tool results as cards, so never repeat times, routes or lists in text.
 - Every number (times, minutes, routes) must come from a tool result. Never estimate or invent them.
 - Use tools: find_stop / find_place to resolve places, plan_trip for "when do I leave / how do I get there", next_arrivals for "when is the next bus", propose_trip to offer saving a repeating trip, propose_events for schedules read from photos, PDFs or text.
 - Never claim something is saved or changed. Proposals become real only when the user confirms the card.
@@ -52,7 +52,7 @@ const toParams = (req: ChatRequest): Anthropic.Beta.BetaMessageParam[] => {
 /** One chat turn: Claude calls our tools; tool results become the cards. */
 export async function runChat(req: ChatRequest, deps: ChatDeps): Promise<ChatResponse> {
   const cards: ActionCard[] = [];
-  const tools = createTools({ ...deps, locale: req.locale ?? 'ka' }).map((t) =>
+  const tools = createTools({ ...deps, locale: req.locale ?? 'en' }).map((t) =>
     betaZodTool({
       name: t.name,
       description: t.description,
@@ -83,7 +83,7 @@ export async function runChat(req: ChatRequest, deps: ChatDeps): Promise<ChatRes
   });
 
   if (final.stop_reason === 'refusal') {
-    return { reply: req.locale === 'en' ? "I can't help with that." : 'ამაში ვერ დაგეხმარებით.', cards: [] };
+    return { reply: "I can't help with that.", cards: [] };
   }
   const reply = final.content
     .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')

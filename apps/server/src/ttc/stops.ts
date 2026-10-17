@@ -53,19 +53,19 @@ export class StopIndex {
     this.loadedAt = Date.now();
   }
 
-  /** English name when asked for and TTC has one; Georgian otherwise. */
+  /** English name unless Georgian is asked for (or TTC has no English name). */
   private named(e: Entry, locale: Locale): StopHit {
-    return locale === 'en' && e.nameEn ? { ...e.hit, name: e.nameEn } : e.hit;
+    return locale === 'ka' || !e.nameEn ? e.hit : { ...e.hit, name: e.nameEn };
   }
 
-  async get(id: string, locale: Locale = 'ka'): Promise<StopHit | null> {
+  async get(id: string, locale: Locale = 'en'): Promise<StopHit | null> {
     await this.ensure();
     const e = this.entries.find((e) => e.hit.id === id);
     return e ? this.named(e, locale) : null;
   }
 
   /** Closest stops to a point, nearest first. */
-  async near(p: LatLon, { radiusM = 500, limit = 10, mode, locale = 'ka' }: { radiusM?: number; limit?: number; mode?: string; locale?: Locale } = {}): Promise<NearStop[]> {
+  async near(p: LatLon, { radiusM = 500, limit = 10, mode, locale = 'en' }: { radiusM?: number; limit?: number; mode?: string; locale?: Locale } = {}): Promise<NearStop[]> {
     await this.ensure();
     const hits: NearStop[] = [];
     for (const e of this.entries) {
@@ -86,7 +86,7 @@ export class StopIndex {
   }
 
   /** Name or stop-code search; prefix matches rank above substring matches. */
-  async search(query: string, limit = 5, locale: Locale = 'ka'): Promise<StopHit[]> {
+  async search(query: string, limit = 5, locale: Locale = 'en'): Promise<StopHit[]> {
     await this.ensure();
     const q = query.trim().toLowerCase();
     if (!q) return [];
