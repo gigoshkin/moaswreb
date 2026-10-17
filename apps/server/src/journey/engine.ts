@@ -17,8 +17,8 @@ const CONNECT_MS = 2 * MIN;
 /** Departures of the pattern are looked at this far around the deadline / start. */
 const BEFORE_MS = 6 * 3_600_000;
 const AFTER_MS = 3 * 3_600_000;
-/** A live vehicle and a timetable trip within this are the same trip, for ride time. */
-const MATCH_MS = 25 * MIN;
+/** A "leave now" option that arrives more than this before the deadline is dropped. */
+const EARLY_MS = 90 * MIN;
 
 export const tbilisiDate = (ms: number) => new Date(ms + TBILISI_MS).toISOString().slice(0, 10);
 const dayStart = (date: string) => Date.parse(`${date}T00:00:00Z`) - TBILISI_MS;
@@ -149,7 +149,13 @@ export class Engine {
     const back = await this.backward(altsByStep, input);
     // A line whose on-time ride can still be caught needs no "leave now" version.
     const catchable = new Set(back.filter((n) => n.dep.dep - 0 >= input.now).map((n) => n.alt.p.shortName));
-    const fwd = (await this.forward(altsByStep, input)).filter((n) => !catchable.has(n.alt.p.shortName));
+    // And one that arrives long before the deadline is not an answer to "arrive by": that line has no ride near the time.
+    const fwd = (await this.forward(altsByStep, input)).filter((n) => {
+      if (catchable.has(n.alt.p.shortName)) return false;
+      let last = n;
+      while (last.next) last = last.next;
+      return last.dep.arr + last.walkAfter.sec * 1000 >= input.deadline - EARLY_MS;
+    });
     const all = [...back, ...fwd];
     const seen = new Set<string>();
     const out: Itinerary[] = [];

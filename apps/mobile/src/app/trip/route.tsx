@@ -1,11 +1,10 @@
-import type { Itinerary } from '@transit/shared';
+import type { Itinerary, JourneyStep, PlanAvoid } from '@transit/shared';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { finishRoute, pickPlace, routeDraft, type PickKind } from '../../lib/handoff';
-import { decodePolyline } from '../../lib/mapMath';
+import { buildSteps, finishRoute, pickPlace, routeDraft, type PickKind } from '../../lib/handoff';
 import { firstWalkMin, isMetro, leaveAt, transitLegs } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { hhmm, nextArriveBy } from '../../lib/time';
@@ -14,8 +13,10 @@ import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
-import { MapCanvas, type MapCanvasHandle, type MapMarker, type MapRoute } from '../../ui/MapCanvas';
-import { EndRing, RideBadge, StartDot } from '../../ui/MapMarks';
+import { Options } from '../../ui/Options';
+import { MapCanvas, type MapCanvasHandle } from '../../ui/MapCanvas';
+import { overlay } from '../../ui/overlay';
+
 import { RoutePlate } from '../../ui/RoutePlate';
 import { Tap, haptic } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
@@ -31,20 +32,26 @@ export default function RouteBuilder() {
   const [init] = useState(routeDraft);
   const [from, setFrom] = useState<Place | null>(init.from);
   const [to, setTo] = useState<Place | null>(init.to);
+  const [avoid, setAvoid] = useState<PlanAvoid | undefined>(init.avoid);
+  const [steps, setSteps] = useState<JourneyStep[] | undefined>(init.steps);
+  const [showOptions, setShowOptions] = useState(false);
   const [sheetH, setSheetH] = useState(230);
   const map = useRef<MapCanvasHandle>(null);
 
   // Closing without Done resolves the form with null.
   useEffect(() => () => finishRoute(null), []);
 
-  const trip = useMemo(() => (from && to ? { id: 'draft', name: '', from, to, arriveBy: init.arriveBy, days: init.days } : null), [from, to, init.arriveBy, init.days]);
+  const trip = useMemo(() => (from && to ? { id: 'draft', name: '', from, to, arriveBy: init.arriveBy, days: init.days, avoid, steps } : null), [from, to, init.arriveBy, init.days, JSON.stringify(avoid), JSON.stringify(steps)]);
   const date = nextArriveBy(init.arriveBy, init.days, now).slice(0, 10);
   const plan = useTripPlan(trip, date, now);
   const it: Itinerary | null = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
 
   const pick = async (kind: PickKind) => {
     const p = await pickPlace(kind, { near: (kind === 'from' ? to : from) ?? undefined });
-    if (p) (kind === 'from' ? setFrom : setTo)(p);
+    if (p) {
+      (kind === 'from' ? setFrom : setTo)(p);
+      setSteps(undefined); // a hand-built route belongs to its two ends
+    }
   };
 
   // Like a taxi app: opens straight into "where to?".
@@ -70,12 +77,13 @@ export default function RouteBuilder() {
     haptic('selection');
     setFrom(to);
     setTo(from);
+    setSteps(undefined);
   };
 
   const finish = () => {
     if (!from || !to) return;
     haptic('success');
-    finishRoute({ from, to });
+    finishRoute({ from, to, avoid, steps });
     router.back();
   };
 
@@ -115,8 +123,41 @@ export default function RouteBuilder() {
         </View>
 
         {trip && (
-          <Animated.View entering={FadeIn.duration(180)}>
+          <Animated.View entering={FadeIn.duration(180)} style={styles.gap}>
             <Summary it={it} loaded={plan.loaded} error={plan.error} />
+            <View style={styles.links}>
+              <Tap onPress={() => setShowOptions((v) => !v)} hitSlop={8} accessibilityRole="button">
+                <Text variant="label14">{showOptions ? 'Hide other ways' : `Compare all ways${plan.itineraries.length ? ` (${plan.itineraries.length})` : ''}`}</Text>
+              </Tap>
+              <Tap
+                onPress={async () => {
+                  const r = await buildSteps({ from: from!, to: to!, arriveBy: init.arriveBy, days: init.days, steps: steps ?? [], avoid });
+                  if (r) setSteps(r);
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+              >
+                <Text variant="label14">{steps?.length ? 'Edit rides by hand' : 'Build by hand'}</Text>
+              </Tap>
+            </View>
+            {showOptions && (
+              <ScrollView style={styles.options} showsVerticalScrollIndicator={false}>
+                <Options
+                  itineraries={plan.itineraries}
+                  chosenId={plan.choice.kind === 'none' ? undefined : plan.choice.it.id}
+                  now={now}
+                  bufferMin={settings.get().bufferMin}
+                  avoid={avoid}
+                  loading={!plan.loaded && !plan.error}
+                  onAvoid={setAvoid}
+                />
+              </ScrollView>
+            )}
+            {steps?.length ? (
+              <Text variant="caption" color={color.textSecondary}>
+                Hand-built route. The app still compares every line that fits each ride.
+              </Text>
+            ) : null}
           </Animated.View>
         )}
 
@@ -168,36 +209,6 @@ function Summary({ it, loaded, error }: { it: Itinerary | null; loaded: boolean;
   );
 }
 
-/** Lines, markers and the points to frame, for the planned route (or just a line between the ends). */
-function overlay(from: Place | null, to: Place | null, it: Itinerary | null): { routes: MapRoute[]; markers: MapMarker[]; points: { lat: number; lon: number }[] } {
-  const routes: MapRoute[] = [];
-  const markers: MapMarker[] = [];
-  const points: { lat: number; lon: number }[] = [];
-  if (it) {
-    for (const l of it.legs) {
-      const pts = l.polyline ? decodePolyline(l.polyline) : [l.from, l.to];
-      routes.push({ points: pts, walk: l.mode === 'WALK' });
-      points.push(...pts);
-      if (l.mode !== 'WALK') markers.push({ key: `ride-${markers.length}`, at: l.from, node: <RideBadge metro={isMetro(l)} /> });
-    }
-    const first = it.legs[0]?.from;
-    const last = it.legs.at(-1)?.to;
-    if (first) markers.push({ key: 'start', at: first, node: <StartDot /> });
-    if (last) markers.push({ key: 'end', at: last, node: <EndRing /> });
-  } else {
-    if (from) {
-      markers.push({ key: 'start', at: from, node: <StartDot /> });
-      points.push(from);
-    }
-    if (to) {
-      markers.push({ key: 'end', at: to, node: <EndRing /> });
-      points.push(to);
-    }
-    if (from && to) routes.push({ points: [from, to], walk: true });
-  }
-  return { routes, markers, points };
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.bg },
   floating: { position: 'absolute', left: 12 },
@@ -212,6 +223,9 @@ const styles = StyleSheet.create({
   divider: { position: 'absolute', left: 0, right: 56, bottom: 0, height: StyleSheet.hairlineWidth * 2, backgroundColor: color.border },
   swapWrap: { position: 'absolute', right: 8, top: 0, bottom: 0, justifyContent: 'center' },
   swap: { width: 40, height: 40, borderRadius: 20, backgroundColor: color.surface, alignItems: 'center', justifyContent: 'center', ...shadow.soft },
+  gap: { gap: 10 },
+  links: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 },
+  options: { maxHeight: 240 },
   summary: { gap: 4, paddingHorizontal: 2 },
   summaryTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   flex: { flex: 1 },

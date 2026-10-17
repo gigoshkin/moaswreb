@@ -10,6 +10,7 @@ import type {
   PlanQuery,
   PlanResponse,
   StopHit,
+  StopLinesResponse,
   StoredTrip,
   TripsPayload,
 } from '@transit/shared';
@@ -154,3 +155,6 @@ export const registerPushToken = (token: string) => request<unknown>('/me/push',
 
 /** The delete-all button: removes this device's trips and push token from the server. */
 export const deleteMyData = () => request<unknown>('/me', { method: 'DELETE', device: true });
+
+/** Every line that stops here and the stops it visits next (building a route by hand). */
+export const stopLines = (stopId: string): Promise<StopLinesResponse> => request<StopLinesResponse>(`/stops/${encodeURIComponent(stopId)}/lines`, { timeoutMs: PLAN_TIMEOUT_MS });

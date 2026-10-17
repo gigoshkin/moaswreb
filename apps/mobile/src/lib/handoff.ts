@@ -101,3 +101,32 @@ export function openPreview(p: Preview) {
 }
 
 export const getPreview = (id: string) => previews.get(id);
+
+/** What the by-hand builder starts from, and what it hands back. */
+export interface StepsDraft {
+  from: Place;
+  to: Place;
+  arriveBy: string;
+  days: number[];
+  steps: JourneyStep[];
+  avoid?: PlanAvoid;
+}
+let stepsNow: StepsDraft | null = null;
+let stepsPending: ((steps: JourneyStep[] | null) => void) | null = null;
+
+/** Opens the by-hand builder; resolves with the rides, or null if closed without Done. */
+export function buildSteps(draft: StepsDraft): Promise<JourneyStep[] | null> {
+  stepsPending?.(null);
+  stepsNow = draft;
+  return new Promise((resolve) => {
+    stepsPending = resolve;
+    router.push('/trip/build');
+  });
+}
+
+export const stepsDraft = (): StepsDraft | null => stepsNow;
+
+export function finishSteps(steps: JourneyStep[] | null) {
+  stepsPending?.(steps);
+  stepsPending = null;
+}
