@@ -8,6 +8,13 @@ const int = (value: string | undefined, fallback: number): number => {
 
 export const config = {
   port: int(process.env.PORT, 8080),
+  /** Bearer key for /chat and /mcp. Unset = open (local dev only). */
+  apiKey: process.env.API_KEY ?? '',
+  anthropic: {
+    /** The SDK reads ANTHROPIC_API_KEY itself; this only says whether chat is configured. */
+    enabled: Boolean(process.env.ANTHROPIC_API_KEY),
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
+  },
   dataDir: process.env.DATA_DIR ?? './data',
   ttc: {
     siteUrl: 'https://transit.ttc.com.ge/',

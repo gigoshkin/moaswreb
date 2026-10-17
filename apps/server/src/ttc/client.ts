@@ -1,6 +1,7 @@
 import { config } from '../config.ts';
 import type {
   ArrivalTime,
+  RawGeocode,
   RawPlan,
   RouteDetail,
   RoutePositions,
@@ -9,7 +10,7 @@ import type {
 } from './types.ts';
 
 type Params = Record<string, string | number | boolean | undefined>;
-type Locale = 'ka' | 'en';
+export type Locale = 'ka' | 'en';
 
 export class TtcError extends Error {
   readonly status: number;
@@ -83,6 +84,16 @@ export class TtcClient {
   positions(routeId: string, patternSuffixes: string[]) {
     return this.get<RoutePositions>(`v3/routes/${routeId}/positions`, {
       patternSuffixes: patternSuffixes.join(','),
+    });
+  }
+
+  // --- geocode (v2) ---
+  /** OSM-based place search, limited to Tbilisi (TTC requires the bbox). */
+  geocode(query: string, locale: Locale = 'ka') {
+    return this.get<RawGeocode>('v2/geocode', {
+      query,
+      locale,
+      bbox: '44.66221063,41.84319686,45.050854455,41.59149226',
     });
   }
 

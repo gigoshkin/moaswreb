@@ -6,14 +6,11 @@ import {
   type Optimize,
   type PlanMode,
   type PlanQuery,
-  type PlanResponse,
 } from '@transit/shared';
-import { TtcError, type TtcClient } from '../ttc/client.ts';
-import { normalizePlan } from './normalize.ts';
+import { insideTbilisi } from '../geo.ts';
+import { TtcError } from '../ttc/client.ts';
+import type { PlanService } from './service.ts';
 
-// Roughly TTC's geocode bbox, padded. Rejects swapped lat/lon early.
-const TBILISI = { minLat: 41.55, maxLat: 41.9, minLon: 44.6, maxLon: 45.1 };
-const CACHE_MS = 60_000;
 const ALL_MODES: PlanMode[] = ['BUS', 'SUBWAY', 'GONDOLA'];
 
 interface Querystring {
@@ -28,20 +25,16 @@ interface Querystring {
 const latLon = (s: string): LatLon | null => {
   const [lat, lon] = s.split(',').map(Number);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  const inside = lat >= TBILISI.minLat && lat <= TBILISI.maxLat && lon >= TBILISI.minLon && lon <= TBILISI.maxLon;
-  return inside ? { lat, lon } : null;
+  return insideTbilisi(lat, lon) ? { lat, lon } : null;
 };
 
 /**
  * GET /plan?from=lat,lon&to=lat,lon&arriveBy=YYYY-MM-DDTHH:mm[&modes=BUS,SUBWAY][&optimize=quick][&locale=ka]
  *
  * Wraps TTC `v2/plan` with departMode=arriveBy. `arriveBy` is Tbilisi wall
- * clock. Identical queries within a minute are served from memory so a busy
- * screen can't multiply TTC traffic.
+ * clock. Caching lives in PlanService.
  */
-export const registerPlanRoute = (app: FastifyInstance, ttc: TtcClient): void => {
-  const cache = new Map<string, { at: number; body: PlanResponse }>();
-
+export const registerPlanRoute = (app: FastifyInstance, plans: PlanService): void => {
   app.get<{ Querystring: Querystring }>(
     '/plan',
     {
@@ -79,31 +72,8 @@ export const registerPlanRoute = (app: FastifyInstance, ttc: TtcClient): void =>
         optimize: q.optimize ?? 'quick',
         locale: q.locale ?? 'ka',
       };
-      const key = JSON.stringify(query);
-      const hit = cache.get(key);
-      if (hit && Date.now() - hit.at < CACHE_MS) return hit.body;
-
       try {
-        const [date, time] = query.arriveBy.split('T');
-        const raw = await ttc.plan({
-          from,
-          to,
-          departMode: 'arriveBy',
-          date,
-          time,
-          modes: query.modes!,
-          optimize: query.optimize!,
-          locale: query.locale,
-        });
-        const body: PlanResponse = {
-          query,
-          itineraries: normalizePlan(raw),
-          source: 'ttc',
-          fetchedAt: new Date().toISOString(),
-        };
-        cache.set(key, { at: Date.now(), body });
-        if (cache.size > 500) cache.delete(cache.keys().next().value!);
-        return body;
+        return await plans.plan(query);
       } catch (err) {
         req.log.warn({ err }, 'TTC plan failed');
         const status = err instanceof TtcError && err.status < 500 && err.status !== 429 ? 502 : 503;

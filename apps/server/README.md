@@ -1,6 +1,6 @@
 # Server
 
-Node 24 + Fastify, TypeScript run directly by Node (no build step). It does two jobs so far: **log live TTC data** for delay statistics and demo replay, and serve **`GET /plan`** (trip planner). The chat agent and MCP come next.
+Node 24 + Fastify, TypeScript run directly by Node (no build step). Jobs: **log live TTC data** (delay statistics, demo replay), **`GET /plan`** (trip planner), **`POST /chat`** (the app's single chat input, request 0001) and **`/mcp`** (the same tools for Claude Desktop / Claude Code).
 
 ## Run locally (Docker)
 ```bash
@@ -42,3 +42,31 @@ GET /plan?from=41.7151,44.8271&to=41.7099,44.7929&arriveBy=2026-10-19T09:00[&mod
 ```bash
 npm test -w @transit/server
 ```
+
+## Tools (shared by /chat and /mcp)
+`src/tools/index.ts` defines each tool once:
+
+| Tool | On /mcp | Card in the app |
+|---|---|---|
+| `find_stop` (name or code, ka/en) | yes | `stops` |
+| `find_place` (OSM geocode via TTC) | yes | none |
+| `next_arrivals` (live countdown at a stop) | yes | `arrivals` |
+| `plan_trip` (arrive-by planner) | yes | `plan` |
+| `propose_trip` | no | `confirm_trip` |
+| `propose_events` (from a photo, PDF or text) | no | `confirm_events` |
+
+Numbers in cards always come from TTC data, not from the model. Proposals are confirmed in the app and stored on the phone. The server keeps no user data; the phone sends its saved trips as context with each chat request.
+
+## POST /chat
+```json
+{ "messages": [{ "role": "user", "text": "როდის გავიდე ხვალ?", "attachments": [{ "kind": "image", "mediaType": "image/jpeg", "data": "<base64>" }] }],
+  "trips": [ /* saved trips from the phone */ ], "locale": "ka" }
+```
+→ `{ "reply": "one short sentence", "cards": [ ... ] }`. Types: `ChatRequest` / `ChatResponse` in `@transit/shared`.
+- Needs `ANTHROPIC_API_KEY` (else 503). Model from `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`), effort `medium`, server-side refusal fallback on.
+- Bearer `API_KEY` required when set. Body limit 20 MB (photos/PDFs as base64).
+
+## /mcp
+Streamable HTTP, stateless, read-only tools. Bearer `API_KEY` when set. Needs HTTPS for remote clients, so it's meant for the VPS behind Caddy.
+- Claude Code: `claude mcp add --transport http tbilisi-transit https://<DOMAIN>/mcp --header "Authorization: Bearer <API_KEY>"`
+- Claude Desktop: add it as a custom connector, or through the `mcp-remote` bridge with the same header **[not tested yet]**.

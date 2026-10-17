@@ -108,3 +108,12 @@ export interface RawPlan {
   itineraries?: RawItinerary[];
   plan?: { itineraries?: RawItinerary[] };
 }
+
+// --- geocode (v2) ---
+// "GeoJSON features from OSM data" per the KB; property names unverified, read defensively.
+export interface RawGeocode {
+  features?: Array<{
+    geometry?: { coordinates?: [number, number] };
+    properties?: Record<string, unknown>;
+  }>;
+}
