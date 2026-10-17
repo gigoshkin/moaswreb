@@ -147,7 +147,9 @@ export class Engine {
     if (altsByStep.some((a) => !a.length)) return [];
 
     const back = await this.backward(altsByStep, input);
-    const fwd = await this.forward(altsByStep, input);
+    // A line whose on-time ride can still be caught needs no "leave now" version.
+    const catchable = new Set(back.filter((n) => n.dep.dep - 0 >= input.now).map((n) => n.alt.p.shortName));
+    const fwd = (await this.forward(altsByStep, input)).filter((n) => !catchable.has(n.alt.p.shortName));
     const all = [...back, ...fwd];
     const seen = new Set<string>();
     const out: Itinerary[] = [];

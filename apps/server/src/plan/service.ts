@@ -12,6 +12,8 @@ const CACHE_MS = 60_000;
 const ENGINE_BUDGET_MS = 25_000;
 const NEAR_FROM_M = 900;
 const NEAR_TO_M = 900;
+/** Stops considered at each end. Many lines pass within walking distance in the centre, and the nearest few are often one line's. */
+const NEAR_LIMIT = 14;
 
 /**
  * Trip planning shared by GET /plan, the chat agent, the alert watcher and the
@@ -60,8 +62,8 @@ export class PlanService {
     if (query.steps?.length) steps = query.steps;
     else {
       const [fromStops, toStops] = await Promise.all([
-        this.source.stopsNear(query.from, NEAR_FROM_M, 6),
-        this.source.stopsNear(query.to, NEAR_TO_M, 8),
+        this.source.stopsNear(query.from, NEAR_FROM_M, NEAR_LIMIT),
+        this.source.stopsNear(query.to, NEAR_TO_M, NEAR_LIMIT),
       ]);
       if (!fromStops.length || !toStops.length) return [];
       steps = [{ fromStops: fromStops.map((s) => s.id), toStops: toStops.map((s) => s.id) }];

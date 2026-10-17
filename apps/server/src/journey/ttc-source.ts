@@ -1,3 +1,4 @@
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import type { LatLon, NearStop, StopHit } from '@transit/shared';
 import type { TtcClient } from '../ttc/client.ts';
 import { distanceM, type StopIndex } from '../ttc/stops.ts';
@@ -43,10 +44,39 @@ export class TtcSource implements Source {
   private readonly ttc: TtcClient;
   private readonly stops: StopIndex;
   private readonly cache = new Map<string, { at: number; value: Promise<unknown> }>();
+  /** Timetables and line shapes change rarely; they are kept on disk so a restart doesn't mean a minute of reloading. */
+  private readonly saved = new Map<string, { at: number; value: unknown }>();
+  private readonly file: string | null;
+  private dirty = false;
 
-  constructor(ttc: TtcClient, stops: StopIndex) {
+  constructor(ttc: TtcClient, stops: StopIndex, file: string | null = null) {
     this.ttc = ttc;
     this.stops = stops;
+    this.file = file;
+    if (file && existsSync(file)) {
+      try {
+        const data = JSON.parse(readFileSync(file, 'utf8')) as Record<string, { at: number; value: unknown }>;
+        for (const [k, v] of Object.entries(data)) {
+          this.saved.set(k, v);
+          this.cache.set(k, { at: v.at, value: Promise.resolve(v.value) });
+        }
+      } catch {
+        // A damaged cache is just a cold start.
+      }
+    }
+    if (file) setInterval(() => this.flush(), 60_000).unref();
+  }
+
+  private flush(): void {
+    if (!this.file || !this.dirty) return;
+    this.dirty = false;
+    try {
+      const tmp = `${this.file}.tmp`;
+      writeFileSync(tmp, JSON.stringify(Object.fromEntries(this.saved)));
+      renameSync(tmp, this.file);
+    } catch {
+      // Disk full or read-only: keep running from memory.
+    }
   }
 
   /** Cached, and concurrent callers share one request. A failure is not kept. */
@@ -55,8 +85,19 @@ export class TtcSource implements Source {
     if (hit && Date.now() - hit.at < ttlMs) return hit.value as Promise<T>;
     const value = load();
     this.cache.set(key, { at: Date.now(), value });
-    value.catch(() => this.cache.get(key)?.value === value && this.cache.delete(key));
-    if (this.cache.size > 4000) this.cache.delete(this.cache.keys().next().value!);
+    value.then(
+      (v) => {
+        if (this.file && /^(route|stops|patterns|schedule|routes):/.test(key) && key !== 'routes') {
+          this.saved.set(key, { at: Date.now(), value: v });
+          this.dirty = true;
+        }
+      },
+      () => this.cache.get(key)?.value === value && this.cache.delete(key),
+    );
+    if (this.cache.size > 4000) {
+      const old = this.cache.keys().next().value!;
+      this.cache.delete(old);
+    }
     return value;
   }
 
