@@ -86,3 +86,11 @@ It can edit code, run `npx tsc --noEmit` in `apps/mobile` and `npm test -w @tran
 2. Route options in the builder (cards for each itinerary from `useTripPlan`, tap to choose, keep the choice in the draft).
 3. Stage 2, build by hand (see above). Blocked on George's answer: do hand-built trips need server alerts now (extend `StoredTrip`, his area) or phone-only reminders first.
 4. Request or inbox note to andro before anything reaches `main`.
+
+## Update: Google map trial is ready on `wip/google-map` (18 Oct, cloud session)
+- Branch `wip/google-map`, cut from `wip/route-builder`. **Not merged, production flow untouched.** Typechecks (`npx tsc --noEmit` in `apps/mobile`); **not run on a phone** (the cloud cannot reach your phone or TTC).
+- `MapCanvas.tsx` was rewritten on `react-native-maps` 1.29.11 (SDK 58's pinned version). Same props and handle, so `pick-place.tsx` and `trip/route.tsx` did not change. Details and the phone checklist are in `knowledge-base/map-provider-options.md` (section "Trial on wip/google-map").
+- No Google key anywhere in the code; nothing paid is called from the app. Billing safeguards and where each key goes are now written in the same note.
+- No TTC stop dots yet (only if Google's stops are too faint). Esri `StaticMap` kept for the route card.
+- Still open: your TTC phone-app screenshot (which map does it use?) and your go/no-go on Google. Until then do not merge.
+- **To try it on the VPS:** `git fetch && git switch wip/google-map && npm install` (repo root), then Expo reloads; Android only for Google tiles (iPhone Expo Go shows Apple Maps). Switch back with `git switch wip/route-builder`. Don't kill the running Expo server.

@@ -1,6 +1,6 @@
 # Map and address search: options and cost (gigoshkin session, 2026-10-17)
 
-Status: **thinking, not decided.** The code owner decides (George). Figures below come from third-party blogs and Expo docs found on 17 Oct; check Google's own pricing page before relying on any number. Marked **[unverified]** where it is memory or a blog only.
+Status: **thinking, not decided.** The code owner decides (George). A trial implementation of option B exists on branch `wip/google-map` (not merged; see the end of this note). Figures below come from third-party blogs and Expo docs found on 17 Oct; check Google's own pricing page before relying on any number. Marked **[unverified]** where it is memory or a blog only.
 
 ## Where we are
 - The app draws its own map (`apps/mobile/src/ui/MapCanvas.tsx`) from Esri "Light Gray Canvas" tiles. No key, free for a demo. Limits found on the phone on 17 Oct:
@@ -33,3 +33,27 @@ Address search with Google (Places Autocomplete): about $2.83 per 1,000 requests
 2. **Try B for the picker and builder map** (it also fixes zoom, stops and gesture smoothness in one step, and stays in Expo Go on Android). Keep our `StaticMap` (Esri) for the small thumbnail so there is no Static Maps bill. We draw TTC stop dots and the route as `Marker` / `Polyline`.
 3. Move to a dev build when push and the demo polish need it, not for the map.
 4. Whatever we pick, the map provider sees the phone's IP and the map area; update `data-and-privacy.md` when decided.
+
+## Trial on `wip/google-map` (18 Oct, cloud session; not tested on a phone)
+- `apps/mobile/src/ui/MapCanvas.tsx` now renders `react-native-maps` 1.29.11 (the version Expo SDK 58 pins in `expo/bundledNativeModules.json`; `npx expo install` could not reach Expo's API from the cloud, so it was installed by that exact pin). Props and handle are unchanged, so `pick-place.tsx` and `trip/route.tsx` are untouched.
+- Android uses `PROVIDER_GOOGLE` (inside Expo Go, no key). iPhone Expo Go shows Apple Maps. Web preview shows a plain gray box.
+- The pin is our own overlay; the point under it comes from `onRegionChangeComplete` (Google zoom is worked out from the longitude span). `zoom` props keep the old Esri scale; Google zoom = that + 1.
+- Polylines and markers are the library's `Polyline` / `Marker`. Shop and restaurant pins are hidden by a small map style; transit stops stay. **No TTC stop dots yet:** add them only if Google's stops are too faint on the phone.
+- Esri `StaticMap` stays for the small route card.
+- To check on the phone: drag/pinch feel, pin tip on the chosen point (the free-area offset is computed by us, not by `mapPadding`), address under the pin, the sheet resizing without the pin drifting, `fit` framing, markers (start, end, bus badges) in the right place, how visible Google's stops are.
+
+## Billing safeguards (George, 17 Oct: no surprise bill)
+1. **The map costs nothing.** Maps SDK for Android (native map) is free and unlimited **[unverified: check Google's pricing page]**, and Expo Go uses Expo's own key. The app code contains no Google key and calls no Google web API.
+2. **Anything that costs money goes through our server only**, behind a **hard daily cap in our own code** (same pattern as the chat quotas in `apps/server/src/ratelimit.ts`): Places Autocomplete/Details, Geocoding, Static Maps. Default cap small, set in `.env`; the feature is off unless its key is set.
+3. **Google Cloud side:** restrict each key to one API and to our app or server IP; set per-API **daily quota caps** (APIs & Services → Quotas). A budget alert only sends e-mail, it does not stop spending, so it is a warning and not a safeguard.
+4. **Do not enable billing until a paid API is really needed.** Google asks for a card authorisation when billing is switched on.
+
+### Where each key goes
+| Key | Used by | Where it lives |
+|---|---|---|
+| none | Map in Expo Go (Android) | nothing to set |
+| Maps SDK for Android key | development or store build only | `expo.android.config.googleMaps.apiKey`, filled from the environment at build time (e.g. an `app.config.js`), never committed |
+| Places / Geocoding key | server only | `GOOGLE_PLACES_API_KEY` in the repo-root `.env` (gitignored), read in `apps/server/src/config.ts` |
+| Static Maps | not used | the route card stays on Esri |
+
+Never put the server key in the app, and never reuse one key for both.
