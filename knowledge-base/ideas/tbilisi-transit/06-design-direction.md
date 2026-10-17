@@ -1,6 +1,6 @@
 # Design direction: Google/Apple-level, not stock Material
 
-Written 17 Oct 2026 from George's session, at George's request ("very good, beautiful, snappy app that looks modern and fresh, not an obscure plain Material UI app; Google/Apple-level feel"). **[proposed: needs andro]** for screens and look; the tech section is George's area. Replaces the font and "Material 3 motion" lines in `05-build-plan.md` §5.
+Written 17 Oct 2026 from George's session, at George's request ("very good, beautiful, snappy app that looks modern and fresh, not an obscure plain Material UI app; Google/Apple-level feel"). **Direction approved by George (17 Oct).** Screens and details are andro's to design within it; the tech section (§6) is George's area. Replaces the font and "Material 3 motion" lines in `05-build-plan.md` §5.
 
 ## 1. The feel in one line
 **A calm, confident instrument:** one big number that's always right, surfaces that move like physical objects, and nothing on screen that doesn't help you leave on time.

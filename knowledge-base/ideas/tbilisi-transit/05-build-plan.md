@@ -1,18 +1,18 @@
 # Tbilisi transit: build plan (what we need to proceed)
 
-Written Sat 17 Oct 2026, evening, from George's session. Builds on `04-product-spec.md` (darya's session). Labels: **[decided]**, **[proposed: needs George]** (code/stack), **[proposed: needs darya]** (features/flows), **[?]** unverified.
+Written Sat 17 Oct 2026, evening, from George's session. Builds on `04-product-spec.md` (andro's session). Labels: **[decided]**, **[proposed: needs George]** (code/stack), **[proposed: needs andro]** (features/flows), **[?]** unverified.
 
 ## 0. Roles [decided by George]
 | Area | Owner | Means |
 |---|---|---|
 | Code, stack, data sources, architecture | **George (gigoshkin)** | No stack or library decision is final without George's OK. Other sessions propose; they don't decide. |
-| Features, user flows, screens content | **darya / AndroPetrosyan** | Owns `04-product-spec.md` and the flows. **Has to come up with new flows** (see §4). |
+| Features, user flows, screens content | **andro (AndroPetrosyan)** | Owns `04-product-spec.md` and the flows. **Has to come up with new flows** (see §4). |
 | Pitch, demo script | open | Assign before Sun 09:00. |
 
 ## 1. Changes to 04-product-spec
 - **Data source overridden (George):** use **TTC's own PIS gateway** directly, not the GTFS/GTFS-RT/Transitous mirrors. Mapped and tested in `knowledge-base/ttc-pis-gateway-api.md`: stops, routes, live positions, live arrival times, full timetables, geocoding, trip planner (`v2/plan`, `arriveBy`). The key comes from TTC's public page at runtime and is never committed.
 - **Stack lines in §2 of 04 are proposals**, waiting for George (see §3 below).
-- Features F1–F6 stay as darya's proposal. Code-side feasibility of each with the gateway is in §2.
+- Features F1–F6 stay as andro's proposal. Code-side feasibility of each with the gateway is in §2.
 
 ## 2. Feature feasibility on the gateway (code view)
 | Feature (04) | Data we have | Effort | Note |
@@ -44,7 +44,7 @@ Written Sat 17 Oct 2026, evening, from George's session. Builds on `04-product-s
 
 **No reuse of old code [decided by George, 17 Oct]:** `~/Projects/web/moaswreb` (Symfony API + Expo app) is old. Use it **only as a reference** for how the TTC API behaves and for UI ideas. Copy no files or modules; everything is written fresh here. The TTC API may have changed since then, so trust `ttc-pis-gateway-api.md` (tested 17 Oct) over the old code.
 
-## 4. Screens (draft, darya to own and redo)
+## 4. Screens (draft, andro to own and redo)
 1. Onboarding: language (ka/en), home point (search or GPS), notification permission.
 2. **Today**: one big "next trip" card: *leave in 7 min (06–09)*, route chips in TTC route colours, live bus dot ETA, confidence. Below it, the rest of today's trips.
 3. **Week**: 7-day list of trips (from F3).
@@ -55,7 +55,7 @@ Written Sat 17 Oct 2026, evening, from George's session. Builds on `04-product-s
 8. Settings / demo controls (hidden): demo clock, inject delay/notice, LIVE/REPLAY badge.
 9. Android notification layouts (the stage moment) and widget (stretch).
 
-**Flows darya still needs to define** (George's ask: new flows, not only the 04 list):
+**Flows andro still needs to define** (George's ask: new flows, not only the 04 list):
 - First run to first useful alert in < 60 s: what's the shortest path?
 - What happens when the user *misses* the leave-by (snooze? next option?)
 - Return trip when the end time is fuzzy (uni lecture ends early)
@@ -89,7 +89,7 @@ Do:
 ## 7. Next steps, in order
 1. **George:** approve/reject §3 stack (backend A or B). Ask `#ask-okto` about pre-event code.
 2. **Logger tonight** (code): poll `arrival-times` for demo-trip stops + `positions` for their routes every 30 s, save raw JSON. Every hour logged makes the scorecard and the "AI" claim real.
-3. **darya:** pick 2–3 real demo trips (home→Free Uni etc.) so the logger knows which stops/routes to watch; then the flows in §4.
+3. **andro:** pick 2–3 real demo trips (home→Free Uni etc.) so the logger knows which stops/routes to watch; then the flows in §4.
 4. Gateway client + `plan` → week view end-to-end on the phone (first checkpoint from 04 §6).
 5. Leave-by engine + push; then notice reader; then scorecard; then polish/design; widget if time remains.
 6. Sun 09:00 freeze features; 09:00–11:30 demo rehearsal + backup recording; submit before 12:00.
@@ -97,4 +97,4 @@ Do:
 ## 8. Data, learning and privacy [decided by George, 17 Oct]
 - **Logger:** keep the city-wide sweep, but never risk a block. Gentle rate (≤ 1.4 req/s), automatic backoff on 403/429/5xx/network errors (30 s doubling to 30 min), sweep paused 01:00–06:00 Tbilisi. Keep it only while it gives real benefit.
 - **Learning:** self-improving. Start from a wide safe window based on TTC's countdown; narrow it per line as observations accumulate (shrink toward the all-lines estimate when data is thin); always show the evidence ("learned from N arrivals").
-- **Privacy:** **no user-bound GPS or movement data is collected, ever.** Current location may be used on the phone only, to compute walking time; it isn't sent or stored. No "learn your walking speed" on the server. Uploaded files are deleted after parsing. The MCP endpoint needs a personal key. There's a delete-all button. Google sign-in is still undecided (see George's session).
+- **Privacy:** **no user-bound GPS or movement data is collected, ever.** Current location may be used on the phone only, to compute walking time; it isn't sent or stored. No "learn your walking speed" on the server. Uploaded files are deleted after parsing. The MCP endpoint needs a personal key. There's a delete-all button. **No Google sign-in for the hackathon** (George, 17 Oct): device ID only; maybe later, storing only a hashed account ID.

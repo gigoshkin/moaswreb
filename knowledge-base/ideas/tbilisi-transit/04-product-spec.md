@@ -8,7 +8,7 @@ Written Sat 17 Oct 2026, ~15:00 Tbilisi time. Supersedes the open questions in r
 
 ## 2. Decisions
 
-> **Note (George, 17 Oct):** George owns code and stack. Stack is now decided by George: see `05-build-plan.md` §3 (TypeScript, Expo, Node/Fastify, SQLite, Docker on George's VPS). Features (§3) remain darya's area.
+> **Note (George, 17 Oct):** George owns code and stack. Stack is now decided by George: see `05-build-plan.md` §3 (TypeScript, Expo, Node/Fastify, SQLite, Docker on George's VPS). Features (§3) remain andro's area.
 
 | Topic | Decision | Notes |
 |---|---|---|
@@ -26,7 +26,7 @@ Written Sat 17 Oct 2026, ~15:00 Tbilisi time. Supersedes the open questions in r
 
 ### F2. Schedule upload, AI-parsed [decided: all four inputs]
 
-> **Changed by request 0001 (approved by darya, 17 Oct):** no separate upload screen. Photos, PDFs, .ics links and text are sent through **one chat input**; the agent answers with action cards ("3 events found → confirm places"), and every change is confirmed by the user. The agent works through our own MCP server (code side: George). The confirm-places step below still applies.
+> **Changed by request 0001 (approved by andro, 17 Oct):** no separate upload screen. Photos, PDFs, .ics links and text are sent through **one chat input**; the agent answers with action cards ("3 events found → confirm places"), and every change is confirmed by the user. The agent works through our own MCP server (code side: George). The confirm-places step below still applies.
 
 | Input | How it is read |
 |---|---|
