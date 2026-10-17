@@ -1,6 +1,7 @@
 import { config } from '../config.ts';
 import type {
   ArrivalTime,
+  RawPlan,
   RouteDetail,
   RoutePositions,
   RouteSummary,
@@ -82,6 +83,30 @@ export class TtcClient {
   positions(routeId: string, patternSuffixes: string[]) {
     return this.get<RoutePositions>(`v3/routes/${routeId}/positions`, {
       patternSuffixes: patternSuffixes.join(','),
+    });
+  }
+
+  // --- trip planner (v2) ---
+  /** `date` is `YYYY-MM-DD` and `time` is `HH:mm`, both Tbilisi local. */
+  plan(params: {
+    from: { lat: number; lon: number };
+    to: { lat: number; lon: number };
+    departMode: 'leaveNow' | 'departAt' | 'arriveBy';
+    date: string;
+    time: string;
+    modes: string[];
+    optimize: 'quick' | 'lessWalking' | 'fewerTransfers';
+    locale?: Locale;
+  }) {
+    return this.get<RawPlan>('v2/plan', {
+      fromPlace: `${params.from.lat},${params.from.lon}`,
+      toPlace: `${params.to.lat},${params.to.lon}`,
+      departMode: params.departMode,
+      date: params.date,
+      time: params.time,
+      modes: params.modes.join(','),
+      optimize: params.optimize,
+      locale: params.locale ?? 'ka',
     });
   }
 

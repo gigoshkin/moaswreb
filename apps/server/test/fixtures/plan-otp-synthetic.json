@@ -1,0 +1,27 @@
+{
+  "_note": "SYNTHETIC. Built from the key names seen live on 2026-10-17 (see knowledge-base/ttc-pis-gateway-api.md), values follow OpenTripPlanner. Replace with a saved real response.",
+  "itineraries": [
+    {
+      "startTime": 1792383300000,
+      "endTime": 1792385880000,
+      "duration": 2580,
+      "walkTime": 540,
+      "walkDistance": 610.4,
+      "legs": [
+        { "mode": "WALK", "from": { "name": "Origin", "lat": 41.7151, "lon": 44.8271 }, "to": { "name": "Rustaveli Ave", "lat": 41.7012, "lon": 44.7975, "stopId": "1:1000" }, "startTime": 1792383300000, "endTime": 1792383600000, "duration": 300, "distance": 350.2, "realTime": false },
+        { "mode": "BUS", "from": { "name": "Rustaveli Ave", "lat": 41.7012, "lon": 44.7975, "stopId": "1:1000" }, "to": { "name": "Tamarashvili St", "lat": 41.7101, "lon": 44.7601, "stopId": "1:2000" }, "startTime": 1792383600000, "endTime": 1792384800000, "duration": 1200, "distance": 5200, "route": "306", "routeColor": "e02b2b", "routeLongName": "Rustaveli - Vazha-Pshavela", "headsign": "Vazha-Pshavela", "realTime": false, "arrivalDelay": -3540, "intermediateStops": [{}, {}, {}, {}], "legPolyline": { "encodedValue": "abc~" } },
+        { "mode": "BUS", "from": { "name": "Tamarashvili St", "lat": 41.7101, "lon": 44.7601, "stopId": "1:2000" }, "to": { "name": "Free University", "lat": 41.7099, "lon": 44.7929, "stopId": "1:1405" }, "startTime": "2026-10-19T04:42:00Z", "endTime": "2026-10-19T04:54:00Z", "duration": 720, "distance": 3100, "route": { "shortName": "347", "color": "#1E88E5" }, "realTime": true, "intermediateStops": [{}] },
+        { "mode": "WALK", "from": { "name": "Free University", "lat": 41.7099, "lon": 44.7929 }, "to": { "name": "Destination", "lat": 41.7099, "lon": 44.7929 }, "startTime": 1792385640000, "endTime": 1792385880000, "duration": 240, "distance": 260.2 }
+      ]
+    },
+    {
+      "startTime": 1792383000000,
+      "endTime": 1792385820000,
+      "duration": 2820,
+      "legs": [
+        { "mode": "WALK", "from": { "name": "Origin", "lat": 41.7151, "lon": 44.8271 }, "to": { "name": "Station Square", "lat": 41.72, "lon": 44.8, "stopId": "1:3000" }, "startTime": 1792383000000, "endTime": 1792383420000, "duration": 420, "distance": 500 },
+        { "mode": "SUBWAY", "from": { "name": "Station Square", "lat": 41.72, "lon": 44.8, "stopId": "1:3000" }, "to": { "name": "Delisi", "lat": 41.73, "lon": 44.76, "stopId": "1:3001" }, "startTime": 1792383420000, "endTime": 1792385820000, "duration": 2400, "distance": 8000, "route": "M1", "realTime": false }
+      ]
+    }
+  ]
+}

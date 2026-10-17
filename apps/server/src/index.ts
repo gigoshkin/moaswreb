@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { config } from './config.ts';
 import { Poller } from './logger/poller.ts';
 import { Recorder } from './logger/recorder.ts';
+import { registerPlanRoute } from './plan/route.ts';
 import { TtcClient } from './ttc/client.ts';
 
 const ttc = new TtcClient();
@@ -12,6 +13,7 @@ const app = Fastify({ logger: { level: 'info' }, disableRequestLogging: true });
 
 app.get('/health', async () => ({ ok: true, ttcKeyLoaded: ttc.hasKey }));
 app.get('/logger/stats', async () => poller.stats());
+registerPlanRoute(app, ttc);
 
 const shutdown = async (signal: string) => {
   app.log.info(`${signal} received, shutting down`);
