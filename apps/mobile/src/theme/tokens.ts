@@ -1,7 +1,8 @@
 // Design tokens. Source of truth for colour, type, shape, spacing and motion.
-// Direction: knowledge-base/ideas/tbilisi-transit/06-design-direction.md
-// (neutral base, one accent, line colours are the only strong colours,
-// everything moves on springs, dark mode is first-class).
+// Direction: knowledge-base/ideas/tbilisi-transit/06-design-direction.md.
+// Fixed by George: Georgian first, light theme, premium feel, good motion,
+// not vibecoded. Fonts, colours and shapes below are placeholders; andro
+// decides the look and may replace any of them.
 
 import type { WithSpringConfig } from 'react-native-reanimated';
 

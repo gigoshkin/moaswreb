@@ -1,6 +1,7 @@
 import type { Itinerary } from '@transit/shared';
 import { Fragment } from 'react';
 import { View } from 'react-native';
+import { t } from '../lib/strings';
 import { hhmm, minutes } from '../lib/time';
 import { useColors } from '../theme/theme';
 import { space } from '../theme/tokens';
@@ -34,11 +35,11 @@ export function ItineraryCard({ itinerary, urgent = false, onPress }: Props) {
         ))}
         <View style={{ flex: 1 }} />
         <Text variant="title" color={ink ?? 'text'} tabular>
-          {`${minutes(itinerary.durationSec)} min`}
+          {t.min(minutes(itinerary.durationSec))}
         </Text>
       </View>
       <Text variant="label" color={ink ?? 'textMuted'} tabular style={{ marginTop: space.md }}>
-        {`${hhmm(itinerary.departAt)} → ${hhmm(itinerary.arriveAt)} · ${minutes(itinerary.walkSec)} min walk`}
+        {`${hhmm(itinerary.departAt)} → ${hhmm(itinerary.arriveAt)} · ${t.walk(minutes(itinerary.walkSec))}`}
       </Text>
     </Card>
   );

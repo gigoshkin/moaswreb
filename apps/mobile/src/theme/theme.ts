@@ -1,7 +1,7 @@
-import { useColorScheme } from 'react-native';
 import { colors, fonts, type ColorTokens, type Weight } from './tokens';
 
-export const useColors = (): ColorTokens => colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
+// Light theme only for now (George, 17 Oct). Dark tokens stay in tokens.ts in case andro wants dark mode.
+export const useColors = (): ColorTokens => colors.light;
 
 const GEORGIAN = /[Ⴀ-ჿᲐ-Ჿ]/;
 

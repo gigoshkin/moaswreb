@@ -2,6 +2,15 @@
 
 Written 17 Oct 2026 from George's session, at George's request ("very good, beautiful, snappy app that looks modern and fresh, not an obscure plain Material UI app; Google/Apple-level feel"). **Direction approved by George (17 Oct).** Screens and details are andro's to design within it; the tech section (§6) is George's area. Replaces the font and "Material 3 motion" lines in `05-build-plan.md` §5.
 
+## 0. George's guidelines: the only fixed rules [decided by George, 17 Oct, later the same day]
+George loosened the appearance rules. Only these four are fixed:
+1. **Georgian first.** Georgian is the default language and the copy is written in Georgian first; English is secondary.
+2. **Light theme.** The app is light-themed. Dark mode is optional, andro's call.
+3. **Premium feel with good animations.**
+4. **Must not look vibecoded** (see §7 for common signals).
+
+**Everything else about appearance is andro's to decide and may override this document:** fonts, colours, accent, shapes, icons, references, motion style, signature moments. §1–§5 and §7 are suggestions, not rules. No request is needed to change them; andro edits this file or says so in an inbox note. The current tokens in `apps/mobile/src/theme/tokens.ts` (Google Sans Flex + Noto Sans Georgian, warm neutrals, green accent) are placeholders until andro picks. §6 (the libraries) stays George's area.
+
 ## 1. The feel in one line
 **A calm, confident instrument:** one big number that's always right, surfaces that move like physical objects, and nothing on screen that doesn't help you leave on time.
 
@@ -17,7 +26,7 @@ Written 17 Oct 2026 from George's session, at George's request ("very good, beau
 ## 3. Visual rules
 - **One hero per screen.** The Today screen is basically one sentence: **"Leave in 7 min"** in very large tabular numerals, with the window bar under it (06–09). Everything else is secondary.
 - **Route plates:** the route number in TTC's own line colour (from the API `color` field), with the metro in its own colour. These are the only strong colours on screen.
-- **Neutral base, one accent.** Warm off-white in light mode; true near-black in dark mode with lifted surfaces (Transit's "neon" dark is a good benchmark). Make dark mode first-class from day one.
+- **Neutral base, one accent.** Warm off-white in light mode; true near-black in dark mode with lifted surfaces (Transit's "neon" dark is a good benchmark). ~~Make dark mode first-class from day one.~~ Light theme first (§0); dark mode is optional.
 - **Type:**
   - **Google Sans Flex** for Latin and numerals. It has been free under SIL OFL since Nov 2025 ([9to5Google](https://9to5google.com/2025/11/18/google-sans-flex-font-available/)), and its variable axes allow a heavier, rounder weight for the hero number.
   - Georgian: Noto Sans Georgian or FiraGO. Check that Google Sans Flex has no Georgian glyphs **[?]**, and pick the Georgian font that matches its x-height.
@@ -59,7 +68,7 @@ No web UI kits (shadcn, 21st.dev, GSAP) in the app: they target the DOM (agreed 
 Purple/indigo gradients · glassmorphism everywhere · default Material buttons and app bars · centred hero cards with a generic illustration · emoji icons · sparkle "AI" badges · percentages as confidence ("90% on time") · spinners · linear fades · five accent colours · tiny grey text · chat bubbles with long paragraphs.
 
 ## 8. Process (proposed)
-1. **andro:** moodboard (§2) → 3 key screens in Figma: Today, Chat with action cards, Trip detail. Light + dark. Real Georgian copy.
+1. **andro:** moodboard (§2) → 3 key screens in Figma: Today, Chat with action cards, Trip detail. Light theme (dark optional). Real Georgian copy.
 2. **George's session:** design tokens (colour, type, radius, spacing, spring presets) plus a small component kit (route plate, leave-by bar, card, sheet, action card) before any screen is built, so every screen shares one look.
 3. Build Today first and get it perfect on the demo phone; the other screens reuse the kit.
 4. Demo-phone check every few hours: start time, scroll, transitions.

@@ -7,6 +7,7 @@ import { ItineraryCard } from '../components/ItineraryCard';
 import { LeaveByBar } from '../components/LeaveByBar';
 import { RoutePlate } from '../components/RoutePlate';
 import { Text } from '../components/Text';
+import { t } from '../lib/strings';
 import { useColors } from '../theme/theme';
 import { space } from '../theme/tokens';
 import { samplePlan } from './samplePlan';
@@ -24,7 +25,7 @@ const useDemoClock = (speed = 30) => {
 
 /**
  * Component kit preview (design direction §8 step 2): every token and core
- * component on one screen, light and dark follow the system. Not a product
+ * component on one screen, light theme. Not a product
  * screen; andro designs those.
  */
 export function KitScreen() {
@@ -45,11 +46,10 @@ export function KitScreen() {
     <View style={{ gap: space.xxl, paddingBottom: space.xxl }}>
       <View style={{ gap: space.md }}>
         <Text variant="caption" color="textMuted">
-          COMPONENT KIT · SYNTHETIC DATA
+          კომპონენტები · სანიმუშო მონაცემები
         </Text>
-        <Text variant="hero" tabular>{leaveIn > 0 ? `Leave in ${leaveIn} min` : 'Leave now'}</Text>
-        <Text variant="hero" style={{ fontSize: 40, lineHeight: 48 }}>
-          {leaveIn > 0 ? `გადი ${leaveIn} წუთში` : 'გადი ახლა'}
+        <Text variant="hero" tabular style={{ fontSize: 48, lineHeight: 60 }}>
+          {leaveIn > 0 ? t.leaveIn(leaveIn) : t.leaveNow}
         </Text>
         <LeaveByBar windowStart={windowStart} windowEnd={windowEnd} now={now} />
       </View>
@@ -59,7 +59,7 @@ export function KitScreen() {
         <RoutePlate route={{ shortName: '558', longName: null, color: '#FBC02D' }} mode="BUS" />
         <RoutePlate route={{ shortName: '61', longName: null, color: '#43A047' }} mode="BUS" size="sm" />
       </View>
-      <Text variant="title">Options</Text>
+      <Text variant="title">{t.options}</Text>
     </View>
   );
 
