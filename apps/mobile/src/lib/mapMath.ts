@@ -19,8 +19,11 @@ export const normY = (lat: number) => {
 export const lonOf = (nx: number) => nx * 360 - 180;
 export const latOf = (ny: number) => (Math.atan(Math.sinh(Math.PI * (1 - 2 * ny))) * 180) / Math.PI;
 
-/** Points on screen per unit of normalised coordinate at a zoom. */
-export const scaleAt = (zoom: number) => TILE * 2 ** zoom;
+/** Points on screen per unit of normalised coordinate at a zoom. (`scaleAt` and `clamp` run inside gesture and style worklets, hence the directive.) */
+export const scaleAt = (zoom: number) => {
+  'worklet';
+  return TILE * 2 ** zoom;
+};
 
 export interface View {
   nx: number;
@@ -30,7 +33,10 @@ export interface View {
 
 export const viewOf = (center: LatLon, zoom: number): View => ({ nx: normX(center.lon), ny: normY(center.lat), zoom });
 
-export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+export const clamp = (v: number, lo: number, hi: number) => {
+  'worklet';
+  return Math.min(hi, Math.max(lo, v));
+};
 
 /** The view that frames `points` inside a `width` × `height` box with `pad` kept clear on each side. */
 export function fitView(points: LatLon[], width: number, height: number, pad: { top: number; right: number; bottom: number; left: number }): View {
