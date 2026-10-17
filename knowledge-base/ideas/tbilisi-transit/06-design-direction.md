@@ -3,13 +3,17 @@
 Written 17 Oct 2026 from George's session, at George's request ("very good, beautiful, snappy app that looks modern and fresh, not an obscure plain Material UI app; Google/Apple-level feel"). **Direction approved by George (17 Oct).** Screens and details are andro's to design within it; the tech section (§6) is George's area. Replaces the font and "Material 3 motion" lines in `05-build-plan.md` §5.
 
 ## 0. George's guidelines: the only fixed rules [decided by George, 17 Oct, later the same day]
-George loosened the appearance rules. Only these four are fixed:
+George loosened the appearance rules. Only these are fixed:
 1. **Georgian first.** Georgian is the default language and the copy is written in Georgian first; English is secondary.
 2. **Light theme.** The app is light-themed. Dark mode is optional, andro's call.
 3. **Premium feel with good animations.**
 4. **Must not look vibecoded** (see §7 for common signals).
+5. **White background** [George: "BACKGROUND MUST BE WHITE - I REQUIRE THIS", 17 Oct]. Pure white, not beige, cream or grey.
+6. **Minimal palette** [George, 17 Oct]. White, near-black text, two or three greys, and **one** accent colour. Nothing else: no per-route colours (route numbers sit on neutral plates), no extra badge colours, no gradients or textures. A warning colour for "late" only if a screen truly needs it.
+7. **App screens first, now** [George, 17 Oct: "I NEED APP IMMEDIATELY"]. No more brand boards, banners, mockup scenes or logo variants until the screens are done: Today, Trip detail, Chat (with the action cards), Add trip, Settings.
+8. **No explainer labels** [George, 17 Oct]. No small captions at the bottom of cards or boxes explaining what something is or where data comes from ("live data", "based on…", "updated…"). If a thing needs explaining, redesign it. No "live" label either; a small dot is enough.
 
-**Everything else about appearance is andro's to decide and may override this document:** fonts, colours, accent, shapes, icons, references, motion style, signature moments. §1–§5 and §7 are suggestions, not rules. No request is needed to change them; andro edits this file or says so in an inbox note. The current tokens in `apps/mobile/src/theme/tokens.ts` (Google Sans Flex + Noto Sans Georgian, warm neutrals, green accent) are placeholders until andro picks. §6 (the libraries) stays George's area.
+**Everything else about appearance is andro's to decide and may override this document:** fonts, colours, accent, shapes, icons, references, motion style, signature moments. §1–§5 and §7 are suggestions, not rules. No request is needed to change them; andro edits this file or says so in an inbox note. The current tokens in `apps/mobile/src/theme/tokens.ts` (Google Sans Flex + Noto Sans Georgian, white and neutral greys, green accent) are placeholders until andro picks, within rules 5 and 6. §6 (the libraries) stays George's area.
 
 ## 1. The feel in one line
 **A calm, confident instrument:** one big number that's always right, surfaces that move like physical objects, and nothing on screen that doesn't help you leave on time.
@@ -33,7 +37,7 @@ George loosened the appearance rules. Only these four are fixed:
   - Two or three sizes per screen, with big contrast between them.
 - **Shapes:** large-radius cards. The shape changes with state (a card that's "about to leave" gets tighter corners and a solid fill), in the M3 Expressive spirit, not just colour swaps.
 - **Icons:** one consistent set (Material Symbols Rounded, or Lucide at one stroke weight). No emoji, no sparkles, no "AI" badges.
-- **Copy:** Georgian first, short, with numbers ("გადი 7 წუთში"). Reasons in one line: "306 is 4 min late → take 17".
+- **Copy:** Georgian first, short, with numbers ("გასვლა 7 წუთში"; formal register, terms from [georgian-glossary.md](../../georgian-glossary.md), George 17 Oct). Reasons in one line: "306 is 4 min late → take 17".
 
 ## 4. Motion and snappiness (where "Google/Apple level" is actually won)
 - **Everything is a spring,** with no linear fades. Sheets, cards and the chat's action cards follow the finger and settle with physics.
@@ -78,4 +82,14 @@ Purple/indigo gradients · glassmorphism everywhere · default Material buttons 
    - Motion can't live in Figma: describe it in a frame note or the inbox ("card springs up", "number rolls").
 3. **Handoff:** when a screen is ready, andro writes an inbox note with the Figma link (frame link if possible). George's session reads the frame with the Figma connector and builds it in React Native.
 4. The current code kit (`apps/mobile/src/components`, `tokens.ts`) is a placeholder; it gets restyled to match Figma.
-4. Demo-phone check every few hours: start time, scroll, transitions.
+5. Demo-phone check every few hours: start time, scroll, transitions.
+
+### Georgian text in Figma [George's quality rule, 17 Oct]
+Agent-made frames had broken Georgian. These rules are technical; the choice of font and style stays with andro.
+- **Only fonts that contain Georgian (Mkhedruli) letters.** When a font has no Georgian, Figma swaps in another font for those letters, so weights and widths don't match the Latin text. Before using a font, render a Georgian test string in it and compare. Fonts in this Figma account that have Georgian (checked 17 Oct with `listAvailableFontsAsync`): 123-Antena (the wordmark) and Noto Sans Georgian. Inter, Google Sans Flex and most Google fonts have none.
+- **Don't apply UPPERCASE to Georgian.** Figma turns it into Mtavruli capitals, which reads as shouting and breaks line lengths.
+- **Line height at least 1.3× for Georgian body text.** Mkhedruli letters reach far above and below the line; check the screenshot for clipped letters.
+- **Georgian strings run 20–40% longer than English.** Use auto-layout and text that grows in height, and test with the longest real string.
+- **Copy comes from [georgian-glossary.md](../../georgian-glossary.md):** formal register, no word-for-word translations, no lorem ipsum.
+- **Build screens from shared text styles, variables and components**, not one-off values. That's where the "clean" look comes from; an agent placing loose layers produces a vibecoded look whichever MCP it uses.
+- **Before calling a frame done:** screenshot it and check for fallback fonts, clipped letters, overlaps and leftover test layers.

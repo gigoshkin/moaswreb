@@ -1,20 +1,21 @@
 // Design tokens. Source of truth for colour, type, shape, spacing and motion.
 // Direction: knowledge-base/ideas/tbilisi-transit/06-design-direction.md.
 // Fixed by George: Georgian first, light theme, premium feel, good motion,
-// not vibecoded. Fonts, colours and shapes below are placeholders; andro
-// decides the look and may replace any of them.
+// not vibecoded, white background, minimal palette (neutrals + one accent).
+// Fonts, the accent and shapes below are placeholders; andro decides them
+// within those rules.
 
 import type { WithSpringConfig } from 'react-native-reanimated';
 
 const palette = {
-  // Warm neutrals for light mode
-  paper: '#F7F5F0',
+  // Light mode: white background, neutral greys (George: background must be white)
+  paper: '#FFFFFF',
   paperRaised: '#FFFFFF',
-  paperSunken: '#EEEBE4',
-  ink: '#1A1916',
-  inkMuted: '#5E5B54',
-  inkFaint: '#9A968C',
-  hairlineLight: '#E2DED5',
+  paperSunken: '#F4F4F5',
+  ink: '#111113',
+  inkMuted: '#5C5C63',
+  inkFaint: '#9C9CA3',
+  hairlineLight: '#E7E7EA',
   // Near-black with lifted surfaces for dark mode
   night: '#0B0B0C',
   nightRaised: '#17171A',
@@ -78,12 +79,6 @@ export const colors: Record<'light' | 'dark', ColorTokens> = {
     windowFill: 'rgba(61,220,132,0.20)',
     track: palette.nightRaised2,
   },
-};
-
-/** Tbilisi metro lines (fallback when TTC sends no colour). [?] check against TTC's own colours. */
-export const metroColors: Record<string, string> = {
-  M1: '#E53935',
-  M2: '#43A047',
 };
 
 export const fonts = {

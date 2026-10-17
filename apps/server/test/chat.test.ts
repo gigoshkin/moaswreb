@@ -71,7 +71,7 @@ test('photos are sent as image blocks on the last user message', async () => {
 test('a refusal returns a short Georgian reply and no cards', async () => {
   const { app } = setup([message([], 'refusal')]);
   const res = await app.inject({ method: 'POST', url: '/chat', payload: { messages: [{ role: 'user', text: 'x' }] } });
-  assert.deepEqual(res.json(), { reply: 'ამაში ვერ დაგეხმარები.', cards: [] });
+  assert.deepEqual(res.json(), { reply: 'ამაში ვერ დაგეხმარებით.', cards: [] });
 });
 
 test('rejects a conversation that does not end with the user', async () => {

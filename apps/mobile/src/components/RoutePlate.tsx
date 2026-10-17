@@ -1,7 +1,7 @@
 import type { LegMode, PlanRoute } from '@transit/shared';
 import { View } from 'react-native';
 import { onColor, useColors } from '../theme/theme';
-import { metroColors, radius, type TypeVariant } from '../theme/tokens';
+import { radius, type TypeVariant } from '../theme/tokens';
 import { Text } from './Text';
 
 const SIZES = {
@@ -17,15 +17,15 @@ interface Props {
 }
 
 /**
- * Route number in the line's own colour: the only strong colour on screen.
- * Buses are rounded rectangles; the metro is a circle-ended pill so the two
- * read differently at a glance even in greyscale.
+ * Route number on a neutral plate. Per-line colours are off: George wants a
+ * minimal palette. Buses are rounded rectangles; the metro is a circle-ended
+ * pill so the two read differently without colour.
  */
 export function RoutePlate({ route, mode, size = 'md' }: Props) {
   const c = useColors();
   const s = SIZES[size];
   const isMetro = mode === 'SUBWAY';
-  const bg = route.color ?? (isMetro ? metroColors[route.shortName] : undefined) ?? c.text;
+  const bg = c.text;
   return (
     <View
       accessibilityRole="text"
