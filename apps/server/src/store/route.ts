@@ -3,6 +3,9 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { requireKey } from '../auth.ts';
 import type { TripStore } from './trips.ts';
 
+const routeNumbers = { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 12 } } as const;
+const stopIds = { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', pattern: STOP_ID_PATTERN } } as const;
+
 const HHMM = '^([01]\\d|2[0-3]):[0-5]\\d$';
 
 const tripsSchema = {
@@ -24,6 +27,14 @@ const tripsSchema = {
           arriveBy: { type: 'string', pattern: HHMM },
           days: { type: 'array', minItems: 1, maxItems: 7, uniqueItems: true, items: { type: 'integer', minimum: 1, maximum: 7 } },
           walkMin: { type: 'integer', minimum: 0, maximum: 60 },
+          // Lines the trip never uses, and a hand-built route (the rides in order).
+          avoid: { type: 'object', additionalProperties: false, properties: { routes: routeNumbers, minibus: { type: 'boolean' } } },
+          steps: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 6,
+            items: { type: 'object', required: ['fromStops', 'toStops'], additionalProperties: false, properties: { fromStops: stopIds, toStops: stopIds, routes: routeNumbers } },
+          },
         },
       },
     },

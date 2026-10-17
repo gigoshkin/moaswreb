@@ -24,6 +24,8 @@ export const hasApi = BASE !== '';
 
 const TIMEOUT_MS = 15_000;
 const CHAT_TIMEOUT_MS = 90_000; // the assistant may call several tools
+// The server's own planner may load timetables for a new area (up to ~25 s) before it answers.
+const PLAN_TIMEOUT_MS = 40_000;
 
 /** Server error with its machine-readable code (`rate_limited`, `upstream`, `unknown_stop`, …). */
 export class ApiRequestError extends Error {
@@ -85,16 +87,26 @@ export const cachedPlan = (q: PlanQuery): PlanResponse | null => readCache<PlanR
 
 /** Itineraries arriving by `q.arriveBy` (Tbilisi `YYYY-MM-DDTHH:mm`). Cached on the phone (last 30 queries). */
 export async function fetchPlan(q: PlanQuery): Promise<PlanResponse> {
-  const body = await request<PlanResponse>(
-    `/plan?${qs({
-      from: `${q.from.lat},${q.from.lon}`,
-      to: `${q.to.lat},${q.to.lon}`,
-      arriveBy: q.arriveBy,
-      modes: q.modes?.join(','),
-      optimize: q.optimize,
-      locale: q.locale,
-    })}`,
-  );
+  // A hand-built route goes as a body; the planner's own search is a plain GET.
+  const body = q.steps?.length
+    ? await request<PlanResponse>('/plan/journey', {
+        method: 'POST',
+        timeoutMs: PLAN_TIMEOUT_MS,
+        body: { from: q.from, to: q.to, arriveBy: q.arriveBy, steps: q.steps, avoid: q.avoid, locale: q.locale },
+      })
+    : await request<PlanResponse>(
+        `/plan?${qs({
+          from: `${q.from.lat},${q.from.lon}`,
+          to: `${q.to.lat},${q.to.lon}`,
+          arriveBy: q.arriveBy,
+          modes: q.modes?.join(','),
+          optimize: q.optimize,
+          locale: q.locale,
+          avoid: q.avoid?.routes?.length ? q.avoid.routes.join(',') : undefined,
+          avoidMinibus: q.avoid?.minibus ? 'true' : undefined,
+        })}`,
+        { timeoutMs: PLAN_TIMEOUT_MS },
+      );
   writeRecent('plans', planKey(q), body);
   return body;
 }

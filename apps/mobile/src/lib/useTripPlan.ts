@@ -4,14 +4,16 @@ import { choose, isMetro, leaveAt, routeKey, transitLegs, type Choice } from './
 import { settings } from './settings';
 import { memory } from './store';
 import { hhmm } from './time';
-import type { SavedTrip } from './trips';
+import { hasAvoid, type SavedTrip } from './trips';
 import { usePlan } from './usePlan';
 
 /** The plan query for a trip on a date (`YYYY-MM-DD`). Only coordinates, so cache keys stay stable. */
-export const tripQuery = (trip: Pick<SavedTrip, 'from' | 'to' | 'arriveBy'>, date: string): PlanQuery => ({
+export const tripQuery = (trip: Pick<SavedTrip, 'from' | 'to' | 'arriveBy' | 'avoid' | 'steps'>, date: string): PlanQuery => ({
   from: { lat: trip.from.lat, lon: trip.from.lon },
   to: { lat: trip.to.lat, lon: trip.to.lon },
   arriveBy: `${date}T${trip.arriveBy}`,
+  ...(hasAvoid(trip.avoid) ? { avoid: trip.avoid } : {}),
+  ...(trip.steps?.length ? { steps: trip.steps } : {}),
 });
 
 // The first option seen for each trip and day. When a later re-plan picks a
@@ -35,7 +37,7 @@ export const rideLabel = (it: Itinerary) => {
 };
 
 export function useTripPlan(trip: SavedTrip | null, date: string, now: number, opts: { refreshMs?: number; trackChanges?: boolean } = {}): TripPlan {
-  const query = useMemo(() => (trip ? tripQuery(trip, date) : null), [trip?.from.lat, trip?.from.lon, trip?.to.lat, trip?.to.lon, trip?.arriveBy, date]);
+  const query = useMemo(() => (trip ? tripQuery(trip, date) : null), [trip?.from.lat, trip?.from.lon, trip?.to.lat, trip?.to.lon, trip?.arriveBy, date, JSON.stringify(trip?.avoid), JSON.stringify(trip?.steps)]);
   const { plan, refreshing, error } = usePlan(query, { refreshMs: opts.refreshMs });
   const bufferMin = settings.use().bufferMin;
   const itineraries = plan?.itineraries ?? [];

@@ -1,4 +1,4 @@
-import type { LatLon, StoredTrip } from '@transit/shared';
+import type { JourneyStep, LatLon, PlanAvoid, StoredTrip } from '@transit/shared';
 import { fetchPlan, hasApi, syncTrips } from './api';
 import { choose, firstWalkMin, transitLegs } from './plans';
 import { settings } from './settings';
@@ -24,7 +24,14 @@ export interface SavedTrip {
   days?: number[];
   /** Walk from `from` to the first stop, worked out on the phone. */
   walkMin?: number;
+  /** Lines this trip never uses ("not 518", "no microbuses"). Only this trip. */
+  avoid?: PlanAvoid;
+  /** A hand-built route: the rides in order. Without it the planner looks at every line that fits. */
+  steps?: JourneyStep[];
 }
+
+/** True when the avoid list excludes anything. */
+export const hasAvoid = (a?: PlanAvoid): a is PlanAvoid => Boolean(a?.routes?.length || a?.minibus);
 
 export const DEFAULT_DAYS = [1, 2, 3, 4, 5];
 
@@ -48,7 +55,7 @@ export const toStored = (trips: SavedTrip[]): StoredTrip[] => {
   if (!alerts) return [];
   return trips.flatMap((t) =>
     t.fromStopId && t.toStopId
-      ? [{ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, arriveBy: t.arriveBy, days: tripDays(t), walkMin: Math.round((t.walkMin ?? 0) + bufferMin) }]
+      ? [{ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, arriveBy: t.arriveBy, days: tripDays(t), walkMin: Math.round((t.walkMin ?? 0) + bufferMin), ...(hasAvoid(t.avoid) ? { avoid: t.avoid } : {}), ...(t.steps?.length ? { steps: t.steps } : {}) }]
       : [],
   );
 };
@@ -83,7 +90,7 @@ export const newTripId = () => `t${Date.now().toString(36)}${Math.random().toStr
 export async function withStops(trip: SavedTrip): Promise<SavedTrip> {
   if (!hasApi) return trip;
   try {
-    const plan = await fetchPlan({ from: trip.from, to: trip.to, arriveBy: nextArriveBy(trip.arriveBy, tripDays(trip)) });
+    const plan = await fetchPlan({ from: trip.from, to: trip.to, arriveBy: nextArriveBy(trip.arriveBy, tripDays(trip)), ...(hasAvoid(trip.avoid) ? { avoid: trip.avoid } : {}), ...(trip.steps?.length ? { steps: trip.steps } : {}) });
     const c = choose(plan.itineraries, plan.query.arriveBy, Date.now(), 0);
     const it = c.kind === 'none' ? plan.itineraries[0] : c.it;
     const legs = it ? transitLegs(it) : [];

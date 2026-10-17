@@ -115,13 +115,27 @@ export class AlertWatcher {
   ): Promise<{ msg: PushMessage; key: string; next: TripState } | null> {
     const [from, dest] = await Promise.all([this.stops.get(trip.fromStopId), this.stops.get(trip.toStopId)]);
     if (!from || !dest) return null;
-    const plan = await this.plans.plan({
+    const base = {
       from: { lat: from.lat, lon: from.lon },
       to: { lat: dest.lat, lon: dest.lon },
       arriveBy: `${date}T${trip.arriveBy}`,
-      locale: 'en',
-    });
-    const best = bestItinerary(plan.itineraries, arriveByMs);
+      locale: 'en' as const,
+      ...(trip.avoid ? { avoid: trip.avoid } : {}),
+    };
+    let best: Itinerary | null = null;
+    if (trip.steps?.length) {
+      // A hand-built route: exactly its rides, from the first stop to the last.
+      const first = await this.stops.get(trip.steps[0].fromStops[0]);
+      const last = await this.stops.get(trip.steps.at(-1)!.toStops[0]);
+      if (!first || !last) return null;
+      const plan = await this.plans.plan({ ...base, from: { lat: first.lat, lon: first.lon }, to: { lat: last.lat, lon: last.lon }, steps: trip.steps });
+      best = bestItinerary(plan.itineraries, arriveByMs);
+    } else {
+      // Every line between the two stops first (the stops the walk was measured to), then TTC's planner for trips that need a transfer.
+      const direct = await this.plans.plan({ ...base, steps: [{ fromStops: [trip.fromStopId], toStops: [trip.toStopId] }] });
+      best = bestItinerary(direct.itineraries, arriveByMs);
+      if (!best) best = bestItinerary((await this.plans.plan(base)).itineraries, arriveByMs);
+    }
     if (!best) return null;
 
     // Walk plus a margin for buses that come early.
