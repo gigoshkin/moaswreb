@@ -8,7 +8,7 @@ import { nearStops, stopLines } from '../../lib/api';
 import * as Haptics from 'expo-haptics';
 import { finishSteps, stepsDraft } from '../../lib/handoff';
 import { FAR_WALK_M, UNDO_DEPTH, distM, gapBefore, place, removeAt, stepOf, toggleLine, walkMinutes, type BuiltRide } from '../../lib/chain';
-import { kindOf, leaveAt } from '../../lib/plans';
+import { kindOf, leaveAt, type Kind } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { distanceLabel } from '../../lib/stops';
 import { hhmm, nextArriveBy } from '../../lib/time';
