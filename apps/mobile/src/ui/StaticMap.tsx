@@ -103,7 +103,7 @@ export function StaticMap({ itinerary, endpoints, height, fadeTo = color.bg }: P
           )}
         </>
       )}
-      <LinearGradient colors={['rgba(247,247,247,0)', fadeTo]} style={styles.fade} pointerEvents="none" />
+      <LinearGradient colors={[`${fadeTo}00`, fadeTo]} style={styles.fade} pointerEvents="none" />
       <Text variant="caption" color={color.textTertiary} style={styles.credit}>
         © Esri © OpenStreetMap
       </Text>

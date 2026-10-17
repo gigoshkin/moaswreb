@@ -1,10 +1,10 @@
 import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { pickPlace, takeDraft, type PickKind } from '../../lib/handoff';
+import { buildRoute, takeDraft } from '../../lib/handoff';
 import { firstWalkMin, isMetro, leaveAt, placeName, transitLegs } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { DAY_SHORT, hhmm, nextArriveBy } from '../../lib/time';
@@ -14,6 +14,7 @@ import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
 import { RoutePlate } from '../../ui/RoutePlate';
+import { StaticMap } from '../../ui/StaticMap';
 import { Tap, haptic } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
 import { Card, Chip, TopBar } from '../../ui/kit';
@@ -39,6 +40,7 @@ export default function EditTrip() {
   });
   const [from, setFrom] = useState<Place | null>(init.from);
   const [to, setTo] = useState<Place | null>(init.to);
+  const [name, setName] = useState(init.name ?? '');
   const [arriveBy, setArriveBy] = useState(init.arriveBy);
   const [days, setDays] = useState<number[]>(init.days);
   const [iosPicker, setIosPicker] = useState(false);
@@ -54,9 +56,12 @@ export default function EditTrip() {
   const it = choice.kind === 'none' ? null : choice.it;
   const legs = it ? transitLegs(it) : [];
 
-  const pick = async (kind: PickKind) => {
-    const p = await pickPlace(kind);
-    if (p) (kind === 'from' ? setFrom : setTo)(p);
+  const openBuilder = async () => {
+    const r = await buildRoute({ from, to, arriveBy, days });
+    if (r) {
+      setFrom(r.from);
+      setTo(r.to);
+    }
   };
 
   const changeTime = () => {
@@ -78,7 +83,7 @@ export default function EditTrip() {
   const save = async () => {
     if (!from || !to || saving) return;
     setSaving(true);
-    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: init.name ?? (to.label === 'Home' ? 'Home' : to.label), from, to, arriveBy, days };
+    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || to.label, from, to, arriveBy, days };
     const first = legs[0];
     const trip =
       it && first
@@ -120,16 +125,37 @@ export default function EditTrip() {
         }
       />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
-        <View style={styles.routeCard}>
-          <Field
-            label="From"
-            value={from?.label}
-            sub={from && it && legs[0] ? `${placeName(legs[0].from.name, 'First stop')} · ${firstWalkMin(it)} min walk` : undefined}
-            onPress={() => pick('from')}
-            divider
-          />
-          <Field label="To" value={to?.label} sub={to && legs.length ? placeName(legs.at(-1)!.to.name, '') : undefined} onPress={() => pick('to')} />
-        </View>
+        {from && to ? (
+          <Tap onPress={openBuilder} scaleTo={0.99} style={styles.routeMap} accessibilityRole="button" accessibilityLabel={`Route from ${from.label} to ${to.label}. Change`}>
+            <StaticMap itinerary={it} endpoints={{ from, to }} height={150} fadeTo={color.surface} />
+            <View style={styles.routeText}>
+              <View style={styles.routeLines}>
+                <Text variant="label16" numberOfLines={1}>
+                  {from.label}
+                </Text>
+                <Text variant="label16" color={color.textSecondary} numberOfLines={1}>
+                  to {to.label}
+                </Text>
+                {it ? (
+                  <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)} style={styles.preview}>
+                    <Text variant="body13" color={color.textSecondary}>
+                      Leave around {hhmm(leaveAt(it, bufferMin))}
+                    </Text>
+                    {legs.slice(0, 3).map((l, i) => (
+                      <RoutePlate key={i} label={l.route?.shortName ?? l.mode} metro={isMetro(l)} />
+                    ))}
+                  </Animated.View>
+                ) : null}
+              </View>
+              <Icon name="chevron-right" size={20} color={color.textTertiary} />
+            </View>
+          </Tap>
+        ) : (
+          <View style={styles.routeCard}>
+            <Field label="From" value={from?.label} onPress={openBuilder} divider />
+            <Field label="To" value={to?.label} onPress={openBuilder} />
+          </View>
+        )}
 
         <Card style={styles.arriveCard}>
           <View style={styles.arriveRow}>
@@ -172,20 +198,25 @@ export default function EditTrip() {
           </View>
         </Card>
 
+        <Card style={styles.nameCard}>
+          <Text variant="caption" color={color.textSecondary}>
+            Name
+          </Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder={to?.label ?? 'Optional'}
+            placeholderTextColor={color.textTertiary}
+            style={styles.nameInput}
+            maxLength={40}
+            returnKeyType="done"
+            maxFontSizeMultiplier={1.15}
+          />
+        </Card>
+
         <View style={styles.spacer} />
 
         <View style={styles.bottom}>
-          {it && (
-            <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)} style={styles.preview}>
-              <Icon name={legs[0] && isMetro(legs[0]) ? 'metro' : 'bus'} size={16} color={color.textTertiary} />
-              <Text variant="body13" color={color.textSecondary}>
-                Leave around {hhmm(leaveAt(it, bufferMin))}
-              </Text>
-              {legs.slice(0, 3).map((l, i) => (
-                <RoutePlate key={i} label={l.route?.shortName ?? l.mode} metro={isMetro(l)} />
-              ))}
-            </Animated.View>
-          )}
           <Button label={saving ? 'Saving…' : 'Save'} onPress={save} disabled={!from || !to || saving} haptic="none" />
         </View>
       </ScrollView>
@@ -229,7 +260,12 @@ const styles = StyleSheet.create({
   changePill: { backgroundColor: color.surfaceMuted, borderRadius: radius.full, paddingHorizontal: 16, paddingVertical: 8 },
   daysCard: { gap: 12 },
   days: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  nameCard: { gap: 4 },
+  nameInput: { fontFamily: font.bold, fontSize: 16, lineHeight: 22, color: color.text, paddingVertical: 4, includeFontPadding: false },
+  routeMap: { backgroundColor: color.surface, borderRadius: radius.lg, overflow: 'hidden', ...shadow.card },
+  routeText: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 16, marginTop: -8 },
+  routeLines: { flex: 1, gap: 2 },
   spacer: { flex: 1, minHeight: 12 },
   bottom: { gap: 8 },
-  preview: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4, paddingVertical: 12 },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 6 },
 });

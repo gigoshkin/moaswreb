@@ -296,7 +296,8 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     const k = 2 ** (zoom.value - anchor.zi);
     const dx = (nx.value - anchor.nx) * P;
     const dy = (ny.value - anchor.ny) * P;
-    return { transform: [{ translateX: width.value / 2 - k * dx }, { translateY: focusY.value - k * dy }, { scale: k }] };
+    // `opacity` stays in every return: a style key that disappears is not reset.
+    return { opacity: 1, transform: [{ translateX: width.value / 2 - k * dx }, { translateY: focusY.value - k * dy }, { scale: k }] };
   }, [anchor]);
 
   const lines = useMemo(() => {

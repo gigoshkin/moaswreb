@@ -37,6 +37,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="trip/[id]" />
           <Stack.Screen name="trip/edit" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="trip/route" />
           <Stack.Screen name="pick-place" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="buffer" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="privacy" />

@@ -2,7 +2,7 @@ import type { NearStop, PlaceHit, StopHit } from '@transit/shared';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, FlatList, Keyboard, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { BackHandler, FlatList, Keyboard, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hasApi, nearStops, reversePlace, searchPlaces, searchStops } from '../lib/api';
@@ -41,7 +41,7 @@ export default function PickPlace() {
   useEffect(() => () => finishPick(null), []);
 
   useEffect(() => {
-    if (mode !== 'map') return;
+    if (mode !== 'map' || Platform.OS === 'web') return;
     // Android back from the map returns to the search, not out of the picker.
     const sub = BackHandler.addEventListener('hardwareBackPress', () => (setMode('search'), true));
     return () => sub.remove();

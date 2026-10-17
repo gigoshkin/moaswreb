@@ -32,6 +32,34 @@ export function finishPick(place: Place | null) {
   pending = null;
 }
 
+/** What the route builder starts from, and what it hands back. */
+export interface RouteDraft {
+  from: Place | null;
+  to: Place | null;
+  arriveBy: string;
+  days: number[];
+}
+let routeDraftNow: RouteDraft | null = null;
+let routePending: ((r: { from: Place; to: Place } | null) => void) | null = null;
+
+/** Opens the route builder on the map; resolves with the chosen ends, or null if closed. */
+export function buildRoute(draft: RouteDraft): Promise<{ from: Place; to: Place } | null> {
+  routePending?.(null);
+  routeDraftNow = draft;
+  return new Promise((resolve) => {
+    routePending = resolve;
+    router.push('/trip/route');
+  });
+}
+
+export const routeDraft = (): RouteDraft => routeDraftNow ?? { from: null, to: null, arriveBy: '09:00', days: [1, 2, 3, 4, 5] };
+
+/** Called by the builder: with the ends on Done, with null when it closes. */
+export function finishRoute(r: { from: Place; to: Place } | null) {
+  routePending?.(r);
+  routePending = null;
+}
+
 /** Add-trip form prefilled from chat (a proposed trip or a timetable event). */
 export type TripDraft = Partial<Omit<SavedTrip, 'id'>>;
 let draft: TripDraft | null = null;

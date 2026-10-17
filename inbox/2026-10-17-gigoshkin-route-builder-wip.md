@@ -1,4 +1,4 @@
-# Taxi-style route builder: work in progress (gigoshkin, 2026-10-17)
+# Taxi-style route builder: stage 1 done, stage 2 not started (gigoshkin, 2026-10-17)
 
 Written so a fresh session (e.g. a cloud session) can pick this up with no other context. Branch: `wip/route-builder`. Read this file first, then the code it points to.
 
@@ -34,16 +34,13 @@ Written so a fresh session (e.g. a cloud session) can pick this up with no other
 - `src/ui/kit.tsx`: `MapButton` (round white floating button).
 - Icons: `map`, `swap` added in `assets/icons`, regenerated with `node scripts/icons.mjs`.
 
-## Still to build (in this order)
-1. **Route builder screen** `src/app/trip/route.tsx` (register in `src/app/_layout.tsx`, default push animation). Reads a draft `{ from, to, arriveBy, days }` from `handoff` (add `buildRoute(draft): Promise<{from, to} | null>`, `routeDraft()`, `finishRoute()` next to `pickPlace`).
-   - Full-screen `MapCanvas`, `start = { fit: [from, to] }` when both set. Floating `MapButton` back (cancel).
-   - Bottom sheet (white, top radius 24, `shadow.bar`), measured with `onLayout` and passed as `inset.bottom`: From row and To row (dot, dashed connector, pin icon; tap opens `pickPlace(kind, { near: otherEnd })`), a swap button when both are set, then a route summary, then **Done** (returns `{from, to}` and `router.back()`).
-   - Plan: `useTripPlan({ id: 'draft', name: '', from, to, arriveBy, days }, nextArriveBy(arriveBy, days, now).slice(0, 10), now)`. Show the chosen itinerary (`choice.it`, else `itineraries[0]`) on the map: legs from `decodePolyline(leg.polyline)` (walk = dashed), start dot, end ring, a ride badge (bus/metro icon in an ink circle) at each boarding stop. Summary: route plates, "Leave HH:MM" (`leaveAt(it, settings.bufferMin)`), "Arrive HH:MM · N min". States: loading skeleton, "Can't reach the planner", "No route found".
-   - On mount: if `from` is empty open the From picker; else if `to` is empty open the To picker (taxi "Where to?" feel).
-   - Re-`fit` the map when from, to or the itinerary id changes.
-2. **Add-trip form** `src/app/trip/edit.tsx`: replace the two `Field` rows with a **route card**: when both ends are set a `StaticMap` thumbnail (itinerary, else `endpoints`; zoomed-out route) with From → To lines and "Leave around HH:MM + plates" inside the card; when empty the current sky card. The whole card opens the builder. Remove the separate preview line at the bottom. Add a **Name** card (TextInput, placeholder = destination label, blank = auto name) above Save. Keep arrive-by, Days, Save, Delete as they are. Make `StaticMap`'s gradient start `${fadeTo}00` so it fades cleanly into a white card.
-3. **Check screens in a browser** (layout only; gestures need a phone): `npx expo start --web --port 8082` in `apps/mobile`, headless Chromium (Playwright is preinstalled; see README Preview). Also run on a phone through Expo Go.
-4. **Docs:** `knowledge-base/data-and-privacy.md` (Photon), `apps/mobile/README.md` (map pieces), and this note → delete or update when done.
+## Stage 1 status: built and checked in a browser, **not yet tried on a phone**
+Added since the first push: `src/app/trip/route.tsx` (builder), the route card + Name field in `src/app/trip/edit.tsx`, `src/ui/MapMarks.tsx`, `buildRoute`/`routeDraft`/`finishRoute` in `src/lib/handoff.ts`, README and privacy notes. Checked with headless Chromium (sample plan): form with the map thumbnail, builder with the route and markers drawn on tiles, picker, map mode with the pin. Gestures, momentum, keyboard and real data are untested.
+Bug found and fixed while testing: a style key that disappears from a Reanimated `useAnimatedStyle` is not reset, so the layer's first `opacity: 0` stuck; now `opacity: 1` is returned every time (see the comment in `MapCanvas`).
+
+**Next, on the phone (Expo Go):** drag/pinch smoothness, any one-frame jump at re-anchoring, blank edges after a fast fling, pin tip on the chosen point, marker alignment with the route line, the keyboard in the picker, "Select on map" → Confirm → back in the builder → Done → form shows the map thumbnail, saving a trip, street search ("Archil Mepe", "7 Archil Mepe"), reverse address under the pin.
+Known gaps in stage 1: the builder shows the route the app will plan (best option) but you can't choose another option or pin a route yet; that is stage 2. The picker's "Current location" uses the device geocoder; the map pin uses the server's.
+Because this changes andro's Add-trip flow, write a request or an inbox note to andro before merging to main.
 
 ## Stage 2: build the route by hand (not started, needs design decisions)
 Goal: user picks start, then boarding stop + route, alighting stop, next boarding stop, …, end. Data TTC offers (see `knowledge-base/ttc-pis-gateway-api.md`): `v2/stops/{id}/routes` (routes at a stop), `v3/routes/{id}` (patterns), `v3/routes/{id}/stops?patternSuffix=` (ordered stops), `v3/routes/{id}/polylines`, `v3/routes/{id}/schedule` (per-stop timetable), `v2/stops/{id}/arrival-times?routeId=` (live). Ride duration = timetable difference between the two stops; next departure = live arrivals for that route at the boarding stop.

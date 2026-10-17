@@ -23,11 +23,13 @@ Note: `docker-compose.yml` binds the server to `127.0.0.1`, so a phone can't rea
 - `src/app/`: routes.
   - `(tabs)/`: Today (`index`), Week, Chat, Settings, with the custom tab bar.
   - `trip/[id]`: trip detail (saved trip, or a chat plan with `?preview=1`).
-  - `trip/edit`: add or edit a trip.
-  - `pick-place`, `buffer`, `privacy`.
+  - `trip/edit`: add or edit a trip (route card with a map thumbnail, arrive-by, days, name).
+  - `trip/route`: taxi-style route builder: the map with From / To at the bottom and the planned route drawn on it.
+  - `pick-place`: search a street, place or stop, or "Select on map" and drop a pin (address under the pin, nearby stops as shortcuts).
+  - `buffer`, `privacy`.
 - `src/ui/`: design system.
   - `theme`: colours, type scale, springs. `Text`, `Icon`, `Tap` (press feedback + haptics), `Button`, `RoutePlate`.
-  - Motion: `LeaveByBar`, `Countdown` (rolling number), `TabBar` (stretching pill), `StaticMap`, `ChatCards`, `kit` (top bar, cards, switch, chips, rows).
+  - Motion: `LeaveByBar`, `Countdown` (rolling number), `TabBar` (stretching pill), `StaticMap` (still map), `MapCanvas` (drag/pinch map with a centre pin and route overlay), `MapMarks`, `ChatCards`, `kit` (top bar, cards, switch, chips, rows).
 - `src/lib/`:
   - Server and storage: `api` (client for the server, plans cached), `kv`, `store` (subscribable values), `trips` (saved trips, synced to the server for alerts), `settings` (home, buffer, alerts).
   - Planning: `plans` (best option and leave time, same rule as the server), `usePlan` / `useTripPlan`.
