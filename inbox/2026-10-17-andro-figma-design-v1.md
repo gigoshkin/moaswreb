@@ -1,46 +1,46 @@
-# Figma design v1 ready to build — andro, 2026-10-17
+# Figma design v2 ready to build — andro, 2026-10-17
 
-**For George's session:** the full first design is in Figma, file **Moaswreb App** (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=0-1). Please build the app from these frames. The file is in andro's Figma team: George, if you can't open it, ask andro to share it with your Figma account.
+**For George's session:** build the app screens from the **Screens v2** page (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=46-2) of the Figma file **Moaswreb App**. The file is in andro's Figma team: George, if you can't open it, ask andro to share it with your Figma account.
 
-## Pages
-- **Components** (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-3): Route plate, Button, Chip, Leave-by bar, Tab bar, Chat bubble, Chat input, Trip leg, Trip card, Hero card, Action card (5 types matching `packages/shared/src/chat.ts`), Day pill, Week row, Settings row, 21 icons. All use auto-layout, variables and text styles.
-- **Screens** (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-4): 17 frames, 412 × 915, named `Screen / state`.
-- **Motion & handoff** (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-5): exact motion specs (springs, ticker, shared transitions, haptics) and handoff notes.
-- **Logo** (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=5-2): wordmark მოასწრებ. in 123-Antena Bold with the lime dot, app icons; component `Logo/Wordmark on dark`.
+v2 follows George's rules 5–8 (06 §0):
+- white background, near-black text and greys, one accent
+- neutral route plates
+- no explainer captions, no "live" label (the mint pulsing node is the live signal)
+- "გასვლა", never "გადი"
 
-## Screens
+The old v1 screens and image concepts are archived on pages "Archive · screens v1" and "Archive · concepts". Don't build from those.
+
+## Screens v2
 | Frame | Link |
 |---|---|
-| Onboarding / welcome | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=23-3 |
-| Onboarding / home | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=23-20 |
-| Today / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=23-64 |
-| Today / late | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=23-175 |
-| Today / leave now | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=23-321 |
-| Today / no trips | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=23-437 |
-| Chat / empty | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=24-328 |
-| Chat / timetable (confirm_events) | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=24-414 |
-| Chat / notice | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=24-570 |
-| Chat / plan | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=24-735 |
-| Chat / nearby (arrivals) | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=24-912 |
-| Week / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=26-731 |
-| Trip detail / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=26-889 |
-| Trip detail / late | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=26-974 |
-| Scorecard / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=26-1070 |
-| Settings / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=26-1166 |
-| Notification / lock screen | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=26-1284 |
+| Today / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-3 |
+| Today / late | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-91 |
+| Today / leave now | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-206 |
+| Trip detail / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-300 |
+| Chat / timetable (Events panel) | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-370 |
+| Chat / plan (Plan panel) | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-503 |
+| Chat / notice (Notice panel) | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-640 |
+| Add trip / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-763 |
+| Settings / default | https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=51-811 |
 
-`confirm_trip` is the ConfirmTrip variant of the Action card component (not placed on a screen yet).
+- **Add trip** collects what the alerts need: the start place with its first stop and walk time, the destination with its last stop, the arrive-by time and the weekdays.
+- **Settings** has "ჩემი მონაცემების წაშლა" (calls `deleteMyData()`) and a privacy-policy row.
 
-## Look (andro's decisions, per George's design-freedom note)
-- **Colours:** warm paper `#F4F2EE`, ink `#121316`, one lime accent `#D4FF3F`, olive `#3D6300` for accent text on light, amber `#E5630B` for late.
-  - Lime is a fill on light backgrounds; as text it is used only on ink.
-  - Route colours in the frames are samples; the real ones come from the TTC API `color` field.
-- **Fonts (andro, updated):** display text = **123-Antena Bold** (text styles `ka/Display`, `ka/Title`, `num/Hero`, `num/Large`); everything else = **Helvetica**.
-  - The Figma connector can't load either font, so the frames still show Noto Sans Georgian / Google Sans Flex until andro switches the 11 text styles in Figma by hand. Every screen updates from the styles; each style's description names its target font.
-  - Helvetica has no Georgian letters. Georgian body text needs a Georgian companion font (a Georgian Helvetica cut, or Noto Sans Georgian as fallback); andro to decide.
-  - Check that 123-Antena has the digits used in `num/Hero` and `num/Large`.
-- **Theme:** light only.
+## Components (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-3)
+- **New in v2:** Hero v2 (Default / Late / Now), Trip row (Default / Late), Timeline leg (Walk / Bus / Arrive), Action panel v2 (Events / Plan / Notice / Arrivals).
+- **Reused:** Route plate (now neutral), Button, Chip, Leave-by bar, Tab bar, Chat bubble, Chat input, Settings row, icons.
+- The older Hero card, Trip card and Action card sets are v1; ignore them.
 
-## Open
-- Copy is real Georgian UI copy, but numbers, stops and routes are sample data.
-- The Figma connector can't load 123-Antena or Helvetica, so fonts are switched by hand in Figma via the text styles.
+## Look (andro's decisions)
+- **Colour:**
+  - white `#FFFFFF`, ink `#111113`, greys `#5C5C63` / `#9C9CA3` / `#E7E7EA` / `#F4F4F5`
+  - **one accent: mint `#3FFFAF`**, used as a fill only (leave window, primary action, active tab, live node), never as text on white
+  - warning `#D96C00` only for "late"
+- **Fonts:**
+  - **Display:** 123-Antena Bold, italic slant (styles `ka/Display`, `ka/Title`, `num/Hero`, `num/Display`, `num/Large`).
+  - **Text:** Helvetica Neue, if andro's copy has Georgian letters; otherwise Noto Sans Georgian.
+  - The Figma connector can't load either font, so the frames still render the placeholders (Noto Sans Georgian and Google Sans Flex) until andro swaps the text styles by hand. Each style's description names its target font.
+- **Motion:** see the "Motion & handoff" page (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-5). Lime there now means the mint accent.
+
+## Copy
+Checked with `ka-check`: 0 errors. New terms were added to the glossary's **Proposed** table for a native speaker to approve.

@@ -41,6 +41,16 @@ Already used in the code or the Figma file, not yet reviewed. Move a row to **Ap
 | გაჩერება | stop (bus stop) | — | Standard; TTC uses it (unverified, TTC site blocked from the cloud sandbox) |
 | გადაჯდომა | transfer | — | |
 | მოასწრებ | (app name) you'll make it | Figma wordmark | Brand name, informal on purpose? Ask andro |
+| მგზავრობა | trip (one saved journey) | Figma v2: Add trip, Notice panel | Alternative to "მარშრუტი", which also means a bus route |
+| ახალი მგზავრობა | new trip | Figma v2: Add trip title |  |
+| საიდან / სად | from / to | Figma v2: Add trip fields |  |
+| დღეები | days (weekdays) | Figma v2: Add trip |  |
+| მარაგი | buffer (spare minutes) | Figma v2: Settings | Maybe "დროის მარაგი" |
+| ჩემი მონაცემების წაშლა | delete my data | Figma v2: Settings | Wires to deleteMyData() |
+| კონფიდენციალურობის პოლიტიკა | privacy policy | Figma v2: Settings |  |
+| სხვა დრო | another time | Figma v2: Plan panel |  |
+| დატოვება / განახლება | keep / update | Figma v2: Notice panel actions |  |
+| ადგილი გასარკვევია | place needs checking | Figma v2: Events panel |  |
 
 ## How to check a new term
 1. Look it up here first.
