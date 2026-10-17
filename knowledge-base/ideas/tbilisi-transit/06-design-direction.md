@@ -67,8 +67,15 @@ No web UI kits (shadcn, 21st.dev, GSAP) in the app: they target the DOM (agreed 
 ## 7. Don'ts (signals of "vibecoded" or "stock")
 Purple/indigo gradients · glassmorphism everywhere · default Material buttons and app bars · centred hero cards with a generic illustration · emoji icons · sparkle "AI" badges · percentages as confidence ("90% on time") · spinners · linear fades · five accent colours · tiny grey text · chat bubbles with long paragraphs.
 
-## 8. Process (proposed)
-1. **andro:** moodboard (§2) → 3 key screens in Figma: Today, Chat with action cards, Trip detail. Light theme (dark optional). Real Georgian copy.
-2. **George's session:** design tokens (colour, type, radius, spacing, spring presets) plus a small component kit (route plate, leave-by bar, card, sheet, action card) before any screen is built, so every screen shares one look.
-3. Build Today first and get it perfect on the demo phone; the other screens reuse the kit.
+## 8. Process [decided by George, 17 Oct]
+**Figma is the source of truth for design. andro designs in Figma; George's session builds the code from the Figma frames.**
+1. **andro:** designs in Figma, in George's team (George is adding andro). Moodboard (§2) first, then the key screens: Today, Chat with action cards, Trip detail. Light theme, real Georgian copy.
+2. **Figma file conventions** (so code can be generated from it reliably):
+   - One frame per screen and state, named in English: `Today / default`, `Today / no trips`, `Trip detail / late`.
+   - Colours, type sizes, spacing and radius as **Figma variables/styles**, not one-off values. These become `tokens.ts`.
+   - Reusable parts as **components** (route plate, leave-by bar, card, action card), with variants for states.
+   - Auto-layout everywhere, so spacing reads cleanly into code.
+   - Motion can't live in Figma: describe it in a frame note or the inbox ("card springs up", "number rolls").
+3. **Handoff:** when a screen is ready, andro writes an inbox note with the Figma link (frame link if possible). George's session reads the frame with the Figma connector and builds it in React Native.
+4. The current code kit (`apps/mobile/src/components`, `tokens.ts`) is a placeholder; it gets restyled to match Figma.
 4. Demo-phone check every few hours: start time, scroll, transitions.
