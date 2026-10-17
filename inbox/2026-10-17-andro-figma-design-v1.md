@@ -38,7 +38,7 @@ The old v1 screens and image concepts are archived on pages "Archive · screens 
   - **one accent: mint `#3FFFAF`**, used as a fill only (leave window, primary action, active tab, live node), never as text on white
   - warning `#D96C00` only for "late"
 - **Fonts:**
-  - **Display:** 123-Antena Bold, italic slant (styles `ka/Display`, `ka/Title`, `num/Hero`, `num/Display`, `num/Large`).
+  - **Display:** 123-Antena Bold, italic slant (styles `ka/Display`, `ka/Title`, `num/Giant` (Today minutes, 280 px), `num/Hero`, `num/Display`, `num/Time` (Today list times), `num/Large`).
   - **Text:** Helvetica Neue, if andro's copy has Georgian letters; otherwise Noto Sans Georgian.
   - The Figma connector can't load either font, so the frames still render the placeholders (Noto Sans Georgian and Google Sans Flex) until andro swaps the text styles by hand. Each style's description names its target font.
 - **Motion:** see the "Motion & handoff" page (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-5). Lime there now means the mint accent.
