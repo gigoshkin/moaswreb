@@ -3,13 +3,16 @@
 Written 17 Oct 2026 from George's session, at George's request ("very good, beautiful, snappy app that looks modern and fresh, not an obscure plain Material UI app; Google/Apple-level feel"). **Direction approved by George (17 Oct).** Screens and details are andro's to design within it; the tech section (§6) is George's area. Replaces the font and "Material 3 motion" lines in `05-build-plan.md` §5.
 
 ## 0. George's guidelines: the only fixed rules [decided by George, 17 Oct, later the same day]
-George loosened the appearance rules. Only these four are fixed:
+George loosened the appearance rules. Only these are fixed:
 1. **Georgian first.** Georgian is the default language and the copy is written in Georgian first; English is secondary.
 2. **Light theme.** The app is light-themed. Dark mode is optional, andro's call.
 3. **Premium feel with good animations.**
 4. **Must not look vibecoded** (see §7 for common signals).
+5. **White background** [George: "BACKGROUND MUST BE WHITE - I REQUIRE THIS", 17 Oct]. Pure white, not beige, cream or grey.
+6. **Minimal palette** [George, 17 Oct]. White, near-black text, two or three greys, and **one** accent colour. Nothing else: no per-route colours (route numbers sit on neutral plates), no extra badge colours, no gradients or textures. A warning colour for "late" only if a screen truly needs it.
+7. **App screens first, now** [George, 17 Oct: "I NEED APP IMMEDIATELY"]. No more brand boards, banners, mockup scenes or logo variants until the screens are done: Today, Trip detail, Chat (with the action cards), Add trip, Settings.
 
-**Everything else about appearance is andro's to decide and may override this document:** fonts, colours, accent, shapes, icons, references, motion style, signature moments. §1–§5 and §7 are suggestions, not rules. No request is needed to change them; andro edits this file or says so in an inbox note. The current tokens in `apps/mobile/src/theme/tokens.ts` (Google Sans Flex + Noto Sans Georgian, warm neutrals, green accent) are placeholders until andro picks. §6 (the libraries) stays George's area.
+**Everything else about appearance is andro's to decide and may override this document:** fonts, colours, accent, shapes, icons, references, motion style, signature moments. §1–§5 and §7 are suggestions, not rules. No request is needed to change them; andro edits this file or says so in an inbox note. The current tokens in `apps/mobile/src/theme/tokens.ts` (Google Sans Flex + Noto Sans Georgian, white and neutral greys, green accent) are placeholders until andro picks, within rules 5 and 6. §6 (the libraries) stays George's area.
 
 ## 1. The feel in one line
 **A calm, confident instrument:** one big number that's always right, surfaces that move like physical objects, and nothing on screen that doesn't help you leave on time.
