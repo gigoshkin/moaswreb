@@ -1,6 +1,6 @@
 # Server
 
-Node 24 + Fastify, TypeScript run directly by Node (no build step). Right now it does one job: **log live TTC data** for delay statistics and demo replay. The API, chat agent and MCP come next.
+Node 24 + Fastify, TypeScript run directly by Node (no build step). It does two jobs so far: **log live TTC data** for delay statistics and demo replay, and serve **`GET /plan`** (trip planner). The chat agent and MCP come next.
 
 ## Run locally (Docker)
 ```bash
@@ -25,3 +25,20 @@ npm run dev -w @transit/server
 - **Hot set**, every `HOT_INTERVAL_MS` (30 s): arrival boards for `HOT_STOPS` and positions for the routes serving them plus `HOT_ROUTES`. The default hot set is the stops at Free University (1:1405, 1:1408, 1:1406), with routes 347 and 558.
 - **Sweep**: positions for every route, one request every `SWEEP_INTERVAL_MS` (1.5 s). A full city pass takes about 7 minutes.
 - All TTC calls share one queue with at least `TTC_MIN_INTERVAL_MS` (0.7 s) between them. The API key is read from TTC's public page at runtime and is never stored.
+
+## GET /plan
+Wraps TTC `v2/plan` with `departMode=arriveBy` and returns `PlanResponse` from `@transit/shared`.
+
+```
+GET /plan?from=41.7151,44.8271&to=41.7099,44.7929&arriveBy=2026-10-19T09:00[&modes=BUS,SUBWAY][&optimize=quick][&locale=ka]
+```
+- `arriveBy` is Tbilisi wall-clock time. `from`/`to` must be inside Tbilisi (rejects swapped lat/lon).
+- Identical queries are answered from memory for 60 s.
+- 400 on bad input, 502/503 when TTC fails.
+- Leg `arrivalDelay` is dropped: it was off by up to ±1 h in testing.
+- Normaliser tests use a **synthetic** fixture (`test/fixtures/plan-otp-synthetic.json`). Replace it with a saved real response: `curl "localhost:8080/plan?..."` won't do, save TTC's raw JSON instead.
+
+## Tests
+```bash
+npm test -w @transit/server
+```
