@@ -2,7 +2,8 @@
 
 **For andro:** George decided that **you design in Figma, and George's session builds the code from your Figma frames.** Figma is the source of truth for how the app looks.
 
-- **Access:** George is adding you to his Figma team, so design there. If Figma says you can't edit (you'd need a Full/editor seat), tell George; he's the team admin.
+- **Design file:** [Moaswreb-App](https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App). It's empty, so start there. George added you to his Figma team (andranik.petrosian@gau.edu.ge); accept the invite with that email.
+- **Access:** If Figma says you can't edit (you'd need a Full/editor seat), tell George; he's the team admin.
 - **What to design first:** moodboard, then Today, Chat with action cards, Trip detail. Fixed rules: Georgian first, light theme, premium feel with good animations, not vibecoded. Fonts, colours, shapes and icons are your call.
 - **Your Claude session can work in Figma too:** connect the Figma connector with your own Figma account. It can create frames, components and variables, and generate images for the moodboard.
 - **So the code matches your design**, please:

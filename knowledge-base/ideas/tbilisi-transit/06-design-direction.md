@@ -69,7 +69,7 @@ Purple/indigo gradients · glassmorphism everywhere · default Material buttons 
 
 ## 8. Process [decided by George, 17 Oct]
 **Figma is the source of truth for design. andro designs in Figma; George's session builds the code from the Figma frames.**
-1. **andro:** designs in Figma, in George's team (George is adding andro). Moodboard (§2) first, then the key screens: Today, Chat with action cards, Trip detail. Light theme, real Georgian copy.
+1. **andro:** designs in Figma, in George's team. **Design file: [Moaswreb-App](https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App)** (created by George, 17 Oct). Moodboard (§2) first, then the key screens: Today, Chat with action cards, Trip detail. Light theme, real Georgian copy.
 2. **Figma file conventions** (so code can be generated from it reliably):
    - One frame per screen and state, named in English: `Today / default`, `Today / no trips`, `Trip detail / late`.
    - Colours, type sizes, spacing and radius as **Figma variables/styles**, not one-off values. These become `tokens.ts`.
