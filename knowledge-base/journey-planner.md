@@ -29,4 +29,4 @@ A trip is walk, ride, (walk, ride)…, walk. A **ride** is `{ fromStops, toStops
 - `PUT /me/trips`: `avoid` and `steps` are stored with the trip, so the alert watcher plans the same way as the phone.
 
 ## App (branch `wip/google-map`, untested on a phone)
-Trip detail "All ways to get there" (every option, "Never use N", "Skip minibuses"), the same list in the route builder ("Compare all ways"), and `trip/build` ("Build by hand": board stop → lines at it (untick any) → stops to get off at, closest to the end first → another ride or done).
+Plates are coloured by type (bus green, minibus blue, metro red). Rides are drawn like Google Maps: an arrow between rides means you change; numbers stacked on each other are alternatives for the same ride (same stops). Trip detail "All ways to get there" and the route builder's "All ways" group the options that way; tap one to open it, see it on the map, or say this trip never uses a line. `trip/build` ("Pick stops on map"): every stop is a tappable dot (or move the pin and use the nearest) → the lines at it are drawn on the map (tap one to leave it out) → tap the stop to get off → another ride or done.

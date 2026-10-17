@@ -19,6 +19,8 @@ export interface MapRoute {
   points: LatLon[];
   /** Dashed thin line for walking, solid for riding. */
   walk?: boolean;
+  /** Line colour; ink when not set. */
+  color?: string;
 }
 
 export interface MapMarker {
@@ -27,6 +29,8 @@ export interface MapMarker {
   /** Drawn centred on the point, or standing on it (`pin`). */
   anchor?: 'center' | 'bottom';
   node: ReactNode;
+  /** Makes the marker tappable. */
+  onPress?: () => void;
 }
 
 export interface MapCanvasHandle {
@@ -176,7 +180,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     [go, insetTop, insetBottom],
   );
 
-  const lines = useMemo(() => routes.filter((r) => r.points.length > 1).map((r) => ({ walk: r.walk, coords: r.points.map(ll) })), [routes]);
+  const lines = useMemo(() => routes.filter((r) => r.points.length > 1).map((r) => ({ walk: r.walk, color: r.color, coords: r.points.map(ll) })), [routes]);
 
   return (
     <View style={[styles.map, style]} onLayout={onLayout}>
@@ -208,7 +212,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
           onRegionChangeComplete={regionDone}
         >
           {lines.map((l, i) => (
-            <Polyline key={i} coordinates={l.coords} strokeColor={color.ink} strokeWidth={l.walk ? 3 : 5} lineDashPattern={l.walk ? [1, 7] : undefined} lineCap="round" lineJoin="round" />
+            <Polyline key={i} coordinates={l.coords} strokeColor={l.color ?? color.ink} strokeWidth={l.walk ? 3 : 5} lineDashPattern={l.walk ? [1, 7] : undefined} lineCap="round" lineJoin="round" />
           ))}
           {markers.map((m) => (
             <MapMark key={m.key} m={m} />
@@ -231,7 +235,7 @@ function MapMark({ m }: { m: MapMarker }) {
     return () => clearTimeout(t);
   }, [m.node]);
   return (
-    <Marker coordinate={ll(m.at)} anchor={{ x: 0.5, y: m.anchor === 'bottom' ? 1 : 0.5 }} tracksViewChanges={track} tappable={false}>
+    <Marker coordinate={ll(m.at)} anchor={{ x: 0.5, y: m.anchor === 'bottom' ? 1 : 0.5 }} tracksViewChanges={track} tappable={!!m.onPress} onPress={m.onPress}>
       {m.node}
     </Marker>
   );

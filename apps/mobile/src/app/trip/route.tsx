@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { slotsFor } from '../../lib/ways';
 import { buildSteps, finishRoute, pickPlace, routeDraft, type PickKind } from '../../lib/handoff';
-import { firstWalkMin, isMetro, leaveAt, transitLegs } from '../../lib/plans';
+import { firstWalkMin, leaveAt } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { hhmm, nextArriveBy } from '../../lib/time';
 import type { Place } from '../../lib/trips';
@@ -13,11 +14,12 @@ import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
-import { Options } from '../../ui/Options';
+import { Ways } from '../../ui/Ways';
+import { Busy } from '../../ui/Spinner';
+import { LineChain } from '../../ui/LineChain';
 import { MapCanvas, type MapCanvasHandle } from '../../ui/MapCanvas';
 import { overlay } from '../../ui/overlay';
 
-import { RoutePlate } from '../../ui/RoutePlate';
 import { Tap, haptic } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
 import { MapButton } from '../../ui/kit';
@@ -35,6 +37,7 @@ export default function RouteBuilder() {
   const [avoid, setAvoid] = useState<PlanAvoid | undefined>(init.avoid);
   const [steps, setSteps] = useState<JourneyStep[] | undefined>(init.steps);
   const [showOptions, setShowOptions] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
   const [sheetH, setSheetH] = useState(230);
   const map = useRef<MapCanvasHandle>(null);
 
@@ -44,7 +47,10 @@ export default function RouteBuilder() {
   const trip = useMemo(() => (from && to ? { id: 'draft', name: '', from, to, arriveBy: init.arriveBy, days: init.days, avoid, steps } : null), [from, to, init.arriveBy, init.days, JSON.stringify(avoid), JSON.stringify(steps)]);
   const date = nextArriveBy(init.arriveBy, init.days, now).slice(0, 10);
   const plan = useTripPlan(trip, date, now);
-  const it: Itinerary | null = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
+  const best: Itinerary | null = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
+  // A way tapped in the list is shown on the map; the app still uses the best one.
+  const it = plan.itineraries.find((x) => x.id === picked) ?? best;
+  const busy = !plan.error && (!plan.loaded || plan.refreshing);
 
   const pick = async (kind: PickKind) => {
     const p = await pickPlace(kind, { near: (kind === 'from' ? to : from) ?? undefined });
@@ -124,10 +130,10 @@ export default function RouteBuilder() {
 
         {trip && (
           <Animated.View entering={FadeIn.duration(180)} style={styles.gap}>
-            <Summary it={it} loaded={plan.loaded} error={plan.error} />
+            <Summary it={it} all={plan.itineraries} busy={busy} error={plan.error} />
             <View style={styles.links}>
               <Tap onPress={() => setShowOptions((v) => !v)} hitSlop={8} accessibilityRole="button">
-                <Text variant="label14">{showOptions ? 'Hide other ways' : `Compare all ways${plan.itineraries.length ? ` (${plan.itineraries.length})` : ''}`}</Text>
+                <Text variant="label14">{showOptions ? 'Hide ways' : `All ways${plan.itineraries.length ? ` (${plan.itineraries.length})` : ''}`}</Text>
               </Tap>
               <Tap
                 onPress={async () => {
@@ -137,25 +143,30 @@ export default function RouteBuilder() {
                 hitSlop={8}
                 accessibilityRole="button"
               >
-                <Text variant="label14">{steps?.length ? 'Edit rides by hand' : 'Build by hand'}</Text>
+                <Text variant="label14">{steps?.length ? 'Change stops on map' : 'Pick stops on map'}</Text>
               </Tap>
             </View>
             {showOptions && (
               <ScrollView style={styles.options} showsVerticalScrollIndicator={false}>
-                <Options
+                <Ways
                   itineraries={plan.itineraries}
-                  chosenId={plan.choice.kind === 'none' ? undefined : plan.choice.it.id}
+                  chosenId={best?.id}
+                  selectedId={picked ?? undefined}
                   now={now}
                   bufferMin={settings.get().bufferMin}
                   avoid={avoid}
-                  loading={!plan.loaded && !plan.error}
-                  onAvoid={setAvoid}
+                  loading={busy}
+                  onSelect={(x) => setPicked(x.id)}
+                  onAvoid={(a) => {
+                    setPicked(null);
+                    setAvoid(a);
+                  }}
                 />
               </ScrollView>
             )}
             {steps?.length ? (
               <Text variant="caption" color={color.textSecondary}>
-                Hand-built route. The app still compares every line that fits each ride.
+                Stops picked on the map. The app still compares every line that fits each ride.
               </Text>
             ) : null}
           </Animated.View>
@@ -178,26 +189,27 @@ function EndRow({ label, value, empty, onPress, divider }: { label: string; valu
   );
 }
 
-/** What the app will use for this trip: the plates, when to leave, when you get there. */
-function Summary({ it, loaded, error }: { it: Itinerary | null; loaded: boolean; error: string | null }) {
+/** The rides of the way on screen (stacked numbers = alternatives, arrows = changes), when to leave, when you get there. */
+function Summary({ it, all, busy, error }: { it: Itinerary | null; all: Itinerary[]; busy: boolean; error: string | null }) {
   const bufferMin = settings.use().bufferMin;
   if (!it) {
     return (
       <View style={styles.summary}>
-        <Text variant="body14" color={color.textSecondary}>
-          {error ? "Can't reach the planner right now." : loaded ? 'No bus or metro route found for this trip.' : 'Finding a route…'}
-        </Text>
+        {busy ? (
+          <Busy label="Finding a route…" />
+        ) : (
+          <Text variant="body14" color={color.textSecondary}>
+            {error ? "Can't reach the planner right now." : 'No bus or metro route found for this trip.'}
+          </Text>
+        )}
       </View>
     );
   }
-  const legs = transitLegs(it);
   const min = Math.max(1, Math.round(it.durationSec / 60));
   return (
     <View style={styles.summary}>
       <View style={styles.summaryTop}>
-        {legs.slice(0, 3).map((l, i) => (
-          <RoutePlate key={i} label={l.route?.shortName ?? l.mode} metro={isMetro(l)} size="md" />
-        ))}
+        <LineChain slots={slotsFor(it, all)} />
         <Text variant="label16" style={styles.flex} numberOfLines={1}>
           Leave around {hhmm(leaveAt(it, bufferMin))}
         </Text>
@@ -205,6 +217,7 @@ function Summary({ it, loaded, error }: { it: Itinerary | null; loaded: boolean;
       <Text variant="caption" color={color.textSecondary}>
         Arrive {hhmm(it.arriveAt)} · {min} min{firstWalkMin(it) > 0 ? ` · ${firstWalkMin(it)} min walk first` : ''}
       </Text>
+      {busy && <Busy label="Checking every line…" />}
     </View>
   );
 }

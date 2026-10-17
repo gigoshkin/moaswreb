@@ -1,19 +1,21 @@
+import type { Itinerary } from '@transit/shared';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, interpolateColor, LinearTransition, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { openNewTrip } from '../../lib/handoff';
-import { durationText, isMetro, leaveAt as leaveAtOf, minutesUntil, transitLegs, firstWalkMin, type Choice } from '../../lib/plans';
+import { durationText, leaveAt as leaveAtOf, minutesUntil, transitLegs, firstWalkMin, type Choice } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { addDays, hhmm, isoWeekday, longDate, relativeDay, todayLocal } from '../../lib/time';
 import { tripDays, useTrips, type SavedTrip } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
+import { chainOf, slotsFor } from '../../lib/ways';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
 import { LeaveByBar } from '../../ui/LeaveByBar';
-import { RoutePlate } from '../../ui/RoutePlate';
+import { LineChain } from '../../ui/LineChain';
 import { Tap, haptic } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
 import { Countdown } from '../../ui/Countdown';
@@ -129,7 +131,7 @@ function Hero({ trip, date, now, plan }: { trip: SavedTrip; date: string; now: n
               </View>
             )}
             <LeaveByBar leaveAt={choice.leaveAt} arriveAt={Date.parse(choice.it.arriveAt)} now={now} tone={dark ? 'dark' : 'cream'} />
-            <Summary choice={choice} dark={dark} />
+            <Summary choice={choice} all={plan.itineraries} dark={dark} />
           </Animated.View>
         )}
       </Animated.View>
@@ -137,12 +139,11 @@ function Hero({ trip, date, now, plan }: { trip: SavedTrip; date: string; now: n
   );
 }
 
-function Summary({ choice, dark }: { choice: Exclude<Choice, { kind: 'none' }>; dark: boolean }) {
-  const legs = transitLegs(choice.it);
+function Summary({ choice, all, dark }: { choice: Exclude<Choice, { kind: 'none' }>; all: Itinerary[]; dark: boolean }) {
   return (
     <RouteSummary
       walkMin={firstWalkMin(choice.it)}
-      routes={legs.slice(0, 3).map((l) => ({ label: l.route?.shortName ?? l.mode, metro: isMetro(l) }))}
+      slots={slotsFor(choice.it, all)}
       arrive={`Arrive ${hhmm(choice.it.arriveAt)}`}
       dark={dark}
     />
@@ -174,7 +175,7 @@ function HeroEmpty({ plan, trip }: { plan: ReturnType<typeof useTripPlan>; trip:
 function LaterRow({ trip, date, now }: { trip: SavedTrip; date: string; now: number }) {
   const { choice } = useTripPlan(trip, date, now);
   const bufferMin = settings.use().bufferMin;
-  const legs = choice.kind === 'none' ? [] : transitLegs(choice.it);
+  const hasRides = choice.kind !== 'none' && transitLegs(choice.it).length > 0;
   const leave = choice.kind === 'none' ? null : leaveAtOf(choice.it, bufferMin);
   return (
     <Tap onPress={() => router.push({ pathname: '/trip/[id]', params: { id: trip.id, date } })} feedback="tint" style={styles.row} accessibilityRole="button">
@@ -186,10 +187,8 @@ function LaterRow({ trip, date, now }: { trip: SavedTrip; date: string; now: num
           {trip.name}
         </Text>
         <View style={styles.rowMeta}>
-          {legs.slice(0, 3).map((l, i) => (
-            <RoutePlate key={i} label={l.route?.shortName ?? l.mode} metro={isMetro(l)} />
-          ))}
-          <Text variant="caption" color={color.textSecondary} style={legs.length ? styles.metaText : null}>
+          {choice.kind !== 'none' && <LineChain slots={chainOf(choice.it)} size="sm" />}
+          <Text variant="caption" color={color.textSecondary} style={hasRides ? styles.metaText : null}>
             {leave ? `in ${durationText(leave - now)}` : `by ${trip.arriveBy}`}
           </Text>
         </View>

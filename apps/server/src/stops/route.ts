@@ -52,7 +52,7 @@ export const registerStopRoutes = (app: FastifyInstance, deps: { ttc: TtcClient;
             lat: { type: 'number' },
             lon: { type: 'number' },
             radius: { type: 'integer', minimum: 10, maximum: 2000 },
-            limit,
+            limit: { type: 'integer', minimum: 1, maximum: 60 }, // the map shows every stop in view
             mode: { type: 'string', enum: ['BUS', 'SUBWAY', 'GONDOLA'] },
             locale,
           },

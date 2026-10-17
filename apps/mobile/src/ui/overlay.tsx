@@ -1,6 +1,7 @@
 import type { Itinerary } from '@transit/shared';
 import { decodePolyline } from '../lib/mapMath';
-import { isMetro } from '../lib/plans';
+import { kindOf } from '../lib/plans';
+import { kindColor } from './RoutePlate';
 import type { Place } from '../lib/trips';
 import type { MapMarker, MapRoute } from './MapCanvas';
 import { EndRing, RideBadge, StartDot } from './MapMarks';
@@ -13,9 +14,9 @@ export function overlay(from: Place | null, to: Place | null, it: Itinerary | nu
   if (it) {
     for (const l of it.legs) {
       const pts = l.polyline ? decodePolyline(l.polyline) : [l.from, l.to];
-      routes.push({ points: pts, walk: l.mode === 'WALK' });
+      routes.push({ points: pts, walk: l.mode === 'WALK', color: l.mode === 'WALK' ? undefined : kindColor[kindOf(l)] });
       points.push(...pts);
-      if (l.mode !== 'WALK') markers.push({ key: `ride-${markers.length}`, at: l.from, node: <RideBadge metro={isMetro(l)} /> });
+      if (l.mode !== 'WALK') markers.push({ key: `ride-${markers.length}`, at: l.from, node: <RideBadge kind={kindOf(l)} /> });
     }
     const first = it.legs[0]?.from;
     const last = it.legs.at(-1)?.to;

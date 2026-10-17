@@ -5,16 +5,18 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPreview, openNewTrip } from '../../lib/handoff';
-import { firstWalkMin, isMetro, lastWalkMin, leaveAt, placeName, transitLegs } from '../../lib/plans';
+import { firstWalkMin, isMetro, kindOf, lastWalkMin, leaveAt, placeName } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { hhmm, nextArriveBy } from '../../lib/time';
 import { saveTrip, tripDays, useTrips, withStops } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
+import { slotsFor } from '../../lib/ways';
 import { Button } from '../../ui/Button';
+import { Busy } from '../../ui/Spinner';
 import { Icon, type IconName } from '../../ui/Icon';
 import { LeaveByBar } from '../../ui/LeaveByBar';
-import { Options } from '../../ui/Options';
+import { Ways } from '../../ui/Ways';
 import { RoutePlate } from '../../ui/RoutePlate';
 import { StaticMap } from '../../ui/StaticMap';
 import { Text } from '../../ui/Text';
@@ -62,7 +64,7 @@ export default function TripDetail() {
         <View style={styles.content}>
           {it ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.gap}>
-              <Departure it={it} now={now} />
+              <Departure it={it} all={live.itineraries} now={now} />
               <SectionLabel style={styles.sectionLabel}>Route details</SectionLabel>
               <Timeline it={it} destination={p?.to.label ?? trip?.to.label ?? ''} />
             </Animated.View>
@@ -70,13 +72,13 @@ export default function TripDetail() {
           {trip && (live.itineraries.length > 0 || trip.avoid) ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.gap}>
               <SectionLabel style={styles.sectionLabel}>All ways to get there</SectionLabel>
-              <Options
+              <Ways
                 itineraries={live.itineraries}
                 chosenId={live.choice.kind === 'none' ? undefined : live.choice.it.id}
                 now={now}
                 bufferMin={settings.use().bufferMin}
                 avoid={trip.avoid}
-                loading={!live.loaded && !live.error}
+                loading={!live.error && (!live.loaded || live.refreshing)}
                 onAvoid={(avoid) => {
                   // The first stop and the walk can change with the avoid list: save now, refresh the server's copy after.
                   const next = { ...trip, avoid };
@@ -88,9 +90,13 @@ export default function TripDetail() {
           ) : null}
           {it ? null : (
             <Card>
-              <Text variant="body15" color={color.textSecondary}>
-                {live.error ? "Can't reach the planner right now." : live.loaded ? 'No route found for this trip.' : 'Planning…'}
-              </Text>
+              {live.error || live.loaded ? (
+                <Text variant="body15" color={color.textSecondary}>
+                  {live.error ? "Can't reach the planner right now." : 'No route found for this trip.'}
+                </Text>
+              ) : (
+                <Busy label="Planning…" />
+              )}
             </Card>
           )}
           {p ? (
@@ -107,7 +113,7 @@ export default function TripDetail() {
   );
 }
 
-function Departure({ it, now }: { it: Itinerary; now: number }) {
+function Departure({ it, all, now }: { it: Itinerary; all: Itinerary[]; now: number }) {
   const bufferMin = settings.use().bufferMin;
   const leave = leaveAt(it, bufferMin);
   return (
@@ -123,9 +129,7 @@ function Departure({ it, now }: { it: Itinerary; now: number }) {
       </View>
       <RouteSummary
         walkMin={firstWalkMin(it)}
-        routes={transitLegs(it)
-          .slice(0, 3)
-          .map((l) => ({ label: l.route?.shortName ?? l.mode, metro: isMetro(l) }))}
+        slots={slotsFor(it, all)}
         arrive={`Arrive ${hhmm(it.arriveAt)}`}
       />
     </Card>
@@ -168,7 +172,7 @@ function Ride({ leg }: { leg: PlanLeg }) {
   return (
     <Leg time={hhmm(leg.departAt)} icon={isMetro(leg) ? 'metro' : 'bus-node'} title={`${stops} ${stops === 1 ? 'stop' : 'stops'}`} right={`${min} min`}>
       <View style={styles.rideRow}>
-        <RoutePlate label={leg.route?.shortName ?? leg.mode} metro={isMetro(leg)} size="lg" />
+        <RoutePlate label={leg.route?.shortName ?? leg.mode} kind={kindOf(leg)} size="lg" />
         {toward ? (
           <Text variant="caption" color={color.textSecondary} style={styles.flex} numberOfLines={2}>
             Toward {toward}

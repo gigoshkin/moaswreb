@@ -7,6 +7,10 @@ export const transitLegs = (it: Itinerary): PlanLeg[] => it.legs.filter((l) => l
 
 export const isMetro = (leg: PlanLeg) => leg.mode === 'SUBWAY';
 
+/** What the plate colour says: metro red, minibus blue, bus green. */
+export type Kind = 'bus' | 'minibus' | 'metro';
+export const kindOf = (leg: PlanLeg): Kind => (leg.mode === 'SUBWAY' ? 'metro' : leg.route?.minibus ? 'minibus' : 'bus');
+
 /** Walk from the start to the first stop, whole minutes. */
 export const firstWalkMin = (it: Itinerary): number => {
   const i = it.legs.findIndex((l) => l.mode !== 'WALK');

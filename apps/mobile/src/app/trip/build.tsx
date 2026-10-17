@@ -1,39 +1,44 @@
 import type { JourneyStep, StopHit, StopLine } from '@transit/shared';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { nearStops, searchStops, stopLines } from '../../lib/api';
+import { nearStops, stopLines } from '../../lib/api';
 import { finishSteps, stepsDraft } from '../../lib/handoff';
-import { distanceLabel } from '../../lib/stops';
-import { isMetro, leaveAt, transitLegs } from '../../lib/plans';
+import { leaveAt, type Kind } from '../../lib/plans';
 import { settings } from '../../lib/settings';
+import { distanceLabel } from '../../lib/stops';
 import { hhmm, nextArriveBy } from '../../lib/time';
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
+import { slotsFor } from '../../lib/ways';
 import { Button } from '../../ui/Button';
-import { Icon } from '../../ui/Icon';
-import { MapCanvas, type MapCanvasHandle, type MapMarker } from '../../ui/MapCanvas';
+import { LineChain, Stack } from '../../ui/LineChain';
+import { MapCanvas, type MapCanvasHandle, type MapMarker, type MapRoute } from '../../ui/MapCanvas';
 import { StopDot } from '../../ui/MapMarks';
-import { RoutePlate } from '../../ui/RoutePlate';
+import { RoutePlate, kindColor } from '../../ui/RoutePlate';
+import { Busy } from '../../ui/Spinner';
 import { Tap, haptic } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
 import { MapButton } from '../../ui/kit';
 import { overlay } from '../../ui/overlay';
-import { color, font, gutter, radius, shadow, spring } from '../../ui/theme';
+import { color, gutter, radius, shadow, spring } from '../../ui/theme';
 
 const TBILISI = { lat: 41.7151, lon: 44.793 };
-const distM = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
+type Point = { lat: number; lon: number };
+const distM = (a: Point, b: Point) => {
   const rad = Math.PI / 180;
   return Math.hypot((b.lon - a.lon) * rad * Math.cos(((a.lat + b.lat) / 2) * rad), (b.lat - a.lat) * rad) * 6_371_000;
 };
+const kindOfLine = (l: StopLine): Kind => (l.mode === 'SUBWAY' ? 'metro' : l.minibus ? 'minibus' : 'bus');
 
 /**
- * Build the route by hand: board at a stop, see every line there, get off at a
- * stop, then another ride or the walk to the end. A ride keeps all the lines
- * that fit (untick the ones you never want); the planner then compares them
- * link by link, with live arrivals, like any other trip.
+ * Pick the rides on the map, like TTC's own app: every stop is a dot you can
+ * tap. Tap where you board, see the lines there drawn on the map (switch off
+ * any you never want), tap where you get off, then add another ride or finish.
+ * A ride keeps all the lines that fit; the planner compares them link by link
+ * with live arrivals, like any other trip.
  */
 export default function BuildRoute() {
   const insets = useSafeAreaInsets();
@@ -41,11 +46,13 @@ export default function BuildRoute() {
   const [init] = useState(stepsDraft);
   const map = useRef<MapCanvasHandle>(null);
   const [steps, setSteps] = useState<JourneyStep[]>(init?.steps ?? []);
-  const [sheetH, setSheetH] = useState(280);
-  // Where the next ride starts looking for stops: the end of the last one.
+  const [sheetH, setSheetH] = useState(220);
   const [anchor, setAnchor] = useState<StopHit | null>(null);
   const [board, setBoard] = useState<StopHit | null>(null);
+  const [dest, setDest] = useState<StopHit | null>(null);
+  const [off, setOff] = useState<string[]>([]);
   const [adding, setAdding] = useState(!init?.steps.length);
+  const [centre, setCentre] = useState<Point | null>(null);
 
   useEffect(() => () => finishSteps(null), []);
 
@@ -58,30 +65,94 @@ export default function BuildRoute() {
   const date = nextArriveBy(init?.arriveBy ?? '09:00', init?.days ?? [1, 2, 3, 4, 5], now).slice(0, 10);
   const plan = useTripPlan(trip, date, now);
   const it = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
-  const rides = it ? transitLegs(it) : [];
-  const here = anchor ?? (rides.length ? { ...rides.at(-1)!.to } : null) ?? from;
+  const rides = it ? it.legs.filter((l) => l.mode !== 'WALK') : [];
+  const here: Point = anchor ?? (rides.length ? rides.at(-1)!.to : from);
 
-  const { routes, markers: planMarkers, points } = useMemo(() => overlay(from, to, it), [it]);
-  const markers: MapMarker[] = useMemo(() => (board ? [...planMarkers, { key: 'board', at: board, node: <StopDot /> }] : planMarkers), [planMarkers, board]);
+  // Stops around the middle of the map (board phase), loaded as the map settles.
+  const nearby = useStopsNear(adding && !board ? (centre ?? here) : null);
+  // Lines at the boarding stop (get-off phase).
+  const { lines, error: linesError } = useLines(board?.id ?? null);
+  const onLines = useMemo(() => (lines ?? []).filter((l) => !off.includes(l.shortName)), [lines, off]);
 
-  const fitKey = `${it?.id ?? ''}|${board?.id ?? ''}`;
+  // Stops you can get off at, with the lines that reach each.
+  const reach = useMemo(() => {
+    const m = new Map<string, { stop: StopHit; lines: StopLine[] }>();
+    for (const l of onLines) {
+      for (const s of l.next) {
+        const e = m.get(s.id) ?? { stop: { id: s.id, name: s.name, lat: s.lat, lon: s.lon, mode: l.mode }, lines: [] };
+        e.lines.push(l);
+        m.set(s.id, e);
+      }
+    }
+    return m;
+  }, [onLines]);
+  const destLines = dest ? (reach.get(dest.id)?.lines ?? []) : [];
+
+  const pickBoard = (s: StopHit) => {
+    haptic('selection');
+    setBoard(s);
+    setDest(null);
+    setOff([]);
+  };
+  const pickDest = (s: StopHit) => {
+    haptic('selection');
+    setDest(s);
+  };
+  const clearBoard = () => {
+    setBoard(null);
+    setDest(null);
+    setOff([]);
+  };
+  const confirmRide = () => {
+    if (!board || !dest) return;
+    haptic('success');
+    const names = [...new Set(destLines.map((l) => l.shortName))];
+    setSteps((s) => [...s, { fromStops: [board.id], toStops: [dest.id], ...(off.length ? { routes: names } : {}) }]);
+    setAnchor(dest);
+    clearBoard();
+    setAdding(false);
+  };
+
+  const planned = useMemo(() => overlay(from, to, it), [it]);
+
+  // What the map shows depends on the step: stops to board at, the lines and stops to get off at, or the planned route.
+  const { routes, markers, points } = useMemo(() => {
+    if (adding && !board) {
+      const mk: MapMarker[] = nearby.stops.map((s) => ({ key: s.id, at: s, node: <StopDot />, onPress: () => pickBoard(s) }));
+      return { routes: planned.routes, markers: mk, points: [] as Point[] };
+    }
+    if (adding && board) {
+      const mk: MapMarker[] = [...reach.values()].map(({ stop, lines: ls }) => ({
+        key: stop.id,
+        at: stop,
+        node: <StopDot on={dest?.id === stop.id} tint={kindColor[kindOfLine(ls[0])]} />,
+        onPress: () => pickDest(stop),
+      }));
+      mk.push({ key: 'board', at: board, node: <StopDot on tint={color.ink} /> });
+      const rt: MapRoute[] = onLines.map((l) => ({ points: [board, ...l.next], color: kindColor[kindOfLine(l)] }));
+      // Frame the boarding stop and the part of the lines nearest the destination.
+      const close = [...reach.values()].map((r) => r.stop).sort((a, b) => distM(a, to) - distM(b, to))[0];
+      return { routes: rt, markers: mk, points: [board, ...(close ? [close] : []), to] as Point[] };
+    }
+    return { routes: planned.routes, markers: planned.markers, points: planned.points };
+  }, [adding, board, nearby.stops, reach, onLines, dest?.id, planned]);
+
+  // Frame the map when the step changes (not on the first frame: the map starts framed).
+  const fitKey = `${adding}|${board?.id ?? ''}|${it?.id ?? ''}|${lines?.length ?? ''}`;
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
       first.current = false;
       return;
     }
-    const pts = [...points, ...(board ? [board] : [])];
-    if (pts.length) map.current?.fit(pts);
+    if (points.length) map.current?.fit(points);
+    else if (adding && !board) map.current?.flyTo(here, 15.5);
   }, [fitKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const addRide = (b: StopHit, a: StopHit, lines: string[] | undefined) => {
-    haptic('success');
-    setSteps((s) => [...s, { fromStops: [b.id], toStops: [a.id], ...(lines?.length ? { routes: lines } : {}) }]);
-    setAnchor(a);
-    setBoard(null);
-    setAdding(false);
-  };
+  const nearest = useMemo(() => {
+    const c = centre ?? here;
+    return nearby.stops.map((s) => ({ s, d: distM(c, s) })).sort((a, b) => a.d - b.d)[0] ?? null;
+  }, [nearby.stops, centre, here.lat, here.lon]);
 
   const done = () => {
     haptic('success');
@@ -89,11 +160,20 @@ export default function BuildRoute() {
     router.back();
   };
 
-  const start = points.length ? { fit: points } : { center: here, zoom: 15 };
+  const start = it ? { fit: planned.points } : { center: here, zoom: 15.5 };
 
   return (
     <View style={styles.screen}>
-      <MapCanvas ref={map} style={StyleSheet.absoluteFill} start={start} routes={routes} markers={markers} inset={{ top: insets.top + 64, bottom: sheetH }} />
+      <MapCanvas
+        ref={map}
+        style={StyleSheet.absoluteFill}
+        start={start}
+        routes={routes}
+        markers={markers}
+        pin={adding && !board}
+        onIdle={(c) => setCentre(c)}
+        inset={{ top: insets.top + 64, bottom: sheetH }}
+      />
       <View style={[styles.floating, { top: insets.top + 12 }]} pointerEvents="box-none">
         <MapButton icon="back" label="Back" onPress={() => router.back()} />
       </View>
@@ -104,37 +184,134 @@ export default function BuildRoute() {
         style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}
         onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
       >
-        {adding ? (
-          board ? (
-            <GetOff board={board} to={to} onBack={() => setBoard(null)} onPick={addRide} />
-          ) : (
-            <BoardAt near={here} onPick={setBoard} first={steps.length === 0} onCancel={steps.length ? () => setAdding(false) : undefined} />
-          )
-        ) : (
+        {adding && !board && (
+          <View style={styles.gap}>
+            <View style={styles.titleRow}>
+              <Text variant="title18" style={styles.flex}>
+                {steps.length ? 'Where do you board next?' : 'Where do you board?'}
+              </Text>
+              {steps.length > 0 && (
+                <Tap onPress={() => setAdding(false)} hitSlop={8}>
+                  <Text variant="label14" color={color.textSecondary}>
+                    Cancel
+                  </Text>
+                </Tap>
+              )}
+            </View>
+            <Text variant="body14" color={color.textSecondary}>
+              Tap a stop on the map, or move the map so the pin is by the stop.
+            </Text>
+            {nearby.loading && !nearby.stops.length ? (
+              <Busy label="Loading stops…" />
+            ) : nearest ? (
+              <Button label={`Use ${nearest.s.name} · ${distanceLabel(nearest.d)}`} kind="secondary" onPress={() => pickBoard(nearest.s)} haptic="none" />
+            ) : (
+              <Text variant="body14" color={color.textSecondary}>
+                {nearby.error ? "Can't load stops right now." : 'No stops here. Move the map.'}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {adding && board && (
+          <View style={styles.gap}>
+            <View style={styles.titleRow}>
+              <Text variant="title18" style={styles.flex} numberOfLines={1}>
+                {board.name}
+              </Text>
+              <Tap onPress={clearBoard} hitSlop={8}>
+                <Text variant="label14" color={color.textSecondary}>
+                  Change stop
+                </Text>
+              </Tap>
+            </View>
+            {!lines && !linesError && <Busy label="Loading the lines at this stop…" />}
+            {linesError && (
+              <Text variant="body14" color={color.textSecondary}>
+                Can't load the lines for this stop right now.
+              </Text>
+            )}
+            {lines && (
+              <>
+                <Text variant="caption" color={color.textSecondary}>
+                  Lines here, drawn on the map. Tap one to leave it out.
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.plates}>
+                  {[...new Map(lines.map((l) => [l.shortName, l])).values()].map((l) => (
+                    <Tap
+                      key={l.shortName}
+                      onPress={() => {
+                        setOff((o) => (o.includes(l.shortName) ? o.filter((x) => x !== l.shortName) : [...o, l.shortName]));
+                        setDest(null);
+                      }}
+                      haptic="selection"
+                      style={off.includes(l.shortName) ? styles.off : undefined}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: !off.includes(l.shortName) }}
+                      accessibilityLabel={`Line ${l.shortName}`}
+                    >
+                      <RoutePlate label={l.shortName} kind={kindOfLine(l)} size="md" />
+                    </Tap>
+                  ))}
+                </ScrollView>
+                {dest ? (
+                  <Animated.View entering={FadeIn.duration(160)} style={styles.gap}>
+                    <View style={styles.destRow}>
+                      <Stack slot={[...new Map(destLines.map((l) => [l.shortName, { label: l.shortName, kind: kindOfLine(l) }])).values()]} />
+                      <Text variant="label16" style={styles.flex} numberOfLines={1}>
+                        Get off at {dest.name}
+                      </Text>
+                    </View>
+                    <Button label="Add this ride" onPress={confirmRide} haptic="none" />
+                  </Animated.View>
+                ) : (
+                  <Text variant="body14">{onLines.length ? 'Now tap the stop where you get off.' : 'Every line is switched off.'}</Text>
+                )}
+              </>
+            )}
+          </View>
+        )}
+
+        {!adding && (
           <View style={styles.gap}>
             <Text variant="title18">Your route</Text>
             {it ? (
               <View style={styles.gap}>
+                <LineChain slots={slotsFor(it, plan.itineraries)} />
                 {rides.map((l, i) => (
-                  <View key={i} style={styles.rideRow}>
-                    <RoutePlate label={l.route?.shortName ?? l.mode} metro={isMetro(l)} size="md" />
-                    <Text variant="body14" style={styles.flex} numberOfLines={1}>
-                      {l.from.name} → {l.to.name}
-                    </Text>
-                  </View>
+                  <Text key={i} variant="body14" numberOfLines={1}>
+                    {l.from.name} → {l.to.name}
+                  </Text>
                 ))}
                 <Text variant="caption" color={color.textSecondary}>
                   Leave around {hhmm(leaveAt(it, settings.get().bufferMin))} · arrive {hhmm(it.arriveAt)}
                 </Text>
               </View>
-            ) : (
+            ) : plan.error ? (
               <Text variant="body14" color={color.textSecondary}>
-                {plan.error ? "Can't reach the planner right now." : plan.loaded ? 'No ride fits these stops at that time.' : 'Checking every line…'}
+                Can't reach the planner right now.
               </Text>
+            ) : plan.loaded && !plan.refreshing ? (
+              <Text variant="body14" color={color.textSecondary}>
+                No ride fits these stops at that time.
+              </Text>
+            ) : (
+              <Busy label="Checking every line…" />
             )}
+            {it && (plan.refreshing || !plan.loaded) && <Busy label="Checking every line…" />}
             <View style={styles.actions}>
               <Button label="Add another ride" kind="secondary" onPress={() => setAdding(true)} haptic="none" />
-              {steps.length > 0 && <Button label="Remove last ride" kind="secondary" onPress={() => { setSteps((s) => s.slice(0, -1)); setAnchor(null); }} haptic="none" />}
+              {steps.length > 0 && (
+                <Button
+                  label="Remove last ride"
+                  kind="secondary"
+                  onPress={() => {
+                    setSteps((s) => s.slice(0, -1));
+                    setAnchor(null);
+                  }}
+                  haptic="none"
+                />
+              )}
               <Button label="Done" onPress={done} disabled={!steps.length} haptic="none" />
             </View>
           </View>
@@ -144,152 +321,65 @@ export default function BuildRoute() {
   );
 }
 
-/** Step 1 of a ride: pick the stop to board at (the nearest ones, or search). */
-function BoardAt({ near, onPick, first, onCancel }: { near: { lat: number; lon: number }; onPick: (s: StopHit) => void; first: boolean; onCancel?: () => void }) {
-  const [q, setQ] = useState('');
-  const [list, setList] = useState<StopHit[]>([]);
-  const [busy, setBusy] = useState(true);
+/** Stops around a point, refreshed (debounced) as the point moves. Null point loads nothing. */
+function useStopsNear(p: Point | null) {
+  const [stops, setStops] = useState<StopHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const seen = useRef(new Map<string, StopHit>());
+  const key = p ? `${p.lat.toFixed(4)},${p.lon.toFixed(4)}` : '';
   useEffect(() => {
+    if (!p) return;
     let live = true;
-    setBusy(true);
-    const run = q.trim().length >= 2 ? searchStops(q.trim(), 'en', 12) : nearStops(near, { radiusM: 700, limit: 14 });
-    run.then(
-      (r) => live && (setList(r), setBusy(false)),
-      () => live && (setList([]), setBusy(false)),
-    );
+    setLoading(true);
+    const t = setTimeout(() => {
+      nearStops(p, { radiusM: 500, limit: 60 }).then(
+        (r) => {
+          if (!live) return;
+          // Stops already seen stay, so the dots don't flicker while panning.
+          for (const s of r) seen.current.set(s.id, s);
+          setStops(r.length ? [...seen.current.values()].filter((s) => distM(p, s) < 900) : []);
+          setError(false);
+          setLoading(false);
+        },
+        () => live && (setError(true), setLoading(false)),
+      );
+    }, 250);
     return () => {
       live = false;
+      clearTimeout(t);
     };
-  }, [q, near.lat, near.lon]);
-  return (
-    <View style={styles.gap}>
-      <View style={styles.titleRow}>
-        <Text variant="title18" style={styles.flex}>
-          {first ? 'Where do you board?' : 'Where do you board next?'}
-        </Text>
-        {onCancel && (
-          <Tap onPress={onCancel} hitSlop={8}>
-            <Text variant="label14" color={color.textSecondary}>
-              Cancel
-            </Text>
-          </Tap>
-        )}
-      </View>
-      <View style={styles.search}>
-        <Icon name="search" size={20} color={color.textSecondary} />
-        <TextInput value={q} onChangeText={setQ} placeholder="Stop name or number" placeholderTextColor={color.textSecondary} style={styles.input} autoCorrect={false} maxFontSizeMultiplier={1.15} />
-      </View>
-      <ScrollView style={styles.list} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        {busy && <Text variant="body14" color={color.textSecondary}>Looking…</Text>}
-        {!busy && !list.length && <Text variant="body14" color={color.textSecondary}>No stops found.</Text>}
-        {list.map((s) => (
-          <Tap key={s.id} onPress={() => onPick(s)} feedback="tint" style={styles.row} accessibilityRole="button">
-            <Icon name={s.mode === 'SUBWAY' ? 'metro' : 'bus'} size={20} />
-            <Text variant="label16" style={styles.flex} numberOfLines={1}>
-              {s.name}
-            </Text>
-            <Text variant="caption" color={color.textSecondary}>
-              {distanceLabel(distM(near, s))}
-            </Text>
-          </Tap>
-        ))}
-      </ScrollView>
-    </View>
-  );
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { stops, loading, error };
 }
 
-/** Step 2: the lines at the stop (untick any you never want) and where each can take you. */
-function GetOff({ board, to, onBack, onPick }: { board: StopHit; to: { lat: number; lon: number; label: string }; onBack: () => void; onPick: (b: StopHit, a: StopHit, lines: string[] | undefined) => void }) {
-  const [lines, setLines] = useState<StopLine[] | null>(null);
-  const [error, setError] = useState(false);
-  const [off, setOff] = useState<string[]>([]);
+/** Every line at a stop and where it goes next. */
+function useLines(stopId: string | null) {
+  const [state, setState] = useState<{ id: string; lines: StopLine[] | null; error: boolean } | null>(null);
   useEffect(() => {
+    if (!stopId) return;
     let live = true;
-    stopLines(board.id).then(
-      (r) => live && setLines(r.lines),
-      () => live && setError(true),
+    stopLines(stopId).then(
+      (r) => live && setState({ id: stopId, lines: r.lines, error: false }),
+      () => live && setState({ id: stopId, lines: null, error: true }),
     );
     return () => {
       live = false;
     };
-  }, [board.id]);
-
-  const names = useMemo(() => [...new Set((lines ?? []).map((l) => l.shortName))], [lines]);
-  // Stops reachable on the lines that are on, with which of them get there; closest to the destination first.
-  const stops = useMemo(() => {
-    const m = new Map<string, { stop: StopHit; lines: Set<string> }>();
-    for (const l of lines ?? []) {
-      if (off.includes(l.shortName)) continue;
-      for (const s of l.next) {
-        const e = m.get(s.id) ?? { stop: { id: s.id, name: s.name, lat: s.lat, lon: s.lon, mode: l.mode }, lines: new Set<string>() };
-        e.lines.add(l.shortName);
-        m.set(s.id, e);
-      }
-    }
-    return [...m.values()].sort((a, b) => distM(a.stop, to) - distM(b.stop, to)).slice(0, 60);
-  }, [lines, off, to]);
-
-  return (
-    <View style={styles.gap}>
-      <View style={styles.titleRow}>
-        <Text variant="title18" style={styles.flex} numberOfLines={1}>
-          Board at {board.name}
-        </Text>
-        <Tap onPress={onBack} hitSlop={8}>
-          <Text variant="label14" color={color.textSecondary}>
-            Change
-          </Text>
-        </Tap>
-      </View>
-      {!lines && !error && <Animated.View entering={FadeIn}><Text variant="body14" color={color.textSecondary}>Loading the lines at this stop…</Text></Animated.View>}
-      {error && <Text variant="body14" color={color.textSecondary}>Can't load the lines for this stop right now.</Text>}
-      {lines && (
-        <>
-          <Text variant="caption" color={color.textSecondary}>
-            Lines here. Tap one to leave it out.
-          </Text>
-          <View style={styles.plates}>
-            {names.map((n) => (
-              <Tap key={n} onPress={() => setOff((o) => (o.includes(n) ? o.filter((x) => x !== n) : [...o, n]))} haptic="selection" style={off.includes(n) ? styles.off : undefined} accessibilityRole="checkbox" accessibilityState={{ checked: !off.includes(n) }} accessibilityLabel={`Line ${n}`}>
-                <RoutePlate label={n} size="md" />
-              </Tap>
-            ))}
-          </View>
-          <Text variant="label14">Get off at</Text>
-          <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-            {stops.map(({ stop, lines: ls }) => (
-              <Tap key={stop.id} onPress={() => onPick(board, stop, off.length ? [...ls] : undefined)} feedback="tint" style={styles.row} accessibilityRole="button">
-                <View style={styles.flex}>
-                  <Text variant="label16" numberOfLines={1}>
-                    {stop.name}
-                  </Text>
-                  <Text variant="caption" color={color.textSecondary} numberOfLines={1}>
-                    {[...ls].join(' · ')} · {distanceLabel(distM(stop, to))} from the end
-                  </Text>
-                </View>
-                <Icon name="chevron-right" size={18} color={color.textSecondary} />
-              </Tap>
-            ))}
-          </ScrollView>
-        </>
-      )}
-    </View>
-  );
+  }, [stopId]);
+  const mine = state && state.id === stopId ? state : null;
+  return { lines: mine?.lines ?? null, error: mine?.error ?? false };
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.bg },
   floating: { position: 'absolute', left: 12 },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '62%', backgroundColor: color.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: gutter, paddingTop: 16, ...shadow.bar },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '55%', backgroundColor: color.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: gutter, paddingTop: 16, ...shadow.bar },
   gap: { gap: 10, flexShrink: 1 },
   flex: { flex: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  search: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.surfaceMuted, borderRadius: radius.md, paddingHorizontal: 14, height: 46 },
-  input: { flex: 1, fontFamily: font.regular, fontSize: 15, color: color.text, paddingVertical: 0, includeFontPadding: false },
-  list: { flexGrow: 0, maxHeight: 320 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  plates: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  plates: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   off: { opacity: 0.3 },
-  rideRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  destRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   actions: { gap: 8, paddingTop: 4 },
 });

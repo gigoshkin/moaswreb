@@ -5,7 +5,8 @@ import { Alert, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { buildRoute, takeDraft } from '../../lib/handoff';
-import { firstWalkMin, isMetro, leaveAt, placeName, transitLegs } from '../../lib/plans';
+import { firstWalkMin, leaveAt, placeName, transitLegs } from '../../lib/plans';
+import { chainOf } from '../../lib/ways';
 import { settings } from '../../lib/settings';
 import { DAY_SHORT, hhmm, nextArriveBy } from '../../lib/time';
 import { DEFAULT_DAYS, getTrip, newTripId, removeTrip, saveTrip, withStops, type Place, type SavedTrip } from '../../lib/trips';
@@ -13,7 +14,7 @@ import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
-import { RoutePlate } from '../../ui/RoutePlate';
+import { LineChain } from '../../ui/LineChain';
 import { StaticMap } from '../../ui/StaticMap';
 import { Tap, haptic } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
@@ -149,9 +150,7 @@ export default function EditTrip() {
                     <Text variant="body13" color={color.textSecondary}>
                       Leave around {hhmm(leaveAt(it, bufferMin))}
                     </Text>
-                    {legs.slice(0, 3).map((l, i) => (
-                      <RoutePlate key={i} label={l.route?.shortName ?? l.mode} metro={isMetro(l)} />
-                    ))}
+                    <LineChain slots={chainOf(it)} size="sm" />
                   </Animated.View>
                 ) : null}
               </View>

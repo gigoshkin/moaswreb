@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, interpolateColor, useAnimatedStyle, useDerivedValue, withSpring } from 'react-native-reanimated';
 import { openNewTrip } from '../../lib/handoff';
-import { durationText, isMetro, leaveAt, transitLegs } from '../../lib/plans';
+import { durationText, leaveAt, transitLegs } from '../../lib/plans';
+import { chainOf } from '../../lib/ways';
 import { settings } from '../../lib/settings';
 import { addDays, DAY_SHORT, hhmm, isoWeekday, todayLocal, weekdayName } from '../../lib/time';
 import { tripDays, useTrips, type SavedTrip } from '../../lib/trips';
@@ -11,7 +12,7 @@ import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
-import { RoutePlate } from '../../ui/RoutePlate';
+import { LineChain } from '../../ui/LineChain';
 import { Tap } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
 import { ScreenTitle } from '../../ui/kit';
@@ -82,7 +83,7 @@ function DayPill({ date, on, count, onPress }: { date: string; on: boolean; coun
 function WeekRow({ trip, date, now }: { trip: SavedTrip; date: string; now: number }) {
   const { choice } = useTripPlan(trip, date, now);
   const bufferMin = settings.use().bufferMin;
-  const legs = choice.kind === 'none' ? [] : transitLegs(choice.it);
+  const hasRides = choice.kind !== 'none' && transitLegs(choice.it).length > 0;
   const leave = choice.kind === 'none' ? null : leaveAt(choice.it, bufferMin);
   return (
     <Tap onPress={() => router.push({ pathname: '/trip/[id]', params: { id: trip.id, date } })} feedback="tint" style={styles.row} accessibilityRole="button">
@@ -94,10 +95,8 @@ function WeekRow({ trip, date, now }: { trip: SavedTrip; date: string; now: numb
           {trip.name}
         </Text>
         <View style={styles.rowMeta}>
-          {legs.slice(0, 3).map((l, i) => (
-            <RoutePlate key={i} label={l.route?.shortName ?? l.mode} metro={isMetro(l)} />
-          ))}
-          <Text variant="caption" color={color.textSecondary} style={legs.length ? styles.metaText : null}>
+          {choice.kind !== 'none' && <LineChain slots={chainOf(choice.it)} size="sm" />}
+          <Text variant="caption" color={color.textSecondary} style={hasRides ? styles.metaText : null}>
             {choice.kind === 'none' ? `by ${trip.arriveBy}` : `${durationText(Date.parse(choice.it.arriveAt) - leave!)} · by ${trip.arriveBy}`}
           </Text>
         </View>

@@ -21,6 +21,10 @@ export const color = {
   onInkMuted: 'rgba(255,255,255,0.6)',
   onInkFaint: 'rgba(255,255,255,0.13)',
   onInkPill: 'rgba(255,255,255,0.1)',
+  // Transport types (George, 17 Oct): buses green, minibuses blue, metro red. Muted so they sit with the cream and ink.
+  bus: '#1F7A4D',
+  minibus: '#2A62B5',
+  metro: '#BE3B31',
 } as const;
 
 export const font = {
@@ -91,8 +95,8 @@ export const shadow = {
 
 /** Springs. `snappy` for taps and toggles, `smooth` for things that travel. */
 export const spring = {
-  snappy: { damping: 18, stiffness: 320, mass: 0.6 } satisfies WithSpringConfig,
-  smooth: { damping: 22, stiffness: 180, mass: 0.9 } satisfies WithSpringConfig,
-  lead: { damping: 20, stiffness: 420, mass: 0.6 } satisfies WithSpringConfig,
-  trail: { damping: 24, stiffness: 170, mass: 0.8 } satisfies WithSpringConfig,
+  snappy: { damping: 24, stiffness: 320, mass: 0.6 } satisfies WithSpringConfig,
+  smooth: { damping: 27, stiffness: 180, mass: 0.9 } satisfies WithSpringConfig,
+  lead: { damping: 28, stiffness: 420, mass: 0.6 } satisfies WithSpringConfig,
+  trail: { damping: 26, stiffness: 170, mass: 0.8 } satisfies WithSpringConfig,
 };

@@ -6,12 +6,14 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { fetchPlan, searchPlaces } from '../lib/api';
 import { markCard, replaceCard, say } from '../lib/chat';
 import { openNewTrip, openPreview, pickPlace } from '../lib/handoff';
-import { choose, isMetro, placeName, transitLegs } from '../lib/plans';
+import { choose, placeName } from '../lib/plans';
+import { chainOf } from '../lib/ways';
 import { settings, updateSettings } from '../lib/settings';
 import { daysText, hhmm, relativeDay } from '../lib/time';
 import { DEFAULT_DAYS, newTripId, saveTrip, withStops, type Place } from '../lib/trips';
 import { Button } from './Button';
 import { Icon, type IconName } from './Icon';
+import { LineChain } from './LineChain';
 import { RoutePlate } from './RoutePlate';
 import { Tap, haptic } from './Tap';
 import { Text } from './Text';
@@ -170,16 +172,13 @@ function PlanCard({ plan, itemId, index, done }: CardProps & { plan: PlanRespons
 }
 
 function PlanRow({ it, best, border, onPress }: { it: Itinerary; best: boolean; border: boolean; onPress: () => void }) {
-  const legs = transitLegs(it);
   return (
     <Tap onPress={onPress} scaleTo={0.98} style={[styles.planRow, border && styles.rowBorder]} accessibilityRole="button">
       <Text variant="title26" color={best ? color.text : color.textSecondary} style={styles.planTime}>
         {hhmm(it.departAt)}
       </Text>
       <View style={styles.plates}>
-        {legs.slice(0, 3).map((l, i) => (
-          <RoutePlate key={i} label={l.route?.shortName ?? l.mode} metro={isMetro(l)} size="md" />
-        ))}
+        <LineChain slots={chainOf(it)} />
       </View>
       <Text variant="caption" color={color.textSecondary}>
         {Math.round(it.durationSec / 60)} min

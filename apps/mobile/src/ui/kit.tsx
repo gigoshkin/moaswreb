@@ -4,7 +4,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { interpolateColor, useAnimatedStyle, useDerivedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from './Icon';
-import { RoutePlate } from './RoutePlate';
+import { LineChain, type Slot } from './LineChain';
 import { Tap } from './Tap';
 import { Text } from './Text';
 import { color, gutter, radius, shadow, spring } from './theme';
@@ -83,7 +83,7 @@ export function Chip({ label, on, onPress }: { label: string; on: boolean; onPre
 }
 
 /** Walk minutes, first route and arrival: "🚶 6 min [306] Arrive 08:41". */
-export function RouteSummary({ walkMin, routes, arrive, dark }: { walkMin: number; routes: { label: string; metro: boolean }[]; arrive: string; dark?: boolean }) {
+export function RouteSummary({ walkMin, slots, arrive, dark }: { walkMin: number; slots: Slot[]; arrive: string; dark?: boolean }) {
   const muted = dark ? color.onInkMuted : color.textSecondary;
   return (
     <View style={styles.summary}>
@@ -95,9 +95,7 @@ export function RouteSummary({ walkMin, routes, arrive, dark }: { walkMin: numbe
           </Text>
         </>
       )}
-      {routes.map((r, i) => (
-        <RoutePlate key={`${r.label}${i}`} label={r.label} metro={r.metro} onDark={dark} />
-      ))}
+      <LineChain slots={slots} size="sm" onDark={dark} />
       <Text variant="caption" color={muted} numberOfLines={1} style={styles.flexShrink}>
         {arrive}
       </Text>
