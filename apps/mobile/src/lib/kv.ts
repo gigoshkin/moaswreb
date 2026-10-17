@@ -4,6 +4,7 @@ import { isRunningInExpoGo } from 'expo';
 export interface KV {
   getString(key: string): string | undefined;
   set(key: string, value: string): void;
+  remove(key: string): void;
 }
 
 // Not Constants.executionEnvironment: its 'storeClient' also covers dev builds.
@@ -17,6 +18,7 @@ export function createKV(id: string): KV {
     return {
       getString: (key) => store.getItemSync(key) ?? undefined,
       set: (key, value) => store.setItemSync(key, value),
+      remove: (key) => void store.removeItemSync(key),
     };
   }
   const { createMMKV } = require('react-native-mmkv') as typeof import('react-native-mmkv');
@@ -24,5 +26,6 @@ export function createKV(id: string): KV {
   return {
     getString: (key) => store.getString(key),
     set: (key, value) => store.set(key, value),
+    remove: (key) => void store.remove(key),
   };
 }

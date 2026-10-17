@@ -24,10 +24,10 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-image",
       "expo-font",
       "expo-router",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-notifications"
     ],
     "scheme": "tbilisitransit"
   }

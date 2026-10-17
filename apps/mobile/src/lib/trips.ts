@@ -18,27 +18,17 @@ export interface SavedTrip {
   /** Set once the user picks stops (andro's add-trip flow). Only these trips sync to the server. */
   fromStopId?: string;
   toStopId?: string;
-  /** ISO weekdays, 1 = Monday. Defaults to Mon–Fri. */
+  /** ISO weekdays, 1 = Monday. Defaults to Mon–Fri (DEFAULT_DAYS). */
   days?: number[];
   /** Walk from `from` to the first stop, worked out on the phone. */
   walkMin?: number;
 }
 
+export const DEFAULT_DAYS = [1, 2, 3, 4, 5];
+
 const KEY = 'trips:v1';
 
-// DEMO placeholder until andro's "add a trip" flow exists. Coordinates are the
-// pair used for the TTC planner test on 17 Oct (knowledge-base/ttc-pis-gateway-api.md).
-const DEMO: SavedTrip[] = [
-  {
-    id: 'demo-1',
-    name: 'სახლი → უნივერსიტეტი',
-    from: { label: 'სახლი', lat: 41.7151, lon: 44.8271 },
-    to: { label: 'უნივერსიტეტი', lat: 41.7099, lon: 44.7929 },
-    arriveBy: '09:00',
-  },
-];
-
-export const listTrips = (): SavedTrip[] => readCache<SavedTrip[]>(KEY) ?? DEMO;
+export const listTrips = (): SavedTrip[] => readCache<SavedTrip[]>(KEY) ?? [];
 
 export const getTrip = (id: string): SavedTrip | undefined => listTrips().find((t) => t.id === id);
 
@@ -59,6 +49,6 @@ export const removeTrip = (id: string): void => write(listTrips().filter((t) => 
 export const toStored = (trips: SavedTrip[]): StoredTrip[] =>
   trips.flatMap((t) =>
     t.fromStopId && t.toStopId
-      ? [{ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, arriveBy: t.arriveBy, days: t.days ?? [1, 2, 3, 4, 5], walkMin: Math.round(t.walkMin ?? 0) }]
+      ? [{ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, arriveBy: t.arriveBy, days: t.days ?? DEFAULT_DAYS, walkMin: Math.round(t.walkMin ?? 0) }]
       : [],
   );

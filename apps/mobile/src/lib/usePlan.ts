@@ -1,5 +1,5 @@
 import type { PlanQuery, PlanResponse } from '@transit/shared';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { samplePlan } from '../dev/samplePlan';
 import { cachedPlan, fetchPlan, hasApi } from './api';
 
@@ -23,15 +23,18 @@ export function usePlan(query: PlanQuery): PlanState {
   const [plan, setPlan] = useState<PlanResponse | null>(() => (hasApi ? cachedPlan(query) : samplePlan()));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Only the latest request may update state; an older one finishing late is dropped.
+  const latest = useRef(0);
 
   const refresh = useCallback(() => {
     if (!hasApi) return;
+    const id = ++latest.current;
     setRefreshing(true);
     setError(null);
     fetchPlan(query)
-      .then(setPlan)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setRefreshing(false));
+      .then((p) => id === latest.current && setPlan(p))
+      .catch((e: Error) => id === latest.current && setError(e.message))
+      .finally(() => id === latest.current && setRefreshing(false));
     // key captures query.
   }, [key]);
 

@@ -26,14 +26,15 @@ export async function setUpAlerts(): Promise<'ok' | 'denied' | 'no-server' | 'si
   if (!Notifications) return 'expo-go';
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(CHANNEL, {
-      name: 'გასვლის შეხსენებები',
+      name: t.alertsChannel,
       importance: Notifications.AndroidImportance.MAX,
     });
   }
   const { granted } = await Notifications.requestPermissionsAsync();
   if (!granted) return 'denied';
   if (!hasApi) return 'no-server';
-  await syncTrips(toStored(listTrips()));
+  // A failed sync must not block the token: the next trip change or app start syncs again.
+  await syncTrips(toStored(listTrips())).catch(() => {});
   if (!Device.isDevice) return 'simulator';
   // projectId comes from the EAS project (app.json → extra.eas.projectId), set up by George.
   const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
