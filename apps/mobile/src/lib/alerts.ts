@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { hasApi, registerPushToken, syncTrips } from './api';
 import { t } from './strings';
+import { isExpoGo } from './kv';
 import { hhmm } from './time';
 import { listTrips, toStored } from './trips';
 
@@ -18,7 +19,7 @@ Notifications.setNotificationHandler({
  * Ask for notification permission, create the channel and send the push token
  * and trips to the server. Safe to call on every app start.
  */
-export async function setUpAlerts(): Promise<'ok' | 'denied' | 'no-server' | 'simulator'> {
+export async function setUpAlerts(): Promise<'ok' | 'denied' | 'no-server' | 'simulator' | 'expo-go'> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(CHANNEL, {
       name: 'გასვლის შეხსენებები',
@@ -30,6 +31,8 @@ export async function setUpAlerts(): Promise<'ok' | 'denied' | 'no-server' | 'si
   if (!hasApi) return 'no-server';
   await syncTrips(toStored(listTrips()));
   if (!Device.isDevice) return 'simulator';
+  // Expo Go can't get push tokens (needs a dev build); local backup alerts still work.
+  if (isExpoGo) return 'expo-go';
   // projectId comes from the EAS project (app.json → extra.eas.projectId), set up by George.
   const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
   const { data } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);

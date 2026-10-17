@@ -1,7 +1,7 @@
-import { createMMKV } from 'react-native-mmkv';
+import { createKV } from './kv';
 
 // Instant start: the last good state is shown from here at launch, then refreshed.
-const store = createMMKV({ id: 'cache' });
+const store = createKV('cache');
 
 export const readCache = <T>(key: string): T | null => {
   const raw = store.getString(key);

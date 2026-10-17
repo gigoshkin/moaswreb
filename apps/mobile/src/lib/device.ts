@@ -1,7 +1,7 @@
 import { getRandomBytes } from 'expo-crypto';
-import { createMMKV } from 'react-native-mmkv';
+import { createKV } from './kv';
 
-const store = createMMKV({ id: 'device' });
+const store = createKV('device');
 
 /**
  * The app's only identity: 144 random bits created once and kept on the
