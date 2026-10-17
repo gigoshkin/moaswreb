@@ -99,36 +99,36 @@ export default function Chat() {
         )}
 
         <View style={styles.inputArea}>
-          {attachment && (
-            <Animated.View entering={FadeIn.duration(150)} style={styles.attachment}>
-              {attachment.uri ? <Image source={{ uri: attachment.uri }} style={styles.thumb} /> : <Icon name="file" size={24} />}
-              <Text variant="body13" numberOfLines={1} style={styles.flex}>
-                {attachment.kind === 'pdf' ? (attachment.name ?? 'PDF') : 'Photo'}
-              </Text>
-              <Tap onPress={() => setAttachment(null)} hitSlop={10} scaleTo={0.9} accessibilityLabel="Remove attachment">
-                <Icon name="close" size={20} color={color.textSecondary} />
+          <View style={styles.composer}>
+            {attachment && (
+              <Animated.View entering={FadeIn.duration(150)} style={styles.attachment}>
+                {attachment.uri ? <Image source={{ uri: attachment.uri }} style={styles.thumb} /> : <Icon name="file" size={24} />}
+                <Text variant="body13" numberOfLines={1} style={styles.flex}>
+                  {attachment.kind === 'pdf' ? (attachment.name ?? 'PDF') : 'Photo'}
+                </Text>
+                <Tap onPress={() => setAttachment(null)} hitSlop={10} scaleTo={0.9} accessibilityLabel="Remove attachment">
+                  <Icon name="close" size={20} color={color.textSecondary} />
+                </Tap>
+              </Animated.View>
+            )}
+            <TextInput
+              ref={input}
+              value={text}
+              onChangeText={setText}
+              placeholder="Message or upload a timetable"
+              placeholderTextColor={color.textSecondary}
+              style={styles.input}
+              multiline
+              maxFontSizeMultiplier={1.15}
+            />
+            <View style={styles.actions}>
+              <Tap onPress={attach} style={styles.small} scaleTo={0.9} hitSlop={6} accessibilityLabel="Add a photo or PDF">
+                <Icon name="plus" size={20} />
               </Tap>
-            </Animated.View>
-          )}
-          <View style={styles.inputRow}>
-            <Tap onPress={attach} style={styles.round} scaleTo={0.92} accessibilityLabel="Add a photo or PDF">
-              <Icon name="camera" size={24} />
-            </Tap>
-            <View style={styles.field}>
-              <TextInput
-                ref={input}
-                value={text}
-                onChangeText={setText}
-                placeholder="Message or upload a timetable"
-                placeholderTextColor={color.textSecondary}
-                style={styles.input}
-                multiline
-                maxFontSizeMultiplier={1.15}
-              />
+              <Tap onPress={submit} disabled={!canSend} style={[styles.small, styles.send, !canSend && styles.sendOff]} scaleTo={0.9} haptic="light" hitSlop={6} accessibilityLabel="Send">
+                <Icon name="send" size={20} color={color.onInk} />
+              </Tap>
             </View>
-            <Tap onPress={submit} disabled={!canSend} style={[styles.round, styles.send, !canSend && styles.sendOff]} scaleTo={0.9} haptic="light" accessibilityLabel="Send">
-              <Icon name="send" size={24} color={color.onInk} />
-            </Tap>
           </View>
         </View>
       </Animated.View>
@@ -196,13 +196,13 @@ const styles = StyleSheet.create({
   sentFile: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 240, backgroundColor: color.surface, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10, ...shadow.soft },
   assistant: { gap: 12 },
   thinking: { paddingVertical: 4 },
-  inputArea: { backgroundColor: color.surface, paddingHorizontal: 16, paddingVertical: 12, gap: 8, ...shadow.bar },
+  inputArea: { backgroundColor: color.bg, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 },
+  composer: { backgroundColor: color.surface, borderRadius: 26, borderWidth: 1, borderColor: color.border, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, gap: 4, ...shadow.soft },
   attachment: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.surfaceMuted, borderRadius: radius.md, padding: 8 },
   thumb: { width: 40, height: 40, borderRadius: 8 },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  round: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: color.surfaceMuted, borderWidth: 1, borderColor: color.border },
-  send: { backgroundColor: color.ink, borderColor: color.ink },
-  sendOff: { opacity: 0.35 },
-  field: { flex: 1, minHeight: 52, maxHeight: 120, borderRadius: 26, backgroundColor: color.surfaceMuted, borderWidth: 1, borderColor: color.border, paddingHorizontal: 20, justifyContent: 'center' },
-  input: { fontFamily: font.regular, fontSize: 15, lineHeight: 20, color: color.text, paddingTop: 15, paddingBottom: 15, includeFontPadding: false, textAlignVertical: 'center' },
+  input: { fontFamily: font.regular, fontSize: 16, lineHeight: 22, color: color.text, minHeight: 28, maxHeight: 132, paddingHorizontal: 6, paddingVertical: 3, includeFontPadding: false, textAlignVertical: 'top' },
+  actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  small: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: color.surfaceMuted },
+  send: { backgroundColor: color.ink },
+  sendOff: { opacity: 0.3 },
 });
