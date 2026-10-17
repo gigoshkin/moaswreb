@@ -4,7 +4,7 @@
 
 ## Pages
 - **Components** (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-3): Route plate, Button, Chip, Leave-by bar, Tab bar, Chat bubble, Chat input, Trip leg, Trip card, Hero card, Action card (5 types matching `packages/shared/src/chat.ts`), Day pill, Week row, Settings row, 21 icons. All use auto-layout, variables and text styles.
-- **Screens** (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-4): 18 frames, 412 × 915, named `Screen / state`.
+- **Screens** (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-4): 17 frames, 412 × 915, named `Screen / state`.
 - **Motion & handoff** (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=14-5): exact motion specs (springs, ticker, shared transitions, haptics) and handoff notes.
 - **Logo** (https://www.figma.com/design/enNmsgN9mcJcSoQarCmwki/Moaswreb-App?node-id=5-2): wordmark მოასწრებ. in 123-Antena Bold with the lime dot, app icons; component `Logo/Wordmark on dark`.
 
