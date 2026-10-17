@@ -11,6 +11,22 @@ export type LegMode = 'WALK' | PlanMode | (string & {});
 export type Optimize = 'quick' | 'lessWalking' | 'fewerTransfers';
 export type Locale = 'ka' | 'en';
 
+/** Lines a trip must never use, e.g. `{ routes: ['518'], minibus: true }`. Per trip. */
+export interface PlanAvoid {
+  /** Route numbers, e.g. "518". */
+  routes?: string[];
+  /** Skip every minibus (marshrutka) line. */
+  minibus?: boolean;
+}
+
+/** One ride in a hand-built route: any of `routes` (or any line that fits) from one of `fromStops` to one of `toStops`. */
+export interface JourneyStep {
+  fromStops: string[];
+  toStops: string[];
+  /** Allowed route numbers; empty or missing = every line that serves both stops. */
+  routes?: string[];
+}
+
 /** Query for GET /plan. */
 export interface PlanQuery {
   from: LatLon;
@@ -20,6 +36,10 @@ export interface PlanQuery {
   modes?: PlanMode[];
   optimize?: Optimize;
   locale?: Locale;
+  /** Lines to leave out of every option of this trip. */
+  avoid?: PlanAvoid;
+  /** A hand-built route: the rides in order. Without it the planner finds its own. */
+  steps?: JourneyStep[];
 }
 
 export interface PlanPlace extends LatLon {
@@ -33,6 +53,8 @@ export interface PlanRoute {
   longName: string | null;
   /** Line colour as `#RRGGBB`, or null if TTC didn't send one. */
   color: string | null;
+  /** A minibus (marshrutka) line. Unset when unknown. */
+  minibus?: boolean;
 }
 
 export interface PlanLeg {

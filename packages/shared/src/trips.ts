@@ -2,6 +2,8 @@
 // and times: no names, no addresses, no GPS. Linked to a random device id,
 // encrypted at rest, deleted after 30 days without a check-in.
 
+import type { JourneyStep, PlanAvoid } from './plan.ts';
+
 export interface StoredTrip {
   /** Client-generated id, stable per trip. */
   id: string;
@@ -13,6 +15,10 @@ export interface StoredTrip {
   days: number[];
   /** Walk from the user's start point to the first stop, worked out on the phone. */
   walkMin: number;
+  /** Lines this trip never uses. */
+  avoid?: PlanAvoid;
+  /** A hand-built route (stops and allowed lines per ride). Without it the server plans stop to stop. */
+  steps?: JourneyStep[];
 }
 
 export interface TripsPayload {

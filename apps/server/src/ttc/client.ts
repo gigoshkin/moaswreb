@@ -5,7 +5,9 @@ import type {
   RawPlan,
   RouteDetail,
   RoutePositions,
+  RouteStop,
   RouteSummary,
+  ScheduleBlock,
   Stop,
 } from './types.ts';
 
@@ -91,6 +93,26 @@ export class TtcClient {
 
   route(routeId: string, locale: Locale = 'ka') {
     return this.get<RouteDetail>(`v3/routes/${routeId}`, { locale });
+  }
+
+  /** Stops of one pattern, in driving order. */
+  routeStops(routeId: string, patternSuffix: string, locale: Locale = 'en') {
+    return this.get<RouteStop[]>(`v3/routes/${routeId}/stops`, { patternSuffix, locale });
+  }
+
+  /** The full timetable of one pattern: every stop's arrival times, per service-date block. */
+  schedule(routeId: string, patternSuffix: string, locale: Locale = 'en') {
+    return this.get<ScheduleBlock[]>(`v3/routes/${routeId}/schedule`, { patternSuffix, locale });
+  }
+
+  /** The next few vehicles of one route at a stop (the stop-wide list only shows one per route). */
+  routeArrivals(stopId: string, routeId: string, locale: Locale = 'en') {
+    return this.get<ArrivalTime[]>(`v2/stops/${stopId}/arrival-times`, {
+      locale,
+      ignoreScheduledArrivalTimes: false,
+      routeId,
+      maxNumberOfArrivalTimes: 4,
+    });
   }
 
   positions(routeId: string, patternSuffixes: string[]) {

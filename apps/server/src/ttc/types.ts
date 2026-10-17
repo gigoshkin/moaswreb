@@ -48,6 +48,18 @@ export interface ArrivalTime {
   scheduledArrivalMinutes: number;
 }
 
+/** `v3/routes/{id}/stops`: a stop with its place in the pattern. */
+export type RouteStop = Stop;
+
+/** `v3/routes/{id}/schedule`: one block per set of service dates. */
+export interface ScheduleBlock {
+  fromDay: string;
+  toDay: string;
+  /** Exact Tbilisi dates this block applies to, `YYYY-MM-DD`. */
+  serviceDates?: string[];
+  stops: Array<{ id: string; name: string; position: number; /** "7:06,7:18,...", hours may pass 24 */ arrivalTimes: string }>;
+}
+
 export interface VehiclePosition {
   vehicleId: string;
   lat: number;

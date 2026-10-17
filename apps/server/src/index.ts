@@ -7,6 +7,7 @@ import { expoPush } from './alerts/push.ts';
 import { registerChatRoute } from './chat/route.ts';
 import { registerMcpRoute } from './mcp/route.ts';
 import { registerPlanRoute } from './plan/route.ts';
+import { TtcSource } from './journey/ttc-source.ts';
 import { PlanService } from './plan/service.ts';
 import { Sealer } from './store/crypto.ts';
 import { registerMeRoutes } from './store/route.ts';
@@ -21,7 +22,7 @@ const ttc = new TtcClient();
 const recorder = new Recorder(config.dataDir);
 const poller = new Poller(ttc, recorder);
 const stops = new StopIndex(ttc);
-const plans = new PlanService(ttc, stops);
+const plans = new PlanService(ttc, stops, new TtcSource(ttc, stops));
 const store = config.tripsKey ? new TripStore(config.dataDir, new Sealer(config.tripsKey)) : null;
 const watcher = store ? new AlertWatcher(store, stops, plans, expoPush()) : null;
 
