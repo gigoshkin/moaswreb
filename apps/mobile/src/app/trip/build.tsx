@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nearStops, stopLines } from '../../lib/api';
+import * as Haptics from 'expo-haptics';
 import { finishSteps, stepsDraft } from '../../lib/handoff';
 import { leaveAt, type Kind } from '../../lib/plans';
 import { settings } from '../../lib/settings';
@@ -25,6 +26,10 @@ import { MapButton } from '../../ui/kit';
 import { overlay } from '../../ui/overlay';
 import { color, gutter, radius, shadow, spring } from '../../ui/theme';
 
+/** The pin "touches" a stop this close: a tick as it passes. */
+const TOUCH_M = 18;
+/** When the map settles with the pin this close to a stop, it eases onto it. */
+const SNAP_M = 35;
 /** A line within this of the pin counts as going there. */
 const NEAR_M = 300;
 const TBILISI = { lat: 41.7151, lon: 44.793 };
@@ -153,6 +158,41 @@ export default function BuildRoute() {
     return nearby.stops.map((s) => ({ s, d: distM(c, s) })).sort((a, b) => a.d - b.d)[0] ?? null;
   }, [nearby.stops, centre, here.lat, here.lon]);
 
+  // The pin passing over a stop ticks; settling close to one pulls it on (a slight magnet).
+  const nearbyRef = useRef(nearby.stops);
+  nearbyRef.current = nearby.stops;
+  const touching = useRef<string | null>(null);
+  const snapped = useRef<string | null>(null); // one pull per stop, so it can never loop
+  const closest = (c: Point) => {
+    let best: { s: StopHit; d: number } | null = null;
+    for (const s of nearbyRef.current) {
+      const d = distM(c, s);
+      if (!best || d < best.d) best = { s, d };
+    }
+    return best;
+  };
+  const onMove = (c: Point) => {
+    if (!adding) return;
+    const b = closest(c);
+    const id = b && b.d <= TOUCH_M ? b.s.id : null;
+    if (!id || id !== snapped.current) snapped.current = null;
+    if (id !== touching.current) {
+      touching.current = id;
+      if (id) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+  };
+  const onIdle = (c: Point) => {
+    const b = adding ? closest(c) : null;
+    if (b && b.d <= SNAP_M && b.d > 4 && b.s.id !== board?.id && b.s.id !== snapped.current) {
+      touching.current = b.s.id;
+      snapped.current = b.s.id;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      map.current?.flyTo(b.s); // eases the pin onto the stop; the next idle reports the stop itself
+      return;
+    }
+    setCentre(c);
+  };
+
   const done = () => {
     haptic('success');
     finishSteps(steps.length ? steps : null);
@@ -170,7 +210,8 @@ export default function BuildRoute() {
         routes={routes}
         markers={markers}
         pin={adding}
-        onIdle={(c) => setCentre(c)}
+        onMove={onMove}
+        onIdle={onIdle}
         inset={{ top: insets.top + 64, bottom: sheetH }}
       />
       <View style={[styles.floating, { top: insets.top + 12 }]} pointerEvents="box-none">

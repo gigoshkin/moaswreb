@@ -53,6 +53,8 @@ interface Props {
   interactive?: boolean;
   /** Called when the map comes to rest, with the point under the focus. */
   onIdle?: (center: LatLon, zoom: number) => void;
+  /** Called while the map moves, with the point under the focus (for feedback as the pin passes things). */
+  onMove?: (center: LatLon) => void;
   onMoveStart?: () => void;
   style?: StyleProp<ViewStyle>;
 }
@@ -86,7 +88,7 @@ function frame(points: LatLon[], w: number, h: number, top: number, bottom: numb
 }
 
 export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
-  { start, routes = [], markers = [], pin, inset, interactive = true, onIdle, onMoveStart, style },
+  { start, routes = [], markers = [], pin, inset, interactive = true, onIdle, onMove, onMoveStart, style },
   ref,
 ) {
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -109,6 +111,8 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
   live.current.dy = dy;
   const onIdleRef = useRef(onIdle);
   onIdleRef.current = onIdle;
+  const onMoveRef = useRef(onMove);
+  onMoveRef.current = onMove;
   const onMoveStartRef = useRef(onMoveStart);
   onMoveStartRef.current = onMoveStart;
 
@@ -151,6 +155,13 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     },
     [moving],
   );
+
+  const regionMoving = useCallback((r: Region) => {
+    const { w, dy: off } = live.current;
+    if (!onMoveRef.current || !w || !r.longitudeDelta) return;
+    const g = Math.log2((360 * w) / (WORLD * r.longitudeDelta));
+    onMoveRef.current(shiftDown({ lat: r.latitude, lon: r.longitude }, g, off));
+  }, []);
 
   const regionDone = useCallback(
     (r: Region) => {
@@ -209,6 +220,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
           zoomControlEnabled={false}
           moveOnMarkerPress={false}
           onRegionChangeStart={regionStart}
+          onRegionChange={regionMoving}
           onRegionChangeComplete={regionDone}
         >
           {lines.map((l, i) => (
