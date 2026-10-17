@@ -36,11 +36,21 @@ export default function Settings() {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          if (hasApi) await deleteMyData().catch(() => {});
+          // Server first: if it can't be reached nothing is cleared, so Delete can be tried again.
+          if (hasApi) {
+            try {
+              await deleteMyData();
+            } catch {
+              haptic('error');
+              Alert.alert("Couldn't delete your data", 'The server could not be reached, so nothing was removed. Check your connection and try again.');
+              return;
+            }
+          }
           clearTrips();
           clearChat();
           updateSettings({ home: null, bufferMin: 0 });
           haptic('success');
+          Alert.alert('Your data was deleted', 'Your trips, home and chat are gone from this phone' + (hasApi ? ', and your trips and push token from our server.' : '.'));
         },
       },
     ]);

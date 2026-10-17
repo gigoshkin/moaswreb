@@ -13,13 +13,14 @@ interface Props extends Omit<PressableProps, 'style' | 'children'> {
   scaleTo?: number;
   /** Full-width rows darken a touch instead of shrinking (shrinking would pull their edges in). */
   feedback?: 'scale' | 'tint';
-  haptic?: 'light' | 'selection' | 'success' | 'none';
+  haptic?: 'light' | 'selection' | 'success' | 'error' | 'none';
 }
 
 export const haptic = (kind: Props['haptic']) => {
   if (kind === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   else if (kind === 'selection') Haptics.selectionAsync().catch(() => {});
   else if (kind === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  else if (kind === 'error') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
 };
 
 /** Pressable that gives way under the finger on a spring. Every tappable thing in the app uses it. */
