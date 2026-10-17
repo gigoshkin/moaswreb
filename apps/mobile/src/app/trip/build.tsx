@@ -17,7 +17,7 @@ import { slotsFor } from '../../lib/ways';
 import { Button } from '../../ui/Button';
 import { LineChain, Stack } from '../../ui/LineChain';
 import { MapCanvas, type MapCanvasHandle, type MapMarker, type MapRoute } from '../../ui/MapCanvas';
-import { StopDot } from '../../ui/MapMarks';
+import { EndRing, StopDot } from '../../ui/MapMarks';
 import { RoutePlate, kindColor } from '../../ui/RoutePlate';
 import { Busy } from '../../ui/Spinner';
 import { Tap, haptic } from '../../ui/Tap';
@@ -59,6 +59,8 @@ export default function BuildRoute() {
   const [off, setOff] = useState<string[]>([]);
   const [adding, setAdding] = useState(!init?.steps.length);
   const [centre, setCentre] = useState<Point | null>(null);
+  // Where the end pin was dropped. Nothing is drawn until it is.
+  const [placed, setPlaced] = useState<Point | null>(null);
   const [hot, setHot] = useState<string | null>(null);
   const hotRef = useRef<string | null>(null);
 
@@ -82,40 +84,41 @@ export default function BuildRoute() {
   const { lines, error: linesError } = useLines(board?.id ?? null);
   const onLines = useMemo(() => (lines ?? []).filter((l) => !off.includes(l.shortName)), [lines, off]);
 
-  // Where the pin is, in the get-off step: the lines that get closest to it. Lines that come within
-  // NEAR_M of the pin count as going there; if none do, the closest stop on any line is offered instead.
+  // Where the end pin was dropped: the lines that get closest to it. Lines that come within
+  // NEAR_M of it go there; if none do there is no direct line, and the closest stop is offered on the side.
   const match = useMemo(() => {
-    if (!board || !centre) return null;
+    if (!board || !placed) return null;
     const per = onLines
       .map((l) => {
-        const best = l.next.map((s) => ({ s, d: distM(s, centre) })).sort((a, b) => a.d - b.d)[0];
+        const best = l.next.map((s) => ({ s, d: distM(s, placed) })).sort((a, b) => a.d - b.d)[0];
         return best ? { line: l, stop: best.s, d: best.d, upto: l.next.slice(0, l.next.findIndex((x) => x.id === best.s.id) + 1) } : null;
       })
       .filter((x): x is NonNullable<typeof x> => x !== null)
       .sort((a, b) => a.d - b.d);
     if (!per.length) return null;
     const direct = per.filter((x) => x.d <= NEAR_M);
-    const used = direct.length ? direct : per.filter((x) => x.stop.id === per[0].stop.id);
-    return { direct: direct.length > 0, used, d: used[0].d };
-  }, [board, centre, onLines]);
+    return { direct, closest: per.filter((x) => x.stop.id === per[0].stop.id), d: per[0].d };
+  }, [board, placed, onLines]);
 
   const pickBoard = (s: StopHit) => {
     haptic('selection');
     setBoard(s);
     setOff([]);
+    setPlaced(null);
     map.current?.flyTo(to, 15.5); // the pin starts at the end of the trip
   };
   const clearBoard = () => {
     setBoard(null);
     setOff([]);
+    setPlaced(null);
   };
-  const confirmRide = () => {
-    if (!board || !match) return;
+  const confirmRide = (used: NonNullable<typeof match>['direct']) => {
+    if (!board || !used.length) return;
     haptic('success');
-    const stopIds = [...new Set(match.used.map((x) => x.stop.id))];
-    const names = [...new Set(match.used.map((x) => x.line.shortName))];
+    const stopIds = [...new Set(used.map((x) => x.stop.id))];
+    const names = [...new Set(used.map((x) => x.line.shortName))];
     setSteps((s) => [...s, { fromStops: [board.id], toStops: stopIds, ...(off.length ? { routes: names } : {}) }]);
-    setAnchor({ id: match.used[0].stop.id, name: match.used[0].stop.name, lat: match.used[0].stop.lat, lon: match.used[0].stop.lon, mode: match.used[0].line.mode });
+    setAnchor({ id: used[0].stop.id, name: used[0].stop.name, lat: used[0].stop.lat, lon: used[0].stop.lon, mode: used[0].line.mode });
     clearBoard();
     setAdding(false);
   };
@@ -134,13 +137,15 @@ export default function BuildRoute() {
         .filter((s) => s.id !== board.id)
         .map((s) => ({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, onPress: () => map.current?.flyTo(s, 17) }));
       mk.push({ key: 'board', at: board, node: <StopDot on tint={color.ink} /> });
-      const used = match?.used ?? [];
-      for (const x of used) mk.push({ key: `off-${x.stop.id}`, at: x.stop, node: <StopDot on tint={kindColor[kindOfLine(x.line)]} /> });
+      // Lines are drawn only once the end pin is dropped, and only when one goes there.
+      const used = match?.direct ?? [];
+      if (placed) mk.push({ key: 'end-pin', at: placed, node: <EndRing /> });
+      for (const x of used) if (!mk.some((m) => m.key === `off-${x.stop.id}`)) mk.push({ key: `off-${x.stop.id}`, at: x.stop, node: <StopDot on tint={kindColor[kindOfLine(x.line)]} /> });
       const rt: MapRoute[] = used.map((x) => ({ points: [board, ...x.upto], color: kindColor[kindOfLine(x.line)] }));
       return { routes: rt, markers: mk, points: [board, to] as Point[] };
     }
     return { routes: planned.routes, markers: planned.markers, points: planned.points };
-  }, [adding, board, nearby.stops, match, planned, hot]);
+  }, [adding, board, nearby.stops, match, planned, hot, placed]);
 
   // Frame the map when the step changes (not on the first frame: the map starts framed).
   const fitKey = `${adding}|${board ? 1 : 0}|${it?.id ?? ''}`;
@@ -211,7 +216,7 @@ export default function BuildRoute() {
         start={start}
         routes={routes}
         markers={markers}
-        pin={adding}
+        pin={adding && !(board && placed)}
         onMove={onMove}
         onIdle={onIdle}
         inset={{ top: insets.top + 64, bottom: sheetH }}
@@ -295,21 +300,41 @@ export default function BuildRoute() {
                     </Tap>
                   ))}
                 </ScrollView>
-                {match ? (
+                {!placed ? (
+                  <View style={styles.gap}>
+                    <Text variant="body14">{onLines.length ? 'Move the map so the pin is where you get off, then drop it.' : 'Every line is switched off.'}</Text>
+                    <Button label="Drop end pin here" kind="secondary" onPress={() => { haptic('selection'); setPlaced(centre ?? to); }} disabled={!onLines.length || !centre} haptic="none" />
+                  </View>
+                ) : match?.direct.length ? (
                   <Animated.View entering={FadeIn.duration(160)} style={styles.gap}>
                     <View style={styles.destRow}>
-                      <Stack slot={[...new Map(match.used.map((x) => [x.line.shortName, { label: x.line.shortName, kind: kindOfLine(x.line) }])).values()]} />
+                      <Stack slot={[...new Map(match.direct.map((x) => [x.line.shortName, { label: x.line.shortName, kind: kindOfLine(x.line) }])).values()]} />
                       <Text variant="label16" style={styles.flex} numberOfLines={1}>
-                        {match.used[0].stop.name}
+                        {match.direct[0].stop.name}
                       </Text>
                     </View>
-                    <Text variant="caption" color={color.textSecondary}>
-                      {match.direct ? `Gets off ${distanceLabel(match.d)} from the pin.` : `No line here gets within ${NEAR_M} m of the pin. This is the closest: ${distanceLabel(match.d)} away.`}
-                    </Text>
-                    <Button label="Add this ride" onPress={confirmRide} haptic="none" />
+                    <Button label="Add this ride" onPress={() => confirmRide(match.direct)} haptic="none" />
+                    <Tap onPress={() => setPlaced(null)} hitSlop={8} style={styles.moveLink}>
+                      <Text variant="label14" color={color.textSecondary}>
+                        Move the end pin
+                      </Text>
+                    </Tap>
                   </Animated.View>
                 ) : (
-                  <Text variant="body14">{onLines.length ? 'Move the map so the pin is where you want to get off.' : 'Every line is switched off.'}</Text>
+                  <Animated.View entering={FadeIn.duration(160)} style={styles.gap}>
+                    <Text variant="label16">No direct line goes there</Text>
+                    {match && (
+                      <Text variant="caption" color={color.textSecondary}>
+                        The closest any line gets is {match.closest[0].stop.name}, {distanceLabel(match.d)} from the pin.
+                      </Text>
+                    )}
+                    {match && <Button label="Ride to that stop instead" kind="secondary" onPress={() => confirmRide(match.closest)} haptic="none" />}
+                    <Tap onPress={() => setPlaced(null)} hitSlop={8} style={styles.moveLink}>
+                      <Text variant="label14" color={color.textSecondary}>
+                        Move the end pin
+                      </Text>
+                    </Tap>
+                  </Animated.View>
                 )}
               </>
             )}
@@ -425,6 +450,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   plates: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   off: { opacity: 0.3 },
+  moveLink: { alignSelf: 'center', paddingVertical: 4 },
   destRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   actions: { gap: 8, paddingTop: 4 },
 });
