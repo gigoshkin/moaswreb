@@ -1,4 +1,4 @@
-import type { PlanResponse } from '@transit/shared';
+import type { LatLon, PlanResponse } from '@transit/shared';
 import { router } from 'expo-router';
 import type { Place, SavedTrip } from './trips';
 
@@ -9,9 +9,17 @@ export type PickKind = 'from' | 'to' | 'home';
 
 let pending: ((p: Place | null) => void) | null = null;
 
+export interface PickOptions {
+  /** Where "Select on map" opens: usually the other end of the trip. */
+  near?: LatLon | null;
+}
+let pickOpts: PickOptions = {};
+export const pickOptions = (): PickOptions => pickOpts;
+
 /** Opens the place picker; resolves with the choice, or null if closed. */
-export function pickPlace(kind: PickKind): Promise<Place | null> {
+export function pickPlace(kind: PickKind, opts: PickOptions = {}): Promise<Place | null> {
   pending?.(null);
+  pickOpts = opts;
   return new Promise((resolve) => {
     pending = resolve;
     router.push({ pathname: '/pick-place', params: { kind } });

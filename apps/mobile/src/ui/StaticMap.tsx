@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Polyline } from 'react-native-svg';
+import { TILE, decodePolyline, normX, normY, tileUrl } from '../lib/mapMath';
 import { isMetro } from '../lib/plans';
 import { Icon } from './Icon';
 import { Text } from './Text';
@@ -13,60 +14,34 @@ import { color } from './theme';
 // top. Not interactive; the timeline below carries the details. CARTO's
 // light tiles were tried first: they now need a key (17 Oct 2026).
 
-// The service sends 256 px tiles; each is drawn at 128 pt so it stays sharp
-// on 2x/3x screens. Max zoom 16.
-const TILE = 128;
 const MAX_Z = 16;
-const tileUrl = (z: number, x: number, y: number) => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${z}/${y}/${x}`;
 
-/** Google encoded polyline → points. */
-export function decodePolyline(s: string): LatLon[] {
-  const out: LatLon[] = [];
-  let i = 0;
-  let lat = 0;
-  let lon = 0;
-  const next = () => {
-    let result = 0;
-    let shift = 0;
-    let b: number;
-    do {
-      b = s.charCodeAt(i++) - 63;
-      result |= (b & 0x1f) << shift;
-      shift += 5;
-    } while (b >= 0x20 && i < s.length);
-    return result & 1 ? ~(result >> 1) : result >> 1;
-  };
-  while (i < s.length) {
-    lat += next();
-    lon += next();
-    out.push({ lat: lat / 1e5, lon: lon / 1e5 });
-  }
-  return out;
-}
-
-const worldX = (lon: number, z: number) => ((lon + 180) / 360) * TILE * 2 ** z;
-const worldY = (lat: number, z: number) => {
-  const r = (lat * Math.PI) / 180;
-  return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * TILE * 2 ** z;
-};
+const worldX = (lon: number, z: number) => normX(lon) * TILE * 2 ** z;
+const worldY = (lat: number, z: number) => normY(lat) * TILE * 2 ** z;
 
 interface Props {
-  itinerary: Itinerary;
+  /** A planned route; or, before there is one, just where it starts and ends. */
+  itinerary?: Itinerary | null;
+  endpoints?: { from: LatLon; to: LatLon } | null;
   height: number;
   /** Colour the map fades into at the bottom. */
   fadeTo?: string;
 }
 
-export function StaticMap({ itinerary, height, fadeTo = color.bg }: Props) {
+export function StaticMap({ itinerary, endpoints, height, fadeTo = color.bg }: Props) {
   const [width, setWidth] = useState(0);
 
   const legs = useMemo(
     () =>
-      itinerary.legs.map((l) => ({
-        walk: l.mode === 'WALK',
-        points: l.polyline ? decodePolyline(l.polyline) : [l.from, l.to],
-      })),
-    [itinerary],
+      itinerary
+        ? itinerary.legs.map((l) => ({
+            walk: l.mode === 'WALK',
+            points: l.polyline ? decodePolyline(l.polyline) : [l.from, l.to],
+          }))
+        : endpoints
+          ? [{ walk: true, points: [endpoints.from, endpoints.to] }]
+          : [],
+    [itinerary, endpoints],
   );
 
   const view = useMemo(() => {
@@ -94,9 +69,9 @@ export function StaticMap({ itinerary, height, fadeTo = color.bg }: Props) {
     return { tiles, project };
   }, [legs, width, height]);
 
-  const firstRide = itinerary.legs.find((l) => l.mode !== 'WALK');
-  const start = itinerary.legs[0]?.from;
-  const end = itinerary.legs.at(-1)?.to;
+  const firstRide = itinerary?.legs.find((l) => l.mode !== 'WALK');
+  const start = itinerary ? itinerary.legs[0]?.from : endpoints?.from;
+  const end = itinerary ? itinerary.legs.at(-1)?.to : endpoints?.to;
 
   return (
     <View style={[styles.map, { height }]} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>

@@ -6,6 +6,7 @@ import type {
   Locale,
   NearStopsResponse,
   PlaceHit,
+  ReversePlaceResponse,
   PlanQuery,
   PlanResponse,
   StopHit,
@@ -118,6 +119,10 @@ export const fetchArrivals = (stopId: string, locale: Locale = 'en'): Promise<Ar
 /** Addresses and landmarks in Tbilisi. */
 export const searchPlaces = async (q: string, locale: Locale = 'en', limit = 5): Promise<PlaceHit[]> =>
   (await request<{ places: PlaceHit[] }>(`/places?${qs({ q, locale, limit })}`)).places;
+
+/** The address at a point (for the map pin), or null when OSM has nothing close. */
+export const reversePlace = async (p: { lat: number; lon: number }): Promise<PlaceHit | null> =>
+  (await request<ReversePlaceResponse>(`/places/reverse?${qs({ lat: p.lat, lon: p.lon })}`)).place;
 
 // --- chat ---
 

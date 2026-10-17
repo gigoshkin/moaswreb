@@ -43,3 +43,9 @@ export interface PlaceHit {
 export interface PlacesResponse {
   places: PlaceHit[];
 }
+
+/** GET /places/reverse?lat=&lon= */
+export interface ReversePlaceResponse {
+  /** The nearest address or landmark, or null when OSM has nothing close. */
+  place: PlaceHit | null;
+}

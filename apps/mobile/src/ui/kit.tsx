@@ -36,6 +36,15 @@ export function ScreenTitle({ title, right, bar }: { title: string; right?: Reac
   );
 }
 
+/** Round white button floating over a map (back, locate). */
+export function MapButton({ icon, onPress, label, style }: { icon: IconName; onPress: () => void; label: string; style?: StyleProp<ViewStyle> }) {
+  return (
+    <Tap onPress={onPress} scaleTo={0.9} hitSlop={6} accessibilityRole="button" accessibilityLabel={label} style={[styles.mapButton, style]}>
+      <Icon name={icon} size={24} />
+    </Tap>
+  );
+}
+
 /** White rounded card. */
 export function Card({ children, style, tint }: { children: ReactNode; style?: StyleProp<ViewStyle>; tint?: string }) {
   return <View style={[styles.card, tint ? { backgroundColor: tint } : null, style]}>{children}</View>;
@@ -140,6 +149,7 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 12, paddingRight: gutter, paddingBottom: 12, backgroundColor: color.surface, ...shadow.bar },
   topBarButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full },
   topBarTitle: { flex: 1 },
+  mapButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: color.surface, alignItems: 'center', justifyContent: 'center', ...shadow.card },
   screenTitle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: gutter, paddingBottom: 12 },
   screenTitleBar: { backgroundColor: color.surface, zIndex: 1, ...shadow.bar },
   card: { backgroundColor: color.surface, borderRadius: radius.lg, padding: 20, ...shadow.card },

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { STOP_ID_PATTERN, type Locale, type NearStopsResponse, type PlacesResponse, type StopsResponse } from '@transit/shared';
 import { insideTbilisi } from '../geo.ts';
+import { photonGeo, type StreetGeo } from '../ttc/photon.ts';
 import { upstreamFailed } from '../ttc/client.ts';
 import { arrivalsAt, findPlaces } from '../ttc/lookups.ts';
 import type { TtcClient } from '../ttc/client.ts';
@@ -14,12 +15,13 @@ const limit = { type: 'integer', minimum: 1, maximum: 20 } as const;
  *   GET /stops?q=         stop search by name (matches Georgian or English) or code, from the in-memory index
  *   GET /stops/near       closest stops to a point, from the in-memory index
  *   GET /stops/:id/arrivals  live countdown, one TTC call
- *   GET /places?q=        address/landmark search (OSM via TTC), one TTC call
+ *   GET /places?q=        address/landmark search (TTC's OSM geocoder plus Photon for streets and house numbers)
+ *   GET /places/reverse   the address at a point (Photon), for the map pin
  * Same data as the chat tools (ttc/lookups.ts). Names come back in English
  * unless ?locale=ka (TTC's data is bilingual; the app is English-only).
  */
-export const registerStopRoutes = (app: FastifyInstance, deps: { ttc: TtcClient; stops: StopIndex }): void => {
-  const { ttc, stops } = deps;
+export const registerStopRoutes = (app: FastifyInstance, deps: { ttc: TtcClient; stops: StopIndex; geo?: StreetGeo }): void => {
+  const { ttc, stops, geo = photonGeo } = deps;
   const fail = (req: FastifyRequest, reply: FastifyReply, err: unknown) => {
     req.log.warn({ err }, 'TTC lookup failed');
     return reply.code(upstreamFailed(err)).send({ error: 'upstream', message: 'TTC unavailable' });
@@ -86,12 +88,21 @@ export const registerStopRoutes = (app: FastifyInstance, deps: { ttc: TtcClient;
     },
   );
 
+  app.get<{ Querystring: { lat: number; lon: number } }>(
+    '/places/reverse',
+    { schema: { querystring: { type: 'object', required: ['lat', 'lon'], properties: { lat: { type: 'number' }, lon: { type: 'number' } } } } },
+    async (req, reply) => {
+      if (!insideTbilisi(req.query.lat, req.query.lon)) return reply.code(400).send({ error: 'bad_request', message: 'Point is outside Tbilisi' });
+      return { place: await geo.reverse(req.query.lat, req.query.lon) };
+    },
+  );
+
   app.get<{ Querystring: { q: string; limit?: number; locale?: Locale } }>(
     '/places',
     { schema: { querystring: { type: 'object', required: ['q'], properties: { q: { type: 'string', minLength: 2, maxLength: 100 }, limit, locale } } } },
     async (req, reply): Promise<PlacesResponse | undefined> => {
       try {
-        return { places: await findPlaces(ttc, req.query.q, req.query.locale ?? 'en', req.query.limit ?? 5) };
+        return { places: await findPlaces(ttc, req.query.q, req.query.locale ?? 'en', req.query.limit ?? 5, geo) };
       } catch (err) {
         return fail(req, reply, err);
       }

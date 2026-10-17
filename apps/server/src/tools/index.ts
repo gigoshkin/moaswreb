@@ -5,6 +5,7 @@ import { insideTbilisi } from '../geo.ts';
 import type { PlanService } from '../plan/service.ts';
 import type { TtcClient } from '../ttc/client.ts';
 import { arrivalsAt, findPlaces } from '../ttc/lookups.ts';
+import type { StreetGeo } from '../ttc/photon.ts';
 import type { StopIndex } from '../ttc/stops.ts';
 
 /**
@@ -32,6 +33,8 @@ export interface ToolDeps {
   stops: StopIndex;
   plans: PlanService;
   locale?: Locale;
+  /** Street search; defaults to Photon. Tests pass a stub. */
+  geo?: StreetGeo;
 }
 
 const tool = <S extends z.ZodObject>(def: ToolDef<S>): ToolDef => def as unknown as ToolDef;
@@ -42,7 +45,7 @@ const latLon = z
 const place = z.object({ label: z.string(), lat: z.number(), lon: z.number() });
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:mm');
 
-export const createTools = ({ ttc, stops, plans, locale = 'en' }: ToolDeps): ToolDef[] => [
+export const createTools = ({ ttc, stops, plans, locale = 'en', geo }: ToolDeps): ToolDef[] => [
   tool({
     name: 'find_stop',
     description:
@@ -66,7 +69,7 @@ export const createTools = ({ ttc, stops, plans, locale = 'en' }: ToolDeps): Too
     schema: z.object({ query: z.string().min(1) }),
     mcp: true,
     run: async ({ query }) => {
-      const rows = (await findPlaces(ttc, query, locale)).map((p) => `${p.name}${p.address ? `, ${p.address}` : ''} | ${p.lat},${p.lon}`);
+      const rows = (await findPlaces(ttc, query, locale, 5, geo)).map((p) => `${p.name}${p.address ? `, ${p.address}` : ''} | ${p.lat},${p.lon}`);
       return { text: rows.length ? rows.join('\n') : `No place matches "${query}".` };
     },
   }),

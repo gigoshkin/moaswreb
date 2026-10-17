@@ -6,9 +6,14 @@ import { TtcError, type TtcClient } from '../src/ttc/client.ts';
 import { StopIndex } from '../src/ttc/stops.ts';
 import { fakeTtc } from './fakes.ts';
 
+const offlineGeo = {
+  search: async () => [],
+  reverse: async () => ({ name: 'Rustaveli Avenue 12', address: 'Chugureti District', lat: 41.7, lon: 44.8, kind: 'house' }),
+};
+
 const setup = (ttc = fakeTtc()) => {
   const app = Fastify();
-  registerStopRoutes(app, { ttc, stops: new StopIndex(ttc) });
+  registerStopRoutes(app, { ttc, stops: new StopIndex(ttc), geo: offlineGeo });
   return { app, ttc };
 };
 
@@ -60,4 +65,28 @@ test('TTC failure → 503', async () => {
   const res = await app.inject('/places?q=delisi');
   assert.equal(res.statusCode, 503);
   assert.equal(res.json().error, 'upstream');
+});
+
+test('GET /places merges street hits from the second source, dropping duplicates', async () => {
+  const ttc = fakeTtc();
+  const app = Fastify();
+  registerStopRoutes(app, {
+    ttc,
+    stops: new StopIndex(ttc),
+    geo: {
+      search: async () => [
+        { name: 'Delisi', address: null, lat: 41.7286, lon: 44.7712, kind: null },
+        { name: 'Archil Mepe 7', address: null, lat: 41.72, lon: 44.79, kind: 'house' },
+      ],
+      reverse: async () => null,
+    },
+  });
+  const names = ((await app.inject('/places?q=delisi')).json().places as { name: string }[]).map((p) => p.name);
+  assert.deepEqual(names, ['Delisi', 'Archil Mepe 7']);
+});
+
+test('GET /places/reverse answers with the nearest address and rejects points outside Tbilisi', async () => {
+  const { app } = setup();
+  assert.equal((await app.inject('/places/reverse?lat=41.7&lon=44.8')).json().place.name, 'Rustaveli Avenue 12');
+  assert.equal((await app.inject('/places/reverse?lat=51.5&lon=-0.12')).statusCode, 400);
 });

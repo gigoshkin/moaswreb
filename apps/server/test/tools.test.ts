@@ -8,7 +8,7 @@ import { fakeTtc } from './fakes.ts';
 const setup = () => {
   const ttc = fakeTtc();
   const stops = new StopIndex(ttc);
-  const tools = createTools({ ttc, stops, plans: new PlanService(ttc, stops) });
+  const tools = createTools({ ttc, stops, plans: new PlanService(ttc, stops), geo: { search: async () => [], reverse: async () => null } });
   const run = (name: string, input: unknown) => {
     const t = tools.find((t) => t.name === name)!;
     return t.run(t.schema.parse(input) as never);
