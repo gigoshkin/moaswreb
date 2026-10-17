@@ -1,0 +1,6 @@
+{
+  "name": "tbilisi-transit",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "engines": { "node": ">=24" }
+}
