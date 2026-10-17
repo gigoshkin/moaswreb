@@ -8,6 +8,13 @@ import { runChat } from './agent.ts';
 
 const MAX_BODY = 20 * 1024 * 1024; // photos and PDFs arrive base64-encoded
 
+const place = {
+  type: 'object',
+  required: ['label', 'lat', 'lon'],
+  additionalProperties: false,
+  properties: { label: { type: 'string', maxLength: 200 }, lat: { type: 'number' }, lon: { type: 'number' } },
+} as const;
+
 const bodySchema = {
   type: 'object',
   required: ['messages'],
@@ -38,7 +45,22 @@ const bodySchema = {
         },
       },
     },
-    trips: { type: 'array', maxItems: 50 },
+    // Goes into the prompt, so only the TripContext fields, bounded.
+    trips: {
+      type: 'array',
+      maxItems: 50,
+      items: {
+        type: 'object',
+        required: ['name', 'from', 'to', 'arriveBy'],
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string', maxLength: 100 },
+          from: place,
+          to: place,
+          arriveBy: { type: 'string', pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' },
+        },
+      },
+    },
     locale: { type: 'string', enum: ['ka', 'en'] },
   },
 } as const;

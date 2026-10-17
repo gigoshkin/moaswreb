@@ -31,7 +31,7 @@ test('derives walk totals and transfers when TTC omits them', () => {
   assert.equal(metro.transfers, 0);
   assert.equal(bus.walkM, 610);
   assert.equal(bus.transfers, 1);
-  assert.equal(bus.id, '04:15-306-347');
+  assert.equal(bus.id, '08:15-306-347');
 });
 
 test('legs keep stops, polyline and realtime flag', () => {

@@ -1,8 +1,11 @@
-import type { Itinerary, PlanLeg, PlanPlace, PlanRoute } from '@transit/shared';
+import { TBILISI_UTC_OFFSET_MIN, type Itinerary, type PlanLeg, type PlanPlace, type PlanRoute } from '@transit/shared';
 import type { RawItinerary, RawPlan, RawPlanLeg, RawPlanPlace } from '../ttc/types.ts';
 
 /** Epoch ms or ISO string → ISO string (UTC). */
 const iso = (t: number | string): string => new Date(t).toISOString();
+
+/** `HH:mm` in Tbilisi for a UTC ISO string. */
+const tbilisiHm = (isoUtc: string): string => new Date(Date.parse(isoUtc) + TBILISI_UTC_OFFSET_MIN * 60_000).toISOString().slice(11, 16);
 
 const hexColor = (c: string | undefined | null): string | null => {
   if (!c) return null;
@@ -56,7 +59,8 @@ const normalizeItinerary = (it: RawItinerary): Itinerary => {
   const walking = legs.filter((l) => l.mode === 'WALK');
   const departAt = iso(it.startTime);
   return {
-    id: [departAt.slice(11, 16), ...transit.map((l) => l.route?.shortName ?? l.mode)].join('-'),
+    // Readable and stable: Tbilisi departure time + routes, e.g. "08:15-306-347".
+    id: [tbilisiHm(departAt), ...transit.map((l) => l.route?.shortName ?? l.mode)].join('-'),
     departAt,
     arriveAt: iso(it.endTime),
     durationSec: Math.round(it.duration),

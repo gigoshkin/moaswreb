@@ -21,6 +21,7 @@ const tbilisiDay = (now: number) => {
 };
 
 const hm = (ms: number) => new Date(ms + TBILISI_MS).toISOString().slice(11, 16);
+const DAY_MS = 24 * 3600_000;
 
 /** The latest departure that still arrives on time. */
 const bestItinerary = (its: Itinerary[], arriveByMs: number): Itinerary | null =>
@@ -70,28 +71,38 @@ export class AlertWatcher {
     if (this.timer) clearInterval(this.timer);
   }
 
-  /** One pass over all devices. Public for tests. */
+  /**
+   * One pass over all devices. Public for tests. A message's state is only
+   * recorded once Expo accepts it, so a failed send is retried next tick.
+   */
   async tick(now = Date.now()): Promise<PushMessage[]> {
-    const { date, weekday } = tbilisiDay(now);
-    const out: PushMessage[] = [];
+    // Today and tomorrow: a 00:30 arrive-by is watched from 22:30 the day before.
+    const days = [tbilisiDay(now), tbilisiDay(now + DAY_MS)];
+    const out: Array<{ msg: PushMessage; key: string; next: TripState }> = [];
     for (const dev of this.store.all()) {
       if (!dev.pushToken) continue;
       for (const trip of dev.trips) {
-        if (!trip.days.includes(weekday)) continue;
-        const arriveByMs = Date.parse(`${date}T${trip.arriveBy}:00Z`) - TBILISI_MS;
-        if (now > arriveByMs || now < arriveByMs - WATCH_BEFORE_MIN * 60_000) continue;
-        try {
-          const msg = await this.check(dev.device, dev.pushToken, trip, date, arriveByMs, now);
-          if (msg) out.push(msg);
-        } catch (err) {
-          this.lastError = `${new Date(now).toISOString()} ${(err as Error).message}`;
+        for (const { date, weekday } of days) {
+          if (!trip.days.includes(weekday)) continue;
+          const arriveByMs = Date.parse(`${date}T${trip.arriveBy}:00Z`) - TBILISI_MS;
+          if (now > arriveByMs || now < arriveByMs - WATCH_BEFORE_MIN * 60_000) continue;
+          try {
+            const res = await this.check(dev.device, dev.pushToken, trip, date, arriveByMs, now);
+            if (res) out.push(res);
+          } catch (err) {
+            this.lastError = `${new Date(now).toISOString()} ${(err as Error).message}`;
+          }
         }
       }
     }
-    this.forgetOld(date);
-    await this.send(out);
-    this.sent += out.length;
-    return out;
+    this.forgetOld(days.map((d) => d.date));
+    if (!out.length) return [];
+    const delivered = await this.send(out.map((o) => o.msg));
+    const sent = out.filter((o, i) => delivered[i]);
+    for (const o of sent) this.state.set(o.key, o.next);
+    this.sent += sent.length;
+    if (sent.length < out.length) this.lastError = `${new Date(now).toISOString()} ${out.length - sent.length} push(es) not accepted`;
+    return sent.map((o) => o.msg);
   }
 
   private async check(
@@ -101,7 +112,7 @@ export class AlertWatcher {
     date: string,
     arriveByMs: number,
     now: number,
-  ): Promise<PushMessage | null> {
+  ): Promise<{ msg: PushMessage; key: string; next: TripState } | null> {
     const [from, dest] = await Promise.all([this.stops.get(trip.fromStopId), this.stops.get(trip.toStopId)]);
     if (!from || !dest) return null;
     const plan = await this.plans.plan({
@@ -136,12 +147,15 @@ export class AlertWatcher {
         data: data('leave_soon'),
       };
     }
-    const sentSoon = (prev?.sentSoon ?? false) || msg?.data.kind === 'leave_soon';
-    this.state.set(key, { leaveAt, sentSoon });
-    return msg;
+    if (!msg) {
+      // Nothing to send: just track the latest plan.
+      this.state.set(key, { leaveAt, sentSoon: prev?.sentSoon ?? false });
+      return null;
+    }
+    return { msg, key, next: { leaveAt, sentSoon: (prev?.sentSoon ?? false) || msg.data.kind === 'leave_soon' } };
   }
 
-  private forgetOld(today: string): void {
-    for (const key of this.state.keys()) if (!key.endsWith(`|${today}`)) this.state.delete(key);
+  private forgetOld(keep: string[]): void {
+    for (const key of this.state.keys()) if (!keep.some((d) => key.endsWith(`|${d}`))) this.state.delete(key);
   }
 }

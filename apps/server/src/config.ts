@@ -8,6 +8,15 @@ const int = (value: string | undefined, fallback: number): number => {
 
 export const config = {
   port: int(process.env.PORT, 8080),
+  /**
+   * Which proxies may set X-Forwarded-For (Fastify trustProxy). Unset = none.
+   * Behind Caddy in docker compose: "loopback,uniquelocal".
+   */
+  trustProxy: process.env.TRUST_PROXY || false,
+  limits: {
+    perMin: int(process.env.RATE_LIMIT_PER_MIN, 60),
+    chatPerMin: int(process.env.CHAT_RATE_LIMIT_PER_MIN, 10),
+  },
   /** Bearer key for /chat and /mcp. Unset = open (local dev only). */
   apiKey: process.env.API_KEY ?? '',
   /** 32-byte base64 key that encrypts stored trips. Without it, /me and alerts are off. */
@@ -22,6 +31,8 @@ export const config = {
     siteUrl: 'https://transit.ttc.com.ge/',
     apiBase: 'https://transit.ttc.com.ge/pis-gateway/api',
     minIntervalMs: int(process.env.TTC_MIN_INTERVAL_MS, 700),
+    /** Requests allowed to wait for TTC at once (~0.7 s each); past this, callers get 503 at once. */
+    maxQueue: int(process.env.TTC_MAX_QUEUE, 40),
     userAgent: 'tbilisi-transit-hackathon/0.1 (Hacktoberfest Georgia 2026)',
   },
   logger: {

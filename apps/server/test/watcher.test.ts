@@ -19,16 +19,24 @@ const DEVICE = 'dev-0123456789abcdefghijkl';
 const setup = () => {
   const ttc = fakeTtc();
   let itineraries = normalizePlan(rawPlan);
-  const plans = { plan: async (query: never) => ({ query, itineraries, source: 'ttc', fetchedAt: '' }) as unknown as PlanResponse };
+  const queries: string[] = [];
+  const plans = {
+    plan: async (query: { arriveBy: string }) => (queries.push(query.arriveBy), { query, itineraries, source: 'ttc', fetchedAt: '' }) as unknown as PlanResponse,
+  };
   const store = new TripStore('', new Sealer(randomBytes(32).toString('base64')), ':memory:');
   store.putTrips(DEVICE, [{ id: 't1', fromStopId: '1:1000', toStopId: '1:1405', arriveBy: '09:00', days: [1], walkMin: 5 }]);
   store.putPushToken(DEVICE, 'ExponentPushToken[x]');
   const sent: PushMessage[] = [];
-  const watcher = new AlertWatcher(store, new StopIndex(ttc), plans as unknown as PlanService, async (m) => void sent.push(...m));
+  let expoUp = true;
+  const watcher = new AlertWatcher(store, new StopIndex(ttc), plans as unknown as PlanService, async (m) => {
+    if (expoUp) sent.push(...m);
+    return m.map(() => expoUp);
+  });
+  const setExpo = (up: boolean) => (expoUp = up);
   const shift = (min: number) => {
     itineraries = itineraries.map((it) => ({ ...it, departAt: new Date(Date.parse(it.departAt) + min * 60_000).toISOString() }));
   };
-  return { watcher, sent, store, shift };
+  return { watcher, sent, store, shift, setExpo, queries };
 };
 
 test('silent until 10 min before leaving (08:15 bus − 5 min walk = leave 08:10), then one push', async () => {
@@ -59,4 +67,23 @@ test('skips other weekdays and devices without a push token', async () => {
   assert.equal((await watcher.tick(Date.parse('2026-10-20T08:01:00+04:00'))).length, 0, 'Tuesday');
   store.putTrips('dev-zzzzzzzzzzzzzzzzzzzzzzzzz', [{ id: 't2', fromStopId: '1:1000', toStopId: '1:1405', arriveBy: '09:00', days: [1], walkMin: 0 }]);
   assert.equal((await watcher.tick(at('08:01'))).length, 1, 'only the device with a token');
+});
+
+test('a push Expo did not accept is retried on the next tick', async () => {
+  const { watcher, sent, setExpo } = setup();
+  setExpo(false);
+  assert.equal((await watcher.tick(at('08:01'))).length, 0);
+  assert.match(watcher.lastError ?? '', /not accepted/);
+  setExpo(true);
+  const [msg] = await watcher.tick(at('08:02'));
+  assert.equal(msg.data.kind, 'leave_soon');
+  assert.equal((await watcher.tick(at('08:03'))).length, 0, 'then no repeat');
+  assert.equal(sent.length, 1);
+});
+
+test('a trip arriving just after midnight is watched from the evening before', async () => {
+  const { watcher, store, queries } = setup();
+  store.putTrips(DEVICE, [{ id: 't3', fromStopId: '1:1000', toStopId: '1:1405', arriveBy: '00:30', days: [1], walkMin: 0 }]);
+  await watcher.tick(Date.parse('2026-10-18T23:00:00+04:00')); // Sunday 23:00, trip is Monday 00:30
+  assert.deepEqual(queries, ['2026-10-19T00:30']);
 });

@@ -6,6 +6,8 @@ services:
     env_file: .env
     environment:
       DATA_DIR: /data
+      # Caddy reaches the server over the docker network; trust its X-Forwarded-For so rate limits see real clients.
+      TRUST_PROXY: loopback,uniquelocal
     volumes:
       - data:/data
     ports:

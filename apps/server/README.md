@@ -22,7 +22,7 @@ npm run dev -w @transit/server
 3. Moving logs from the laptop: `docker run --rm -v hacktoberfest_data:/data -v $PWD:/out alpine tar czf /out/data.tgz -C /data .`, then copy `data.tgz` to the VPS and extract it into its volume.
 
 ## What the logger polls
-- **Hot set**, every `HOT_INTERVAL_MS` (30 s): arrival boards for `HOT_STOPS` and positions for the routes serving them plus `HOT_ROUTES`. The default hot set is the stops at Free University (1:1405, 1:1408, 1:1406), with routes 347 and 558.
+- **Hot set**, every `HOT_INTERVAL_MS` (30 s): arrival boards for `HOT_STOPS` and positions for the routes serving them plus `HOT_ROUTES`. `.env.example` sets the stops at Free University (1:1405, 1:1408, 1:1406); without a `.env` the hot set is empty.
 - **Sweep**: positions for every route, one request every `SWEEP_INTERVAL_MS` (1.5 s). A full city pass takes about 7 minutes.
 - All TTC calls share one queue with at least `TTC_MIN_INTERVAL_MS` (0.7 s) between them. The API key is read from TTC's public page at runtime and is never stored.
 

@@ -23,6 +23,13 @@ export class TtcError extends Error {
   }
 }
 
+/** The request queue is full; thrown without calling TTC. */
+export class TtcBusyError extends Error {
+  constructor() {
+    super('TTC request queue is full');
+  }
+}
+
 /** HTTP status for our caller when TTC fails: 502 if TTC rejected the request, 503 if it's down or throttling us. */
 export const upstreamFailed = (err: unknown): 502 | 503 =>
   err instanceof TtcError && err.status < 500 && err.status !== 429 ? 502 : 503;
@@ -38,6 +45,7 @@ export class TtcClient {
   private queue: Promise<unknown> = Promise.resolve();
   private lastRequestAt = 0;
   private consecutiveFailures = 0;
+  private pending = 0;
 
   /** While set, every request waits; set by backoff after throttling or server errors. */
   pausedUntil = 0;
@@ -127,8 +135,11 @@ export class TtcClient {
 
   // --- transport ---
   private get<T>(path: string, params: Params = {}): Promise<T> {
+    // A full queue would delay every caller (alerts too) by minutes; fail fast instead.
+    if (this.pending >= config.ttc.maxQueue) return Promise.reject(new TtcBusyError());
+    this.pending++;
     const run = () => this.request<T>(path, params, true);
-    const next = this.queue.then(run, run);
+    const next = this.queue.then(run, run).finally(() => this.pending--);
     this.queue = next.catch(() => undefined);
     return next;
   }

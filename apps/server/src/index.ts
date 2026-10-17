@@ -11,6 +11,7 @@ import { PlanService } from './plan/service.ts';
 import { Sealer } from './store/crypto.ts';
 import { registerMeRoutes } from './store/route.ts';
 import { TripStore } from './store/trips.ts';
+import { registerRateLimit } from './ratelimit.ts';
 import { registerStopRoutes } from './stops/route.ts';
 import { createTools } from './tools/index.ts';
 import { StopIndex } from './ttc/stops.ts';
@@ -24,7 +25,8 @@ const plans = new PlanService(ttc, stops);
 const store = config.tripsKey ? new TripStore(config.dataDir, new Sealer(config.tripsKey)) : null;
 const watcher = store ? new AlertWatcher(store, stops, plans, expoPush()) : null;
 
-const app = Fastify({ logger: { level: 'info' }, disableRequestLogging: true });
+const app = Fastify({ logger: { level: 'info' }, disableRequestLogging: true, trustProxy: config.trustProxy });
+registerRateLimit(app, config.limits);
 
 app.get('/health', async () => ({ ok: true, ttcKeyLoaded: ttc.hasKey }));
 app.get('/logger/stats', async () => poller.stats());
