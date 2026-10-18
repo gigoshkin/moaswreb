@@ -38,11 +38,14 @@ It is a small, practical tool that makes several mediocre-fitting apps work as o
 
 ## Download
 
-> **APK: coming soon.** A built Android APK will be linked here once the first EAS build is published (see [Build the APK](#build-the-apk)).
->
-> [![APK: coming soon](https://img.shields.io/badge/APK-coming%20soon-lightgrey?logo=android&logoColor=white)](#download)
+**[Download the Android APK (v0.1.0)](https://github.com/gigoshkin/hacktoberfest/releases/latest)**
 
-Until then, run it from source with Expo Go in a few minutes: [Run it](#run-it).
+[![Latest release](https://img.shields.io/github/v/release/gigoshkin/hacktoberfest?logo=android&logoColor=white&label=APK)](https://github.com/gigoshkin/hacktoberfest/releases/latest)
+
+1. Open the APK on your phone. If Android asks, allow installs from your browser or file manager.
+2. If Play Protect warns about an unrecognised developer, tap More details, then Install anyway. The app is not on the Play Store yet.
+
+Or run it from source with Expo Go in a few minutes: [Run it](#run-it).
 
 ## Features
 
@@ -180,7 +183,7 @@ npx eas-cli@latest init                  # first time only: creates the EAS proj
 npx eas-cli@latest build --profile preview --platform android
 ```
 
-EAS prints a download URL and QR code when the build finishes. Set `EXPO_PUBLIC_API_URL` for the build (for example as an EAS environment variable) so the APK talks to the real server. There is no local `expo run:android` without an Android SDK; EAS builds in the cloud. A build takes roughly 15-30 minutes plus the queue (unverified: no APK has been produced yet).
+EAS prints a download URL and QR code when the build finishes. Set `EXPO_PUBLIC_API_URL` for the build (for example as an EAS environment variable) so the APK talks to the real server. There is no local `expo run:android` without an Android SDK; EAS builds in the cloud. A build takes roughly 15-30 minutes plus the queue.
 
 ## Use it from an AI client (MCP)
 
