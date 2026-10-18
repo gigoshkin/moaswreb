@@ -18,6 +18,7 @@ import { LeaveByBar } from '../../ui/LeaveByBar';
 import { LineChain } from '../../ui/LineChain';
 import { Tap, haptic } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
+import { NearbyStops } from '../../ui/NearbyStops';
 import { Wordmark } from '../../ui/Wordmark';
 import { Countdown } from '../../ui/Countdown';
 import { RouteSummary } from '../../ui/kit';
@@ -68,6 +69,9 @@ export default function Today() {
           ))}
         </Animated.View>
       )}
+
+      {/* Few trips: keep the screen useful with live buses around you. */}
+      {ahead.length <= 1 && <NearbyStops />}
 
       {trips.length > 0 && (
         <View style={styles.cta}>
