@@ -20,14 +20,24 @@ export const pickOptions = (): PickOptions => pickOpts;
 export function pickPlace(kind: PickKind, opts: PickOptions = {}): Promise<Place | null> {
   pending?.(null);
   pickOpts = opts;
+  ++pickId;
   return new Promise((resolve) => {
     pending = resolve;
     router.push({ pathname: '/pick-place', params: { kind } });
   });
 }
 
-/** Called by the picker: with a place when chosen, with null when it closes. */
-export function finishPick(place: Place | null) {
+/** Which request the open picker belongs to; the screen reads it when it mounts. */
+let pickId = 0;
+export const currentPickId = () => pickId;
+
+/**
+ * Called by the picker: with a place when chosen, with null when it closes.
+ * A picker that is still sliding away must not answer for the next one (From then To in a row):
+ * `id` is the request the closing screen was opened for, and anything else is ignored.
+ */
+export function finishPick(place: Place | null, id: number = pickId) {
+  if (id !== pickId) return;
   pending?.(place);
   pending = null;
 }

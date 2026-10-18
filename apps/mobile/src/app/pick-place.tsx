@@ -5,7 +5,7 @@ import { BackHandler, FlatList, Keyboard, Platform, ScrollView, StyleSheet, Text
 import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hasApi, nearStops, reversePlace, searchPlaces, searchStops } from '../lib/api';
-import { finishPick, pickOptions, type PickKind } from '../lib/handoff';
+import { currentPickId, finishPick, pickOptions, type PickKind } from '../lib/handoff';
 import { locateMe } from '../lib/locate';
 import { settings } from '../lib/settings';
 import type { Place } from '../lib/trips';
@@ -41,8 +41,9 @@ export default function PickPlace() {
   // "Current location" opens the map on the user's position, so it can be adjusted before confirming.
   const [here, setHere] = useState<{ lat: number; lon: number } | null>(null);
 
-  // Closing without a choice resolves the caller with null.
-  useEffect(() => () => finishPick(null), []);
+  // Closing without a choice resolves the caller with null. Only this screen's own request: the next picker may already be open.
+  const [pickId] = useState(currentPickId);
+  useEffect(() => () => finishPick(null, pickId), [pickId]);
 
   useEffect(() => {
     if (mode !== 'map' || Platform.OS !== 'android') return; // BackHandler is Android-only; iOS swipe-back is disabled in _layout
@@ -53,7 +54,7 @@ export default function PickPlace() {
 
   const done = (place: Place) => {
     Keyboard.dismiss();
-    finishPick(place);
+    finishPick(place, pickId);
     router.back();
   };
 
