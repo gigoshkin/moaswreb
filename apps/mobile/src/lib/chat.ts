@@ -51,11 +51,19 @@ export function say(text: string) {
 /** Questions that are about where the user is. */
 const WANTS_LOCATION = /\b(near(by)?|nearest|closest|around me|here|my location|current location|where i am|from me)\b/i;
 
-export async function send(text: string, attachment?: Attachment): Promise<void> {
+/** Repeats the last question without a new bubble, now that the phone's position can go with it (the location button). A photo is not re-sent. */
+export function askAgain(): Promise<void> {
+  const items = chatStore.get();
+  const at = items.findLastIndex((m) => m.role === 'user');
+  return at < 0 ? Promise.resolve() : send(items[at].text, undefined, at);
+}
+
+export async function send(text: string, attachment?: Attachment, again?: number): Promise<void> {
   if (chatBusy.get()) return;
   const user: ChatItem = { id: id(), role: 'user', text, image: attachment?.kind === 'image' ? attachment.uri : undefined, file: attachment?.kind === 'pdf' ? (attachment.name ?? 'PDF') : undefined };
-  const before = chatStore.get();
-  chatStore.set([...before, user]);
+  // Asking again: the question is already in the chat, and the history is what came before it.
+  const before = again === undefined ? chatStore.get() : chatStore.get().slice(0, again);
+  if (again === undefined) chatStore.set([...before, user]);
   if (!hasApi) {
     say('Chat needs the server. Set EXPO_PUBLIC_API_URL.');
     return;
@@ -74,7 +82,7 @@ export async function send(text: string, attachment?: Attachment): Promise<void>
     const { home, bufferMin } = settings.get();
     // "Near me" and "from here" need the phone's position. The first time, the question itself asks for permission; afterwards it is sent without asking.
     const asked = WANTS_LOCATION.test(text);
-    const here = asked ? await locateMe() : await quietHere();
+    const here = asked && again === undefined ? await locateMe() : await quietHere();
     const res = await sendChat({
       messages: [...history, last],
       // Inside the server's limits (name ≤ 100, label ≤ 200, 50 trips): a long event title saved from a PDF must not break every later chat.

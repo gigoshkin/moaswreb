@@ -116,7 +116,9 @@ export type ActionCard =
   | { type: 'stops'; stops: StopHit[] }
   | { type: 'confirm_trip'; trip: ProposedTrip }
   | { type: 'confirm_events'; events: ProposedEvent[] }
-  | { type: 'confirm_route'; route: ProposedRoute };
+  | { type: 'confirm_route'; route: ProposedRoute }
+  /** A button that asks the phone for its position and then repeats the question with it. */
+  | { type: 'request_location' };
 
 export interface ChatResponse {
   /** One short sentence; the cards carry the content. */

@@ -249,6 +249,18 @@ export const createTools = ({ ttc, stops, plans, locale = 'en', geo, source, fet
   }),
 
   tool({
+    name: 'request_location',
+    description:
+      'Ask the user to share their phone location. Call it when the answer needs where the user is ("near me", "from here", "my nearest stop") and the context has no current location. The user sees a "Share my location" button; after they tap it the app sends the same question again with the position, so reply with one short sentence like "Share your location and I will check." Never call it when a current location is in the context.',
+    schema: z.object({}),
+    mcp: false,
+    run: async () => ({
+      text: 'Shown to the user as a button. The question is asked again with their location once they tap it.',
+      card: { type: 'request_location' },
+    }),
+  }),
+
+  tool({
     name: 'propose_trip',
     description:
       'Propose a repeating trip for the user to save (e.g. home → work, arrive by 09:00). Nothing is saved until the user confirms the card in the app. Resolve both places to coordinates first.',
