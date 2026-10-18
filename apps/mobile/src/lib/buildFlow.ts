@@ -1,6 +1,7 @@
 import type { JourneyStep, LineRef, StopHit, StopLine } from '@transit/shared';
 import { UNDO_DEPTH, distM, place, removeAt, stepOf, toggleLine, walkMinutes, type BuiltRide } from './chain';
 import type { BuiltSteps } from './handoff';
+import { metroChange } from './metro';
 import type { Place } from './trips';
 
 // The by-hand route builder as plain data: what the floating pin does next,
@@ -73,29 +74,86 @@ export function pinDropped(f: Flow, at: Place, stop: StopHit | null): Flow {
 
 const kindOfLine = (l: StopLine): LineRef['kind'] => (l.mode === 'SUBWAY' ? 'metro' : l.minibus ? 'minibus' : 'bus');
 
-/** The ride from `board` to `off` on the lines that stop there, in the order they go; null when no line does. */
-export function rideBetween(board: StopHit, off: StopHit, lines: StopLine[]): BuiltRide | null {
-  const used = lines.filter((l) => l.next.some((x) => x.id === off.id));
+type Point = { lat: number; lon: number };
+type Stopish = Point & { id: string };
+
+/** A bus coming back this close to its boarding stop, after being twice as far away, is on its way back (the other side of the road). */
+export const LOOP_BACK_M = 250;
+
+/**
+ * The stops a bus or minibus pattern really goes on to from `board`: the stops after it,
+ * up to where the pattern turns back on itself. A round-trip or loop pattern comes back
+ * to the boarding stop, or past it on the other side of the road; everything from there
+ * on is behind the rider, not ahead.
+ */
+export function onwardStops<T extends Stopish>(board: Stopish, next: T[]): T[] {
+  let far = 0;
+  for (let i = 0; i < next.length; i++) {
+    const s = next[i];
+    if (s.id === board.id) return next.slice(0, i);
+    const d = distM(board, s);
+    if (far >= 2 * LOOP_BACK_M && d <= LOOP_BACK_M) return next.slice(0, i);
+    far = Math.max(far, d);
+  }
+  return next;
+}
+
+/** The stops a pattern goes on to from `board`, given the whole pattern in order; empty when it doesn't stop there. */
+export function onwardOnPattern<T extends Stopish>(board: Stopish, pattern: T[]): T[] {
+  const at = pattern.findIndex((s) => s.id === board.id);
+  return at < 0 ? [] : onwardStops(board, pattern.slice(at + 1));
+}
+
+/** The lines at a stop with only the stops ahead of it; metro lines are left whole (both directions are there as their own patterns). */
+export function onwardLines(board: StopHit, lines: StopLine[]): StopLine[] {
+  return lines.map((l) => (l.mode === 'SUBWAY' ? l : { ...l, next: onwardStops(board, l.next) })).filter((l) => l.next.length > 0);
+}
+
+/** A road shape cut where it passes closest to `to`, ending exactly there. */
+export function shapeTo(points: Point[], to: Point): Point[] {
+  if (points.length < 2) return [...points, to];
+  let best = 0;
+  for (let i = 1; i < points.length; i++) if (distM(points[i], to) < distM(points[best], to)) best = i;
+  return [...points.slice(0, best + 1), to];
+}
+
+/**
+ * The ride from `board` to `off` on the lines that stop there, in the order they go; null when no line does.
+ * `roads` (a line's road shape from `board`, by line) draws the ride along the road when it is known.
+ */
+export function rideBetween(board: StopHit, off: StopHit, lines: StopLine[], roads?: ReadonlyMap<string, Point[]>): BuiltRide | null {
+  const used = onwardLines(board, lines).filter((l) => l.next.some((x) => x.id === off.id));
   if (!used.length || off.id === board.id) return null;
   const refs = new Map<string, LineRef>();
   for (const l of used) if (!refs.has(l.shortName)) refs.set(l.shortName, { label: l.shortName, kind: kindOfLine(l) });
-  const path = [board, ...used[0].next.slice(0, used[0].next.findIndex((x) => x.id === off.id) + 1)];
+  const road = used[0].mode === 'SUBWAY' ? undefined : roads?.get(used[0].shortName);
+  const path = road ? shapeTo(road, off) : [board, ...used[0].next.slice(0, used[0].next.findIndex((x) => x.id === off.id) + 1)];
   return { board, off, lines: [...refs.values()], skipped: [], path };
 }
 
 /** Stops any line from the boarding stop reaches: the only places to get off. */
 export function reachableFrom(board: StopHit, lines: StopLine[]): StopHit[] {
   const m = new Map<string, StopHit>();
-  for (const l of lines) for (const s of l.next) if (s.id !== board.id && !m.has(s.id)) m.set(s.id, { id: s.id, name: s.name, lat: s.lat, lon: s.lon, mode: l.mode });
+  for (const l of onwardLines(board, lines)) for (const s of l.next) if (s.id !== board.id && !m.has(s.id)) m.set(s.id, { id: s.id, name: s.name, lat: s.lat, lon: s.lon, mode: l.mode });
   return [...m.values()];
 }
 
 /** The ride ends at `off`. The pin floats again, with no boarding stop and no lines drawn; nothing is picked for you. */
-export function rideEnded(f: Flow, off: StopHit, lines: StopLine[]): Flow {
+export function rideEnded(f: Flow, off: StopHit, lines: StopLine[], roads?: ReadonlyMap<string, Point[]>): Flow {
   if (!f.board) return f;
-  const ride = rideBetween(f.board, off, lines);
-  if (!ride) return f;
-  const rides = f.slot ? place(f.rides, f.slot.at, ride, f.slot.replace) : [...f.rides, ride];
+  const ride = rideBetween(f.board, off, lines, roads);
+  return ride ? ridesEnded(f, [ride]) : f;
+}
+
+/**
+ * The ride being built ends as one or more rides in a row (a metro trip that changes
+ * lines is a ride per line), put where the ride was being built.
+ */
+export function ridesEnded(f: Flow, add: BuiltRide[]): Flow {
+  if (!f.board || !add.length) return f;
+  let rides = f.rides;
+  if (f.slot) add.forEach((r, k) => (rides = place(rides, f.slot!.at + k, r, k === 0 && f.slot!.replace)));
+  else rides = [...rides, ...add];
   return { ...f, rides, board: null, slot: null, end: f.slot || f.fixedEnd ? f.end : null };
 }
 
@@ -157,7 +215,7 @@ const placeEnd = (p: Place): End => ({ label: p.label, lat: p.lat, lon: p.lon })
 const SAME_SPOT_M = 30;
 
 function walkRow(from: End, to: End | null, extra: Partial<WalkRow> = {}): WalkRow {
-  const onSpot = to?.stop && from.stop && (to.stop.id === from.stop.id || distM(from, to) <= SAME_SPOT_M);
+  const onSpot = to?.stop && from.stop && (to.stop.id === from.stop.id || distM(from, to) <= SAME_SPOT_M || metroChange(from.stop, to.stop));
   const m = to ? (onSpot ? 0 : distM(from, to)) : null;
   return { kind: 'walk', from, to, metres: m, minutes: m === null ? null : m === 0 ? 0 : walkMinutes(m), ...extra };
 }

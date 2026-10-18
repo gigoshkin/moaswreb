@@ -185,3 +185,62 @@ test('undo takes each change back, one at a time', () => {
   assert.equal(F.phaseOf(b.flow), 'first');
   assert.equal(F.undo(b), b);
 });
+
+// SYNTHETIC round-trip minibus in the shape of 457 at Station Square: out along one side of
+// the road, back along the other, past the stop across the road and into the boarding stop again.
+const sq = S('Square', 41.722, 44.7967);
+const out1 = S('Out 1', 41.7205, 44.7969); // ~170 m: the next stop, not "back"
+const out2 = S('Out 2', 41.715, 44.8);
+const far1 = S('Far', 41.71, 44.81);
+const back2 = S('Back 2', 41.7151, 44.8001);
+const across = S('Square across', 41.7206, 44.797); // across the road from Out 1, on the way back
+const roundTrip = [sq, out1, out2, far1, back2, across, sq];
+
+test('a bus pattern offers only the stops after the boarding stop, and not its way back', () => {
+  assert.deepEqual(F.onwardOnPattern(out1, roundTrip).map((s) => s.id), ['Out 2', 'Far', 'Back 2']);
+  assert.deepEqual(F.onwardOnPattern(sq, roundTrip).map((s) => s.id), ['Out 1', 'Out 2', 'Far', 'Back 2']);
+  // Nothing before the boarding stop; a stop not on the pattern gets nothing.
+  assert.deepEqual(F.onwardOnPattern(far1, roundTrip).map((s) => s.id), ['Back 2', 'Square across', 'Square']);
+  assert.deepEqual(F.onwardOnPattern(S('Elsewhere', 41.8, 44.8), roundTrip), []);
+  // A plain one-way pattern is left as it is.
+  assert.deepEqual(F.onwardStops(busA, [busMid, sarBus]).map((s) => s.id), ['Bus mid', 'M/S Sarajishvili']);
+});
+
+test('the lines from a stop and the stops to get off at leave out the way back; metro keeps both directions', () => {
+  const lines = [line('457', 'BUS', roundTrip.slice(2)), line('1', 'SUBWAY', [metroEnd])];
+  const onward = F.onwardLines(out1, lines);
+  assert.deepEqual(onward[0].next.map((s) => s.id), ['Out 2', 'Far', 'Back 2']);
+  assert.deepEqual(onward[1].next.map((s) => s.id), ['Metro end']);
+  const reach = F.reachableFrom(out1, lines).map((s) => s.id);
+  assert.ok(!reach.includes('Square across') && !reach.includes('Square'));
+  assert.equal(F.rideBetween(out1, across, lines), null);
+  assert.equal(F.rideBetween(out1, back2, lines)?.lines[0].label, '457');
+});
+
+test('a ride drawn along a known road shape is cut at the get-off stop', () => {
+  const road = [busA, { lat: 41.785, lon: 44.755 }, busMid, { lat: 41.776, lon: 44.768 }, sarBus];
+  const r = F.rideBetween(busA, busMid, atBusA, new Map([['150', road]]));
+  assert.equal(r?.path.length, 4);
+  assert.deepEqual(r?.path.at(-1), busMid);
+  assert.deepEqual(F.shapeTo([], busMid), [busMid]);
+});
+
+test('several rides end the ride being built in a row, in its slot', () => {
+  const a = S('A', 41.7, 44.8, 'SUBWAY');
+  const b = S('B', 41.71, 44.8, 'SUBWAY');
+  const c = S('C', 41.72, 44.8, 'SUBWAY');
+  const ride = (x: StopHit, y: StopHit) => ({ board: x, off: y, lines: [{ label: 'x', kind: 'metro' as const }], skipped: [], path: [x, y] });
+  let f = F.pinDropped(fresh(), at(a), a);
+  f = F.ridesEnded(f, [ride(a, b), ride(b, c)]);
+  assert.deepEqual(f.rides.map((r) => `${r.board.id}-${r.off.id}`), ['A-B', 'B-C']);
+  assert.equal(F.phaseOf(f), 'floating');
+  // Changing between two rides at the same station is a change on the spot.
+  const rows = F.rowsOf(f);
+  assert.deepEqual(rows.map((r) => r.kind), ['ride', 'walk', 'ride']);
+  assert.equal(rows[1].kind === 'walk' && rows[1].metres, 0);
+  // Replace the first ride with two: the second ride stays after them.
+  let g = F.pinDropped(F.replaceAt(f, 0), at(a), a);
+  g = F.ridesEnded(g, [ride(a, c), ride(c, b)]);
+  assert.deepEqual(g.rides.map((r) => `${r.board.id}-${r.off.id}`), ['A-C', 'C-B', 'B-C']);
+  assert.equal(F.ridesEnded(f, []), f);
+});
