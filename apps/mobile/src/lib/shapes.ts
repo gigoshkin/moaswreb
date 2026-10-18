@@ -26,20 +26,54 @@ function lookup(key: string): string | null {
   return saved;
 }
 
-/** Ask the server for a ride's shape unless this session already did (a miss is retried next launch). */
-function ensure(route: string, from: string, to: string) {
+/** At most this many shape lookups at a time (each is a planner call upstream); the rest wait their turn. */
+const PARALLEL = 3;
+const queue: { key: string; run: () => Promise<void> }[] = [];
+let running = 0;
+function pump() {
+  while (running < PARALLEL && queue.length) {
+    const job = queue.shift()!;
+    running++;
+    job.run().finally(() => {
+      running--;
+      pump();
+    });
+  }
+}
+
+/**
+ * Ask the server for a ride's shape unless this session already did (a miss is retried next launch).
+ * `first`: ahead of the queue (a ride on the map now), else after what is already waiting.
+ */
+function ensure(route: string, from: string, to: string, first = true) {
   const key = keyOf(route, from, to);
   if (lookup(key) || asked.has(key)) return;
   asked.add(key);
-  stopShape(from, to, route).then(
-    (r) => {
-      if (!r.shape) return;
-      mem.set(key, r.shape);
-      writeCache(`shape:${key}`, r.shape);
-      bump();
-    },
-    () => asked.delete(key),
-  );
+  const job = {
+    key,
+    run: () =>
+      stopShape(from, to, route).then(
+        (r) => {
+          if (!r.shape) return;
+          mem.set(key, r.shape);
+          writeCache(`shape:${key}`, r.shape);
+          bump();
+        },
+        () => void asked.delete(key),
+      ),
+  };
+  if (first) queue.unshift(job);
+  else queue.push(job);
+  pump();
+}
+
+/** Drop these lookups if they are still waiting (the lines of a stop the rider left); one already asked carries on. */
+function forget(keys: Set<string>) {
+  for (let i = queue.length - 1; i >= 0; i--) {
+    if (!keys.has(queue[i].key)) continue;
+    asked.delete(queue[i].key);
+    queue.splice(i, 1);
+  }
 }
 
 /** The encoded polyline of a ride, or null while unknown. Re-renders the caller when shapes arrive. */
@@ -50,6 +84,21 @@ export function useRideShapes(rides: { route: string; from: string; to: string }
     for (const r of rides) ensure(r.route, r.from, r.to);
   }, [sig]); // eslint-disable-line react-hooks/exhaustive-deps
   return useMemo(() => rides.map((r) => lookup(keyOf(r.route, r.from, r.to))), [sig, v]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/**
+ * Road shapes for the lines onward from a boarding stop (line + boarding stop + the line's last stop ahead),
+ * queued behind the rides and asked a few at a time; null until a shape is there (draw it straight meanwhile).
+ */
+export function useLineShapes(lines: { route: string; from: string; to: string }[]): (string | null)[] {
+  const v = useSyncExternalStore(subscribe, () => version);
+  const sig = lines.map((r) => keyOf(r.route, r.from, r.to)).join(',');
+  useEffect(() => {
+    for (const r of lines) ensure(r.route, r.from, r.to, false);
+    const wanted = new Set(lines.map((r) => keyOf(r.route, r.from, r.to)));
+    return () => forget(wanted);
+  }, [sig]); // eslint-disable-line react-hooks/exhaustive-deps
+  return useMemo(() => lines.map((r) => lookup(keyOf(r.route, r.from, r.to))), [sig, v]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /** The itinerary with its rides drawn along the roads once their shapes are known. */
