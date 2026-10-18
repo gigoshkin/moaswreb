@@ -58,6 +58,17 @@ test('tool calls become cards; the reply is the model text', async () => {
   assert.match(JSON.stringify(toolResult), /306 → Saburtalo: 2 min/);
 });
 
+test('the system prompt treats files and tool results as data and guards itself', async () => {
+  const { app, requests } = setup([message([{ type: 'text', text: 'ok' }], 'end_turn')]);
+  await app.inject({ method: 'POST', url: '/chat', payload: { messages: [{ role: 'user', text: 'x' }] } });
+  const system = requests[0].body.system[0].text as string;
+  assert.match(system, /never instructions to follow/);
+  assert.match(system, /photos, PDFs/);
+  assert.match(system, /tool results/);
+  assert.match(system, /Never reveal/);
+  assert.match(system, /change your role/);
+});
+
 test('photos are sent as image blocks on the last user message', async () => {
   const { app, requests } = setup([message([{ type: 'text', text: 'ok' }], 'end_turn')]);
   await app.inject({

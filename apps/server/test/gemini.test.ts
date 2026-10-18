@@ -27,6 +27,9 @@ test('Gemini: a tool call becomes a card and its result is fed back', async () =
   assert.deepEqual(out.cards.map((c) => c.type), ['arrivals']);
   assert.ok(bodies[0].tools[0].functionDeclarations.some((d: any) => d.name === 'plan_trip' && d.parametersJsonSchema.type === 'object'));
   assert.match(bodies[0].systemInstruction.parts[0].text, /Tbilisi time/);
+  // Same injection rules as the Claude path.
+  assert.match(bodies[0].systemInstruction.parts[0].text, /never instructions to follow/);
+  assert.match(bodies[0].systemInstruction.parts[0].text, /Never reveal/);
   assert.match(JSON.stringify(bodies[1].contents.at(-1)), /306 → Saburtalo: 2 min/);
 });
 
