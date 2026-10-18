@@ -3,6 +3,7 @@ import { File } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library/legacy';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Platform, StyleSheet, View } from 'react-native';
 import type { Attachment } from '../lib/chat';
@@ -13,6 +14,8 @@ import { Text } from './Text';
 import { notify } from './Dialog';
 import { color, radius } from './theme';
 
+// Expo Go on Android can't give full media-library access (the permission call rejects), so the gallery strip is skipped there.
+const inExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 const THUMB = 92;
 const RECENT = 40;
 /** Longest side sent to the server; the model doesn't need more and phone photos are huge. */
@@ -26,22 +29,6 @@ interface Props {
 
 /** "Add to chat" sheet: camera, photo library and PDF buttons, then a strip of the latest photos. */
 export function AttachSheet({ visible, onClose, onPick }: Props) {
-  const [permission, requestPermission] = MediaLibrary.usePermissions({ granularPermissions: ['photo'] });
-  const [recent, setRecent] = useState<MediaLibrary.Asset[]>([]);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  const granted = permission?.granted ?? false;
-  useEffect(() => {
-    if (!visible || !granted) return;
-    let live = true;
-    MediaLibrary.getAssetsAsync({ first: RECENT, mediaType: 'photo', sortBy: [['creationTime', false]] })
-      .then((page) => live && setRecent(page.assets))
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [visible, granted]);
-
   const finish = (a: Attachment) => {
     onPick(a);
     onClose();
@@ -76,6 +63,47 @@ export function AttachSheet({ visible, onClose, onPick }: Props) {
     onPick({ kind: 'pdf', mediaType: 'application/pdf', data: await new File(a.uri).base64(), name: a.name });
   };
 
+  return (
+    <Sheet visible={visible} onClose={onClose}>
+      <View style={styles.header}>
+        <Tap onPress={onClose} hitSlop={12} scaleTo={0.9} accessibilityLabel="Close" style={styles.close}>
+          <Icon name="close" size={22} />
+        </Tap>
+        <Text variant="title18" style={styles.title}>
+          Add to chat
+        </Text>
+        <View style={styles.close} />
+      </View>
+
+      <View style={styles.tiles}>
+        <TileButton icon="camera" label="Camera" onPress={camera} />
+        <TileButton icon="image" label="Photos" onPress={library} />
+        <TileButton icon="file" label="PDF" onPress={pdf} />
+      </View>
+
+      {!inExpoGo && <Gallery visible={visible} finish={finish} />}
+    </Sheet>
+  );
+}
+
+/** Recent-photos strip. Own component so the media-library hook never runs in Expo Go. */
+function Gallery({ visible, finish }: { visible: boolean; finish: (a: Attachment) => void }) {
+  const [permission, requestPermission] = MediaLibrary.usePermissions({ granularPermissions: ['photo'] });
+  const [recent, setRecent] = useState<MediaLibrary.Asset[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const granted = permission?.granted ?? false;
+  useEffect(() => {
+    if (!visible || !granted) return;
+    let live = true;
+    MediaLibrary.getAssetsAsync({ first: RECENT, mediaType: 'photo', sortBy: [['creationTime', false]] })
+      .then((page) => live && setRecent(page.assets))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [visible, granted]);
+
   const pickRecent = async (asset: MediaLibrary.Asset) => {
     if (busyId) return;
     setBusyId(asset.id);
@@ -99,23 +127,7 @@ export function AttachSheet({ visible, onClose, onPick }: Props) {
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose}>
-      <View style={styles.header}>
-        <Tap onPress={onClose} hitSlop={12} scaleTo={0.9} accessibilityLabel="Close" style={styles.close}>
-          <Icon name="close" size={22} />
-        </Tap>
-        <Text variant="title18" style={styles.title}>
-          Add to chat
-        </Text>
-        <View style={styles.close} />
-      </View>
-
-      <View style={styles.tiles}>
-        <TileButton icon="camera" label="Camera" onPress={camera} />
-        <TileButton icon="image" label="Photos" onPress={library} />
-        <TileButton icon="file" label="PDF" onPress={pdf} />
-      </View>
-
+    <>
       {granted && Platform.OS === 'ios' && permission?.accessPrivileges === 'limited' && (
         <Tap onPress={() => MediaLibrary.presentPermissionsPickerAsync().then(() => MediaLibrary.getAssetsAsync({ first: RECENT, mediaType: 'photo', sortBy: [['creationTime', false]] })).then((page) => setRecent(page.assets)).catch(() => {})} feedback="tint" style={styles.allow} accessibilityRole="button">
           <Icon name="image" size={22} color={color.textSecondary} />
@@ -151,7 +163,7 @@ export function AttachSheet({ visible, onClose, onPick }: Props) {
           />
         )
       ) : (
-        <Tap onPress={() => requestPermission()} feedback="tint" style={styles.allow} accessibilityRole="button">
+        <Tap onPress={() => requestPermission().catch(() => {})} feedback="tint" style={styles.allow} accessibilityRole="button">
           <Icon name="image" size={22} color={color.textSecondary} />
           <View style={styles.allowText}>
             <Text variant="label16">Show my recent photos</Text>
@@ -162,7 +174,7 @@ export function AttachSheet({ visible, onClose, onPick }: Props) {
           <Icon name="chevron-right" size={20} color={color.textTertiary} />
         </Tap>
       )}
-    </Sheet>
+    </>
   );
 }
 
