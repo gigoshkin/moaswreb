@@ -59,7 +59,7 @@ test('find_place reads GeoJSON coordinates as lat,lon', async () => {
   assert.equal((await run('find_place', { query: 'დელისი' })).text, 'Delisi | 41.7286,44.7712');
 });
 
-test('proposals only produce confirm cards and are not on MCP', async () => {
+test('proposals only produce confirm cards; chat-only tools are not on MCP', async () => {
   const { tools, run } = setup();
   const trip = { name: 'სახლი → სამსახური', from: { label: 'სახლი', lat: 41.71, lon: 44.82 }, to: { label: 'სამსახური', lat: 41.72, lon: 44.77 }, arriveBy: '09:00' };
   assert.deepEqual((await run('propose_trip', trip)).card, { type: 'confirm_trip', trip });
@@ -68,7 +68,7 @@ test('proposals only produce confirm cards and are not on MCP', async () => {
   const dup = await run('propose_events', { events: [{ title: 'Math', days: [3, 1, 3], start: '10:00', end: null, place: null }] });
   assert.deepEqual(dup.card?.type === 'confirm_events' && dup.card.events[0].days, [1, 3], 'repeated days would make /me/trips reject every trip');
   assert.deepEqual(tools.filter((t) => t.mcp).map((t) => t.name), ['find_stop', 'find_place', 'next_arrivals', 'plan_trip', 'stops_near', 'lines_at_stop']);
-  assert.deepEqual(tools.filter((t) => !t.mcp).map((t) => t.name), ['propose_trip', 'propose_route', 'propose_events']);
+  assert.deepEqual(tools.filter((t) => !t.mcp).map((t) => t.name), ['parse_maps_link', 'propose_trip', 'propose_route', 'propose_events']);
 });
 
 test('plan_trip passes avoid / modes to the planner and drops avoided lines', async () => {

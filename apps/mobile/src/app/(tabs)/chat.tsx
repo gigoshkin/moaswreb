@@ -48,7 +48,7 @@ export default function Chat() {
         {data.length === 0 ? (
           <View style={styles.empty}>
             <Text variant="body16" color={color.textSecondary} style={styles.emptyText}>
-              Ask about your trips, stops or buses. You can also send a photo or a PDF.
+              Ask about your trips, stops or buses. You can also send a photo or a PDF, or paste a Google Maps link.
             </Text>
             {SUGGESTIONS.map((s) => (
               <Tap key={s} onPress={() => send(s)} style={styles.suggestion} scaleTo={0.97}>
