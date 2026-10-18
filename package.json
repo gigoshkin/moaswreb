@@ -8,9 +8,7 @@
   "engines": {
     "node": ">=24"
   },
-  "scripts": {
-    "ka-check": "node scripts/ka-check.mjs"
-  },
+  "scripts": {},
   "devDependencies": {
     "dictionary-ka": "^2.0.0",
     "nspell": "^2.1.5"

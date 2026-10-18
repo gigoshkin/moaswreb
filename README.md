@@ -102,7 +102,6 @@ flowchart LR
 - **Numbers in chat cards always come from TTC data, not from the model.** The model picks tools and writes one short sentence.
 - The same read-only tools are exposed to AI clients over [MCP](#use-it-from-an-ai-client-mcp).
 
-Background and measurements: [journey planner](knowledge-base/journey-planner.md), [TTC API notes](knowledge-base/ttc-pis-gateway-api.md), [prediction accuracy](knowledge-base/ttc-prediction-accuracy.md).
 
 ## Use it
 
@@ -134,7 +133,7 @@ npx expo start --go
 
 Open the QR code (or the `exp://` address) in **Expo Go for SDK 58** (58.0.4 or newer). Without `EXPO_PUBLIC_API_URL` the app shows synthetic sample trips, which is enough to look around. `npx expo start --web` renders the screens in a browser (layout only, no maps).
 
-In Expo Go, storage falls back to SQLite and alerts are off. iOS blocks plain `http://` servers except on the local network, so use `https://` for anything real. Details: [apps/mobile/README.md](apps/mobile/README.md), [testing on iPhone](knowledge-base/ios-testing.md).
+In Expo Go, storage falls back to SQLite and alerts are off. iOS blocks plain `http://` servers except on the local network, so use `https://` for anything real. Details: [apps/mobile/README.md](apps/mobile/README.md), testing on iPhone.
 
 ### Server
 
@@ -156,11 +155,11 @@ Or without Docker: `npm run dev -w @transit/server`. On a VPS, `docker compose -
 | `GOOGLE_PLACES_API_KEY` | Optional. Google Places as the first place-search source; empty means off. `GOOGLE_PLACES_DAILY_CAP` limits real calls per day. |
 | `DOMAIN` | Public hostname for Caddy on the VPS. |
 
-All variables, rate limits and the endpoint list are in [.env.example](.env.example) and [apps/server/README.md](apps/server/README.md). VPS setup: [knowledge-base/vps-dev-setup.md](knowledge-base/vps-dev-setup.md).
+All variables, rate limits and the endpoint list are in [.env.example](.env.example) and [apps/server/README.md](apps/server/README.md).
 
 ### Development build (push alerts and the leave card)
 
-Expo Go cannot run push notifications or the lock-screen card. They need a development build of the app, made once in the cloud with EAS; after that JavaScript changes reload from Metro. Steps, permissions and known limits: [knowledge-base/dev-build.md](knowledge-base/dev-build.md).
+Expo Go cannot run push notifications or the lock-screen card. They need a development build of the app, made once in the cloud with EAS; after that JavaScript changes reload from Metro. Steps, permissions and known limits: knowledge-base/dev-build.md.
 
 ## Build the APK
 
@@ -173,7 +172,7 @@ npx eas-cli@latest init                  # first time only: creates the EAS proj
 npx eas-cli@latest build --profile preview --platform android
 ```
 
-EAS prints a download URL and QR code when the build finishes. Set `EXPO_PUBLIC_API_URL` for the build (for example as an EAS environment variable) so the APK talks to the real server. There is no local `expo run:android` without an Android SDK; EAS builds in the cloud. A build takes roughly 15-30 minutes plus the queue (unverified: no APK has been produced yet). Full notes: [knowledge-base/dev-build.md](knowledge-base/dev-build.md).
+EAS prints a download URL and QR code when the build finishes. Set `EXPO_PUBLIC_API_URL` for the build (for example as an EAS environment variable) so the APK talks to the real server. There is no local `expo run:android` without an Android SDK; EAS builds in the cloud. A build takes roughly 15-30 minutes plus the queue (unverified: no APK has been produced yet). Full notes: knowledge-base/dev-build.md.
 
 ## Use it from an AI client (MCP)
 
@@ -217,10 +216,7 @@ apps/
                 src/alerts (watcher), src/store (encrypted trips)
 packages/
   shared/       Types and the leave-time rule shared by app and server
-knowledge-base/ Durable notes: TTC API, planner, dev build, privacy, hackathon brief
-design/         Early HTML prototype and design notes
 deploy/         Caddyfile
-inbox/, requests/  Hand-off notes and approval requests between the two authors
 docs/           README images
 ```
 
@@ -229,11 +225,11 @@ docs/           README images
 - **Transport data:** TTC (Tbilisi Transport Company) public transit API: stops, routes, timetables, live positions and arrivals, walking and trip planning.
 - **Places:** OpenStreetMap data through TTC's geocoder and [Photon](https://photon.komoot.io); Google Places (New) when enabled.
 - **Map tiles:** Esri Light Gray Canvas, with attribution on the map (OpenStreetMap contributors where shown).
-- **Live accuracy:** TTC's predictions are about 1-1.5 minutes off up to 10 minutes ahead in our measurement ([details](knowledge-base/ttc-prediction-accuracy.md)). Our planner is not affiliated with TTC.
+- **Live accuracy:** TTC's predictions are about 1-1.5 minutes off up to 10 minutes ahead in our measurement (details). Our planner is not affiliated with TTC.
 
 ## Privacy
 
-There are no accounts. Trip names, addresses, your home and the chat history stay on the phone, and location is used on the phone only. For alerts the server stores, encrypted, only each trip's first and last stop, arrive-by time, days and walk minutes, plus the push token; it is deleted after 30 days without use, or at once with "Delete my data". Chat messages, photos and PDFs go to the AI provider to be read and are not stored by our server. Full list, including what third parties see: [knowledge-base/data-and-privacy.md](knowledge-base/data-and-privacy.md) and the in-app Privacy screen.
+There are no accounts. Trip names, addresses, your home and the chat history stay on the phone, and location is used on the phone only. For alerts the server stores, encrypted, only each trip's first and last stop, arrive-by time, days and walk minutes, plus the push token; it is deleted after 30 days without use, or at once with "Delete my data". Chat messages, photos and PDFs go to the AI provider to be read and are not stored by our server. The in-app Privacy screen lists what third parties see.
 
 ## Team
 
@@ -241,10 +237,6 @@ There are no accounts. Trip names, addresses, your home and the chat history sta
 - Andro Petrosyan ([@AndroPetrosyan](https://github.com/AndroPetrosyan))
 
 Code was written with Claude Code (Anthropic) under the direction of both authors.
-
-## Status
-
-Hackathon build. Most native-only parts (leave card, push, map screens) have not yet been run on a real phone; known gaps are listed in the knowledge-base notes and marked unverified there.
 
 ## Licence
 
