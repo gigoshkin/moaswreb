@@ -8,7 +8,7 @@ import { openNewTrip } from '../../lib/handoff';
 import { durationText, leaveAt as leaveAtOf, minutesUntil, transitLegs, firstWalkMin, type Choice } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { addDays, hhmm, isoWeekday, longDate, relativeDay, todayLocal } from '../../lib/time';
-import { DEFAULT_DAYS, newTripId, saveTrip, tripDays, useTrips, withStops, type SavedTrip } from '../../lib/trips';
+import { newTripId, saveTrip, tripDays, useTrips, withStops, type SavedTrip } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { chainOf, slotsFor } from '../../lib/ways';
@@ -239,14 +239,23 @@ function NothingLeft({ trips, now }: { trips: SavedTrip[]; now: number }) {
   );
 }
 
-/** A ready-made trip for trying the app with nothing saved. Weekends: every day, so Today has something to show. */
+/** Arrive-by for the example: about two hours from now (Tbilisi time, rounded up to 15 min), so Today always has something to count down to. Late evening: 09:00 (tomorrow). */
+const exampleArriveBy = (): string => {
+  const slot = 15 * 60_000;
+  const t = Math.ceil((Date.now() + 2 * 3600_000) / slot) * slot;
+  const local = new Date(t + 4 * 3600_000);
+  const sameDay = local.toISOString().slice(0, 10) === todayLocal();
+  return sameDay ? local.toISOString().slice(11, 16) : '09:00';
+};
+
+/** A ready-made trip for trying the app with nothing saved. Every day, so it shows whenever it is tried. */
 const exampleTrip = (): SavedTrip => ({
   id: newTripId(),
   name: 'Example: Didi Dighomi to Rustaveli',
   from: { label: 'Didi Dighomi III microdistrict', lat: 41.7910541, lon: 44.7380951 },
   to: { label: 'Rustaveli Ave, Freedom Square', lat: 41.6934, lon: 44.8015 },
-  arriveBy: '09:00',
-  days: isoWeekday(todayLocal()) <= 5 ? DEFAULT_DAYS : [1, 2, 3, 4, 5, 6, 7],
+  arriveBy: exampleArriveBy(),
+  days: [1, 2, 3, 4, 5, 6, 7],
 });
 
 /** No trips saved yet. */
