@@ -1,5 +1,5 @@
 import type { Itinerary, JourneyStep, PlanQuery, PlanResponse } from '@transit/shared';
-import { TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from '@transit/shared';
+import { groupWays, TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from '@transit/shared';
 import { Engine } from '../journey/engine.ts';
 import { isAvoided } from '../journey/source.ts';
 import type { TtcSource } from '../journey/ttc-source.ts';
@@ -30,7 +30,7 @@ const MAX_GOOGLE_CANDIDATES = 4;
  * small cap would cut the latest-leaving options, which are what "arrive by"
  * is about; the longest trips are cut instead.
  */
-export const MAX_ITINERARIES = 7;
+export const MAX_ITINERARIES = 10;
 
 /** Tbilisi `YYYY-MM-DDTHH:mm` shifted by `min` minutes (crosses midnight correctly). */
 export const shiftLocal = (local: string, min: number): string => {
@@ -260,15 +260,19 @@ export class PlanService {
 
 /**
  * Google-suggested chains (timed by our planner) merged into the list: one
- * itinerary per line chain, the latest-leaving one still on time; then the
- * MAX_ITINERARIES on-time, shortest ones, earliest arrival first.
+ * itinerary per line chain, the latest-leaving one still on time; then at most
+ * MAX_ITINERARIES, one per different way first (see `groupWays`), then the
+ * on-time, shortest ones; earliest arrival first.
  */
 export const withGoogle = (base: Itinerary[], google: Itinerary[], query: Pick<PlanQuery, 'arriveBy'>, now = Date.now()): Itinerary[] => {
   const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '') || Infinity;
   const fits = (it: Itinerary) => Date.parse(it.arriveAt) <= deadline;
   const all = onePerChain([...base, ...google], deadline, now);
-  const kept = all.length > MAX_ITINERARIES
-    ? [...all].sort((a, b) => Number(fits(b)) - Number(fits(a)) || a.durationSec - b.durationSec).slice(0, MAX_ITINERARIES)
-    : all;
-  return kept.sort(byArrivalThenTransfers);
+  if (all.length <= MAX_ITINERARIES) return all.sort(byArrivalThenTransfers);
+  // Every different way keeps its best option before any way gets a second one: a slower metro way must not be cut
+  // just because several buses of one way are shorter. Then the rest, on-time and shortest first.
+  const order = (a: Itinerary, b: Itinerary) => Number(fits(b)) - Number(fits(a)) || a.durationSec - b.durationSec;
+  const leads = groupWays(all).map((w) => [...w.its].sort(order)[0]).sort(order);
+  const rest = all.filter((it) => !leads.includes(it)).sort(order);
+  return [...leads, ...rest].slice(0, MAX_ITINERARIES).sort(byArrivalThenTransfers);
 };
