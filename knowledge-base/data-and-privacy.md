@@ -22,6 +22,7 @@ Facts for the privacy policy and for judges' questions. Source: the code as of 1
 - **Chat:** messages, photos and PDFs sent to the chat go to the Claude API (Anthropic) to be read, together with the user's saved trips as context. Our server doesn't store them. [?] Check Anthropic's API data-retention terms before writing the policy.
 - **Place search and the map pin:** the typed text (or the pin's coordinates) goes from our server to TTC's geocoder and to Photon (photon.komoot.io, OpenStreetMap data) to find streets and addresses. When `GOOGLE_PLACES_API_KEY` is set on the server, the typed text also goes to Google Places (first source; see journey-planner.md, "Google Places search"). No device id or account goes with it, and our server doesn't log it. Map pictures are loaded by the phone directly from Esri's tile server, which sees the phone's IP address and the map area on screen.
 - **Push delivery:** goes through Expo's push service and Google Firebase (Android), which see the push token and the alert text.
+- **Leave card (Android, dev build):** made on the phone from the cached plan; nothing is sent anywhere. It shows the trip name, line, stop and times **on the lock screen** (public visibility), from 30 min before the leave time. See dev-build.md.
 
 ## Honest limits
 - The server can read stored trips while it runs; it has to, in order to watch them. Encryption protects against a stolen disk, a leaked backup or a copied database file, not against someone who takes over the running server.

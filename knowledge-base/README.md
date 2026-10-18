@@ -7,6 +7,7 @@
 - [hf-challenge.md](hf-challenge.md) — Hacktoberfest Georgia 2026 opening deck: schedule, tracks, judging, prizes, support (source: opening.hacktoberfest.ge/deck/hf-challenge)
 - [georgian-glossary.md](georgian-glossary.md): Georgian UI terms and register rule. **Not in use:** the app is English-only since 17 Oct (George)
 - [vps-dev-setup.md](vps-dev-setup.md): step-by-step VPS setup (Claude Code + Remote Control, Tailscale, Expo Go live demos)
+- [dev-build.md](dev-build.md): Android development build (EAS commands, what needs it) and the lock-screen leave card (notify-kit, permissions, limits)
 - [data-and-privacy.md](data-and-privacy.md): what the app stores, where, for how long; source for the privacy policy
 - First-open intro (18 Oct, George): 3 skippable screens in `apps/mobile/src/ui/Welcome.tsx` (+ `WelcomeSlides.tsx`, route `app/welcome.tsx`), gated by `Stack.Protected` in `app/_layout.tsx` on the persisted flag `intro:v1` (`lib/onboarding.ts`; defaults to seen when trips exist). Notifications are asked on screen 3 only; the root layout syncs push token/trips only after `intro:alerts` is set. Settings -> Replay intro resets the flag.
 - ideas/tbilisi-transit/ — idea exploration: AI-enhanced Tbilisi transport app (not a chatbot)

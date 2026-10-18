@@ -9,7 +9,7 @@ Screens follow andro's Figma ("Moaswreb App", page *Screens v2*), built 17 Oct. 
 REACT_NATIVE_PACKAGER_HOSTNAME=$(tailscale ip -4) npx expo start --go   # open exp://<ip>:8081 in Expo Go
 ```
 In Expo Go, storage falls back from MMKV to `expo-sqlite/kv-store` (`src/lib/kv.ts`) and alerts are off (`src/lib/alerts.ts`).
-Real push needs a **development build**: `npx eas-cli@latest build --profile development --platform android`.
+Real push and the lock-screen leave card need a **development build**: see `knowledge-base/dev-build.md`.
 
 ## Server
 Set `EXPO_PUBLIC_API_URL` (e.g. in `apps/mobile/.env`) to the server, e.g. `https://<DOMAIN>` on the VPS or `http://<laptop-LAN-IP>:8080`. iOS dev/prod builds block plain `http://` (App Transport Security) except local-network addresses (`NSAllowsLocalNetworking` is set in app.json); real iOS builds must use `https://`.
