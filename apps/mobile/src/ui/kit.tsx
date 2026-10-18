@@ -14,7 +14,7 @@ export function TopBar({ title, close, right }: { title: string; close?: boolean
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
-      <Tap onPress={() => router.back()} hitSlop={10} scaleTo={0.9} accessibilityRole="button" accessibilityLabel={close ? 'Close' : 'Back'} style={styles.topBarButton}>
+      <Tap onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} hitSlop={10} scaleTo={0.9} accessibilityRole="button" accessibilityLabel={close ? 'Close' : 'Back'} style={styles.topBarButton}>
         <Icon name={close ? 'close' : 'back'} size={24} />
       </Tap>
       <Text variant={close ? 'title20' : 'label16'} numberOfLines={1} style={styles.topBarTitle}>

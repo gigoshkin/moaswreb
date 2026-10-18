@@ -1,5 +1,5 @@
 import { useFonts } from 'expo-font';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useGlobalSearchParams, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -20,6 +20,17 @@ export default function RootLayout() {
 
   const seen = introSeen.use();
   const offered = alertsOffered.use();
+
+  // Before the intro was seen, every route but the intro (and Privacy opened from it) is guarded, and the
+  // router can land on Privacy instead. Send it to the intro.
+  const segments = useSegments();
+  const params = useGlobalSearchParams<{ from?: string }>();
+  const top = segments[0] as string | undefined;
+  useEffect(() => {
+    if (seen || !ready) return;
+    if (top === 'welcome' || (top === 'privacy' && params.from === 'welcome')) return;
+    router.replace('/welcome');
+  }, [seen, ready, top, params.from]);
 
   useEffect(() => {
     // Push token + trip sync. Not before the intro, and not before the user was offered

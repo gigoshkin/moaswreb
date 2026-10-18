@@ -104,7 +104,7 @@ export function Welcome() {
             <Tap onPress={() => finish(false)} disabled={busy} style={styles.later} accessibilityRole="button">
               <Text variant="label14">Not now</Text>
             </Tap>
-            <Tap onPress={() => router.push('/privacy')} style={styles.later} accessibilityRole="link">
+            <Tap onPress={() => router.push({ pathname: '/privacy', params: { from: 'welcome' } })} style={styles.later} accessibilityRole="link">
               <Text variant="caption" color={color.textSecondary}>
                 How we handle your data
               </Text>
