@@ -52,6 +52,9 @@ export const tripDays = (t: SavedTrip) => (t.days?.length ? t.days : DEFAULT_DAY
  * Days and walk are kept inside the server's schema (unique days, walk ≤ 60):
  * one trip outside it would get the whole PUT rejected, and every alert lost.
  */
+// The server takes at most 20 trips per sync and rejects the whole request beyond that.
+const MAX_SYNCED_TRIPS = 20;
+
 export const toStored = (trips: SavedTrip[]): StoredTrip[] => {
   const { alerts, bufferMin } = settings.get();
   if (!alerts) return [];
@@ -59,7 +62,7 @@ export const toStored = (trips: SavedTrip[]): StoredTrip[] => {
     t.fromStopId && t.toStopId
       ? [{ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, arriveBy: t.arriveBy, days: [...new Set(tripDays(t))].sort((a, b) => a - b), walkMin: Math.min(60, Math.round((t.walkMin ?? 0) + bufferMin)), ...(hasAvoid(t.avoid) ? { avoid: t.avoid } : {}), ...(t.steps?.length ? { steps: t.steps } : {}) }]
       : [],
-  );
+  ).slice(0, MAX_SYNCED_TRIPS);
 };
 
 /** Push the current trips to the server so alerts follow them. Offline: setUpAlerts re-syncs on next start. */

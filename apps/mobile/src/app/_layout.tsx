@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onAlertTap, setUpAlerts } from '../lib/alerts';
+import { onLeaveCardTap } from '../lib/leaveCard';
 import { alertsOffered, introSeen } from '../lib/onboarding';
 import { settings } from '../lib/settings';
 import { getTrip } from '../lib/trips';
@@ -41,9 +42,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (!ready) return;
     SplashScreen.hideAsync().catch(() => {});
-    return onAlertTap((tripId) => {
+    const open = (tripId: string) => {
       if (getTrip(tripId)) router.push({ pathname: '/trip/[id]', params: { id: tripId } });
-    });
+    };
+    const offs = [onAlertTap(open), onLeaveCardTap(open)];
+    return () => offs.forEach((off) => off());
   }, [ready]);
 
   if (!ready) return null;
