@@ -4,6 +4,6 @@
 
 export {
   NEAR_M, bestWay, cardKept, chainOf, defaultKept, fitsWay, groupWays, isTicked, namesWay, sameWay, slotsFor, structureOf, toggleWay, tripWays,
-  variantSteps, wayKey, wayLabel, waysFields,
+  variantSteps, wayKey, wayLabel, waysFields, withBuiltWay,
 } from '@transit/shared';
 export type { RideStep, Way } from '@transit/shared';

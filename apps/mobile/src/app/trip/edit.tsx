@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { buildRoute, buildSteps, takeDraft } from '../../lib/handoff';
 import { tripTourSeen } from '../../lib/onboarding';
 import { firstWalkMin, leaveAt, placeName, transitLegs } from '../../lib/plans';
-import { chainOf, tripWays, waysFields } from '../../lib/ways';
+import { chainOf, tripWays, waysFields, withBuiltWay } from '../../lib/ways';
 import { settings } from '../../lib/settings';
 import { DAY_SHORT, hhmm, nextArriveBy } from '../../lib/time';
 import { DEFAULT_DAYS, getTrip, newTripId, removeTrip, saveTrip, withStops, type Place, type SavedTrip } from '../../lib/trips';
@@ -92,8 +92,7 @@ export default function EditTrip() {
     setFrom(r.from);
     setTo(r.to);
     // The builder edits the first kept way; the others stay.
-    const built = JSON.stringify(r.steps);
-    setWays([r.steps, ...ways.slice(1).filter((w) => JSON.stringify(w) !== built)]);
+    setWays(withBuiltWay(ways, r.steps));
   };
 
   const changeTime = () => {
@@ -220,11 +219,11 @@ export default function EditTrip() {
             feedback="tint"
             style={styles.byHand}
             accessibilityRole="button"
-            accessibilityLabel={ways.length ? 'Change my hand-built route' : 'Build route by hand, stop by stop'}
+            accessibilityLabel={ways.length ? 'Change my route by hand' : 'Build route by hand, stop by stop'}
           >
             <Icon name="map" size={18} />
             <Text variant="label14" style={styles.byHandText}>
-              {ways.length ? 'Change my hand-built route' : 'Build route by hand'}
+              {ways.length ? 'Change my route by hand' : 'Build route by hand'}
             </Text>
             <Icon name="chevron-right" size={18} color={color.textTertiary} />
           </Tap>

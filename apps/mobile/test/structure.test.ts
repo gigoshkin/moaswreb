@@ -154,6 +154,11 @@ test('a kept way opened in the hand builder comes back the same way, variations 
   assert.deepEqual(back[0].lines!.map((l) => l.label), ['335', '321', '518']);
   for (const x of [via321, via335, via518]) assert.ok(fitsWay(back, x), 'still every variation');
   assert.equal(fitsWay(back, direct302), false);
+  // The built way joins the kept ways in the first place, the others stay, no copy of it twice.
+  const direct = variantSteps(direct302, all)!;
+  assert.deepEqual(shared.withBuiltWay([kept, direct], back), [back, direct]);
+  assert.deepEqual(shared.withBuiltWay([kept, back], back), [back]);
+  assert.deepEqual(shared.withBuiltWay([], back), [back]);
   // Switching a line off in the builder narrows the way to the lines left.
   const narrowed = stepOf(toggleLine(rides[0], '518'));
   assert.deepEqual(narrowed.routes, ['335', '321']);

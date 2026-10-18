@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { slotsFor, tripWays, waysFields, type RideStep } from '../../lib/ways';
+import { slotsFor, tripWays, waysFields, withBuiltWay, type RideStep } from '../../lib/ways';
 import { buildSteps, finishRoute, pickPlace, routeDraft, type PickKind } from '../../lib/handoff';
 import { firstWalkMin, leaveAt, mergeItineraries } from '../../lib/plans';
 import { settings } from '../../lib/settings';
@@ -12,7 +12,7 @@ import { daysText, hhmm, nextArriveBy } from '../../lib/time';
 import type { Place } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
 import { useRoadItinerary } from '../../lib/shapes';
-import { useTripPlan } from '../../lib/useTripPlan';
+import { everyLine, useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
 import { Ways } from '../../ui/Ways';
@@ -54,7 +54,7 @@ export default function RouteBuilder() {
   const plan = useTripPlan(trip, date, now);
   // The list offers every way for these ends, ticked or not: with ways kept, a second plan without them
   // (every line, as when the app picks). Kept ways it didn't find, e.g. one built by hand, are listed too.
-  const anyLine = useMemo(() => (trip && ways.length ? { ...trip, steps: undefined, ways: undefined } : null), [trip, ways.length]);
+  const anyLine = useMemo(() => (trip && ways.length ? everyLine(trip) : null), [trip, ways.length]);
   const every = useTripPlan(anyLine, date, now);
   const listed = useMemo(() => (ways.length ? mergeItineraries([every.itineraries, plan.itineraries]) : plan.itineraries), [ways.length, every.itineraries, plan.itineraries]);
   const best: Itinerary | null = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
@@ -101,10 +101,7 @@ export default function RouteBuilder() {
   const buildByHand = async () => {
     if (!from || !to) return;
     const r = await buildSteps({ from, to, arriveBy, days: init.days, steps: ways[0] ?? [], avoid });
-    if (r) {
-      const built = JSON.stringify(r.steps);
-      setWays([r.steps, ...ways.slice(1).filter((w) => JSON.stringify(w) !== built)]);
-    }
+    if (r) setWays(withBuiltWay(ways, r.steps));
   };
 
   const finish = () => {

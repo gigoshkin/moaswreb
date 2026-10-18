@@ -10,7 +10,7 @@ import { settings } from '../../lib/settings';
 import { hhmm, nextArriveBy } from '../../lib/time';
 import { getTrip, saveTrip, tripDays, useTrips, withStops } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
-import { useTripPlan } from '../../lib/useTripPlan';
+import { everyLine, useTripPlan } from '../../lib/useTripPlan';
 import { slotsFor, tripWays, variantSteps, waysFields, type RideStep } from '../../lib/ways';
 import { Button } from '../../ui/Button';
 import { Busy } from '../../ui/Spinner';
@@ -39,7 +39,7 @@ export default function TripDetail() {
   const p = preview ? getPreview(id) : undefined;
   // A trip that keeps ways lists every way for its ends, ticked or not: a second plan over every line.
   const kept = trip ? tripWays(trip) : [];
-  const anyLine = useMemo(() => (trip && kept.length ? { ...trip, steps: undefined, ways: undefined } : null), [trip, kept.length]);
+  const anyLine = useMemo(() => (trip && kept.length ? everyLine(trip) : null), [trip, kept.length]);
   const every = useTripPlan(anyLine, date, now);
   const listed = useMemo(() => (kept.length ? mergeItineraries([every.itineraries, live.itineraries]) : live.itineraries), [kept.length, every.itineraries, live.itineraries]);
 

@@ -319,6 +319,16 @@ export function toggleWay(kept: RideStep[][], way: Way, all: Itinerary[]): RideS
   return steps ? [...kept, steps] : kept;
 }
 
+/**
+ * A way built (or rebuilt) in the hand builder joins the kept ways as an ordinary
+ * way: it takes the place of the first one, which the builder edits; the others
+ * stay, minus any copy of it.
+ */
+export function withBuiltWay(kept: RideStep[][], built: RideStep[]): RideStep[][] {
+  const same = JSON.stringify(built);
+  return [built, ...kept.slice(1).filter((w) => JSON.stringify(w) !== same)];
+}
+
 /** The way the app would take now (the one holding choose()'s pick), else the first. */
 export function bestWay(ways: Way[], arriveByLocal: string, now: number, bufferMin = 0): Way | undefined {
   const c = choose(ways.flatMap((w) => w.its), arriveByLocal, now, bufferMin);

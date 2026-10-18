@@ -28,6 +28,9 @@ export const tripQueries = (trip: Pick<SavedTrip, 'from' | 'to' | 'arriveBy' | '
   return ways.length ? ways.map((steps) => tripQuery({ ...trip, steps }, date)) : [tripQuery(trip, date)];
 };
 
+/** The same trip over every line (its kept ways set aside): the list of every way, and the source of suggestions. */
+export const everyLine = <T extends Pick<SavedTrip, 'steps' | 'ways'>>(trip: T): T => ({ ...trip, steps: undefined, ways: undefined });
+
 // The first option seen for each trip and day. When a later re-plan picks a
 // different bus or moves the leave time by 3+ min, Today says what changed.
 const firstSeen = memory<Record<string, { routes: string; leaveAt: number; label: string }>>({});
@@ -94,7 +97,7 @@ export function useTripPlan(trip: SavedTrip | null, date: string, now: number, o
   const missed = !!opts.suggest && keepsWays && plan !== null && choice.kind !== 'onTime' && !(trip && waved[`${trip.id}|${date}`]);
   const otherQueries = useMemo(() => {
     if (!missed || !trip || !query) return null;
-    const anyLine = tripQuery({ ...trip, steps: undefined }, date);
+    const anyLine = tripQuery(everyLine(trip), date);
     return lateQueries ? [anyLine, { ...anyLine, arriveBy: lateQueries[0].arriveBy }] : [anyLine];
   }, [missed, query, lateQueries]); // eslint-disable-line react-hooks/exhaustive-deps
   const others = usePlans(otherQueries, { refreshMs: opts.refreshMs });
