@@ -50,11 +50,14 @@ Until then, run it from source with Expo Go in a few minutes: [Run it](#run-it).
 - **Plan by arrive-by time.** Save a trip with the time you need to be there and the days it repeats (Mon-Fri by default, any combination). The Week tab shows all of them.
 - **Every TTC line compared.** Buses, minibuses and metro are compared link by link against the same deadline, not just the three options TTC's own planner returns. Live vehicles replace the timetable while TTC reports them.
 - **Avoid lists, per trip.** "Never line 518" or "no minibuses" for one trip without affecting the others.
-- **Route builder.** Choose From and To by searching a street, place or stop, or drop a pin on the map. Or build the route by hand, stop by stop: tap a stop, see the lines that serve it on the map, pick one, choose where to get off, add another ride or finish. Undo included.
+- **Route builder.** Choose From and To by searching a street, place, stop or "Current location", or drop a pin on the map. Or build the route from scratch as a chain of steps: a start pin, walks, rides on a line between two stops, an end pin. Tap a stop, see the lines that serve it on the map, pick one, choose where to get off, add another ride or finish. Undo included.
+- **Saved routes stay put.** "Save this route" pins the exact chain of rides you picked (for example 321, then metro 1, then 490), so the trip keeps showing that route instead of whatever is fastest today.
+- **Google route ideas, TTC timings.** When a Google Routes key is configured on the server, Google suggests which line chains to consider and TTC times every one of them. Without a key the app uses TTC alone.
+- **Never an empty answer.** If no ride can make the deadline any more, the trip shows "late" with the next ride and the fastest option, rather than "No route found".
 - **Road shapes.** Rides are drawn along the road where TTC's planner gives a geometry, otherwise straight between stops.
-- **AI assistant.** One chat input that understands text, photos and PDFs: a screenshot of a timetable, a photo of a notice, a Georgian TTC announcement. It answers in English, shows cards with real numbers from TTC data (stops, arrivals, plans) and proposes trips you confirm with one tap.
+- **AI assistant.** One chat input that understands text, photos and PDFs: a screenshot of a timetable, a photo of a notice, a Georgian TTC announcement. It answers in English, shows cards with real numbers from TTC data (stops, arrivals, plans) and proposes trips you confirm with one tap, with a name and days filled in. Paste a Google Maps link (full or shortened) and it turns the From and To into a trip.
 - **Alerts.** A push notification "Leave in 10 min", and "Departure time changed" when the plan moves by 3 minutes or more. Works with the app closed.
-- **Lock-screen leave card (Android development build).** An ongoing notification that counts down to the leave time, from 30 minutes before.
+- **Lock-screen leave card (Android development build or APK).** An ongoing notification that counts down to the leave time, from 30 minutes before. Tapping it opens the trip.
 - **First-open intro.** Three skippable screens; notifications are asked for on the last one only.
 - **English only.** No sign-up and no accounts. TTC's Georgian stop names are still searchable.
 
@@ -82,6 +85,7 @@ flowchart LR
   Server["Server<br/>Fastify, Node 24"]
   TTC["TTC transit API<br/>stops, routes, live arrivals,<br/>timetables, planner"]
   Places["Place search<br/>Google Places, TTC geocoder, Photon (OSM)"]
+  Routes["Google Routes (optional)<br/>line-chain suggestions"]
   AI["AI model<br/>Anthropic Claude or Google Gemini"]
   MCP["AI client<br/>Claude Desktop / Claude Code"]
   Push["Expo push service"]
@@ -91,6 +95,7 @@ flowchart LR
   Phone -- "map tiles" --> Tiles
   Server --> TTC
   Server --> Places
+  Server -- "route ideas" --> Routes
   Server -- "/chat tool loop" --> AI
   MCP -- "/mcp" --> Server
   Server -- "alerts" --> Push
@@ -98,7 +103,7 @@ flowchart LR
 ```
 
 - The **phone app** holds the trips, settings and the chat on the device. It plans with the same rule as the server, so numbers agree.
-- The **server** wraps TTC's public API behind a request queue, runs our own journey planner (every line compared link by link, solved backwards from the arrive-by time), searches places, runs the chat tool loop, and watches saved trips to send alerts.
+- The **server** wraps TTC's public API behind a request queue, runs our own journey planner (every line compared link by link, solved backwards from the arrive-by time, optionally seeded with Google Routes suggestions that TTC data then times), searches places, runs the chat tool loop, and watches saved trips to send alerts.
 - **Numbers in chat cards always come from TTC data, not from the model.** The model picks tools and writes one short sentence.
 - The same read-only tools are exposed to AI clients over [MCP](#use-it-from-an-ai-client-mcp).
 
@@ -110,11 +115,11 @@ flowchart LR
 | **Intro** | Three screens on first open. Skip any time; Settings, "Replay intro" shows it again. |
 | **Today** | The next trip as "Leave in N min", with boarding and arrival times. Later trips today are listed under it. "Add a trip" appears while there are none. |
 | **Trip detail** | Tap a trip. Map, the leave-at time, each step with its time, and "All ways to get there": every line option, grouped like Google Maps (an arrow means you change, stacked numbers are alternatives for the same ride). Tap one to open it, or say this trip never uses that line. |
-| **New trip** | Step 1: the arrive-by time and the days. Step 2: From and To (search or pin), or "Build route by hand". Optional name. |
-| **Route builder** | Pick the first stop on the map, see every line there, choose one, tap the stop to get off, add another ride or finish. Line switches per ride and up to 20 undo steps. A metro station within 250 m is offered, never chosen for you. |
+| **New trip** | Step 1: the arrive-by time and the days. Step 2: From and To (search, "Current location" or pin), or "Build route by hand". Optional name. |
+| **Route builder** | Start from nothing: drop a start pin (a stop starts a ride, anywhere else starts a walk), see every line at the stop, choose one, tap the stop to get off, add another ride or walk, then an end pin. Line switches per ride and up to 20 undo steps. A metro station within 250 m is offered, never chosen for you. |
 | **Week** | Seven days with the trips that run on each. |
-| **Chat** | Ask "When should I leave for work tomorrow?", "What comes next at my stop?", or attach a photo or PDF of a timetable. Trips it proposes are saved only when you confirm. |
-| **Settings** | Home address, extra buffer time (0 to 15 min), notifications, privacy, replay intro, delete my data. |
+| **Chat** | Ask "When should I leave for work tomorrow?", "What comes next at my stop?", paste a Google Maps link, or attach a photo or PDF of a timetable. Trips it proposes are saved only when you confirm. |
+| **Settings** | Home address, extra buffer time (0 to 15 min), notifications, privacy, replay intro, delete my data, and the app version (the build and commit, so you know which build you are testing). Tapping the Version row seven times opens a developer menu with test notifications and a test route. |
 
 ## Run it
 
@@ -195,7 +200,7 @@ Claude Desktop: add it as a custom connector (not tested yet).
 | `next_arrivals` | Live countdown of the next vehicles at a stop. |
 | `plan_trip` | Arrive-by trip planner across all lines. |
 
-Two more tools, `propose_trip` and `propose_events`, are used only by the in-app chat: they return cards the user confirms in the app.
+Other tools (`stops_near`, `lines_at_stop`, `parse_maps_link`, `propose_trip`, `propose_route`, `propose_events`) are used by the in-app chat: they read a Google Maps link or return cards the user confirms in the app.
 
 ## Tech stack
 
@@ -205,7 +210,7 @@ Two more tools, `propose_trip` and `propose_events`, are used only by the in-app
 | Notifications | expo-notifications, react-native-notify-kit (Android leave card) |
 | Server | Node 24, Fastify, TypeScript run directly by Node, built-in SQLite, MCP SDK |
 | AI | Anthropic Claude or Google Gemini, chosen with `AI_PROVIDER` |
-| Data | TTC transit API, Google Places (optional), Photon / OpenStreetMap |
+| Data | TTC transit API, Google Places and Google Routes (both optional), Photon / OpenStreetMap |
 | Maps | Esri Light Gray Canvas tiles |
 | Build and deploy | EAS Build, Docker Compose, Caddy |
 | Fonts | Metropolis (public domain) |
@@ -227,6 +232,7 @@ docs/           README images
 
 - **Transport data:** TTC (Tbilisi Transport Company) public transit API: stops, routes, timetables, live positions and arrivals, walking and trip planning.
 - **Places:** OpenStreetMap data through TTC's geocoder and [Photon](https://photon.komoot.io); Google Places (New) when enabled.
+- **Route ideas:** Google Routes (transit) when enabled, used only to suggest which lines to chain. All times come from TTC.
 - **Map tiles:** Esri Light Gray Canvas, with attribution on the map (OpenStreetMap contributors where shown).
 - **Live accuracy:** TTC's predictions are about 1-1.5 minutes off up to 10 minutes ahead in our measurement (details). Our planner is not affiliated with TTC.
 

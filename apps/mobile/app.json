@@ -3,6 +3,8 @@
     "name": "მოასწრებ",
     "slug": "tbilisi-transit",
     "version": "1.0.0",
+    "owner": "gigoshkins-team",
+    "extra": { "eas": { "projectId": "f84026bd-0b86-4e92-9657-94a713b14892" } },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
