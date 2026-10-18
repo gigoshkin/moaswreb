@@ -74,7 +74,7 @@ async function generate(doFetch: Fetch, body: string): Promise<Response> {
 /** One chat turn on Gemini: the model calls our tools; tool results become the cards. */
 export async function runGeminiChat(req: ChatRequest, deps: ToolDeps, doFetch: Fetch = fetch): Promise<ChatResponse> {
   const cards: ActionCard[] = [];
-  const tools = createTools({ fetch: doFetch, ...deps, locale: req.locale ?? 'en' });
+  const tools = createTools({ fetch: doFetch, ...deps, locale: req.locale ?? 'en', locationButton: req.canShareLocation });
   const byName = new Map(tools.map((t) => [t.name, t]));
   const declarations = tools.map((t) => ({
     name: t.name,

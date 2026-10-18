@@ -41,6 +41,8 @@ export interface ToolDeps {
   source?: Pick<Source, 'patternsAt'>;
   /** Used to resolve short Google Maps links (parse_maps_link). Tests inject a stub; no network in tests. */
   fetch?: typeof fetch;
+  /** The app can show the Share my location button (newer app versions). Older ones would get a dead end, so the tool is withheld. */
+  locationButton?: boolean;
 }
 
 const tool = <S extends z.ZodObject>(def: ToolDef<S>): ToolDef => def as unknown as ToolDef;
@@ -115,7 +117,9 @@ const keepSchema = z
   .optional()
   .describe('Which ways to tick on the card, named as plan_trip named them (e.g. ["direct 302"] or ["321|335 -> metro 1"]). Default: the best way. The user can change the ticks before saving');
 
-export const createTools = ({ ttc, stops, plans, locale = 'en', geo, source, fetch: fetchFn }: ToolDeps): ToolDef[] => {
+export const createTools = (deps: ToolDeps): ToolDef[] => allTools(deps).filter((t) => t.name !== 'request_location' || deps.locationButton);
+
+const allTools = ({ ttc, stops, plans, locale = 'en', geo, source, fetch: fetchFn }: ToolDeps): ToolDef[] => {
   /**
    * The ways a proposal card ticks, from a plan of the trip's next occurrence:
    * a hand-built route is its own way; otherwise the ways `keep` names, else the
@@ -299,6 +303,18 @@ export const createTools = ({ ttc, stops, plans, locale = 'en', geo, source, fet
         for (const p of points.slice(0, 3)) rows.push(`point | "${p.label}" | ${p.lat},${p.lng}${insideTbilisi(p.lat!, p.lng!) ? '' : ' (outside Tbilisi)'}`);
         return { text: rows.join('\n') };
       },
+    }),
+
+    tool({
+      name: 'request_location',
+      description:
+        'Ask the user to share their phone location. Call it when the answer needs where the user is ("near me", "from here", "my nearest stop") and the context has no current location. The user sees a "Share my location" button; after they tap it the app sends the same question again with the position, so reply with one short sentence like "Share your location and I will check." Never call it when a current location is in the context.',
+      schema: z.object({}),
+      mcp: false,
+      run: async () => ({
+        text: 'Shown to the user as a button. The question is asked again with their location once they tap it.',
+        card: { type: 'request_location' },
+      }),
     }),
 
     tool({

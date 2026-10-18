@@ -1,10 +1,11 @@
 import type { ActionCard, Itinerary, LatLon, PlanAvoid, PlanResponse, PlanTripMeta, ProposedEvent, ProposedRoute, ProposedTrip } from '@transit/shared';
 import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { fetchPlan, hasApi, searchPlaces } from '../lib/api';
-import { markCard, replaceCard, say } from '../lib/chat';
+import { askAgain, markCard, replaceCard, say } from '../lib/chat';
+import { locateMe } from '../lib/locate';
 import { openNewTrip, openPreview, pickPlace } from '../lib/handoff';
 import { choose, placeName } from '../lib/plans';
 import { bestWay, cardKept, groupWays, isTicked, toggleWay, wayLabel, waysFields, type RideStep, type Way } from '../lib/ways';
@@ -45,6 +46,8 @@ export function ChatCard(props: CardProps) {
       return <TripCard {...props} trip={card.trip} />;
     case 'confirm_route':
       return <RouteCard {...props} route={card.route} />;
+    case 'request_location':
+      return <LocationCard {...props} />;
     case 'arrivals':
       return (
         <Shell title={card.stop.name} icon="bus">
@@ -380,6 +383,47 @@ function EventsCard({ events, itemId, index, done, onEdit }: CardProps & { event
           </View>
         </View>
       ))}
+    </Shell>
+  );
+}
+
+/** The assistant needs to know where you are: one tap asks the phone, then the question is asked again with the position. */
+function LocationCard({ itemId, index, done }: CardProps) {
+  const [busy, setBusy] = useState(false);
+  const [off, setOff] = useState(false);
+  return (
+    <Shell
+      title="Where are you?"
+      icon="pin"
+      actions={
+        <Actions done={done}>
+          {off && <Button label="Open settings" kind="secondary" style={styles.flex} haptic="none" onPress={() => Linking.openSettings().catch(() => {})} />}
+          <Button
+            label={busy ? 'Finding you…' : off ? 'Try again' : 'Share my location'}
+            style={styles.flex}
+            disabled={busy}
+            onPress={async () => {
+              setBusy(true);
+              const here = await locateMe();
+              setBusy(false);
+              if (typeof here === 'object') {
+                haptic('success');
+                markCard(itemId, index, 'Location shared');
+                askAgain();
+              } else if (here === 'denied') setOff(true);
+            }}
+          />
+        </Actions>
+      }
+    >
+      <Text variant="body15" color={color.textSecondary}>
+        Used once to answer this question. Nothing is tracked.
+      </Text>
+      {off && (
+        <Text variant="body15" color={color.textSecondary}>
+          Location is off for the app. Allow it in the phone's settings.
+        </Text>
+      )}
     </Shell>
   );
 }

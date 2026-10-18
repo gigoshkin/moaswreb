@@ -44,6 +44,11 @@ export const contextOf = (req: ChatRequest): string =>
     req.home
       ? `The user's home (from Settings; use it for "home" without asking): ${JSON.stringify({ label: req.home.label, lat: req.home.lat, lon: req.home.lon })}`
       : 'The user has not set a home yet; ask where they start if it matters.',
+    req.here
+      ? `The user's current location (phone GPS, for this request only; use it for "near me", "here", "from my location" and "current location" without asking): ${JSON.stringify(req.here)}`
+      : req.canShareLocation
+        ? 'The phone did not share a location. For "near me", "here" or "my nearest stop" call request_location (a button the user taps); do not say you cannot know where they are.'
+        : 'The phone did not share a location. For "near me" or "here" ask the user to name the place or a nearby stop.',
     ...(req.bufferMin ? [`The user wants ${req.bufferMin} extra minutes on top of the walk (the app adds it to leave times).`] : []),
     req.trips?.length
       ? `The user's saved trips (from their phone, for this request only): ${JSON.stringify(req.trips)}`
@@ -74,7 +79,7 @@ const toParams = (req: ChatRequest): Anthropic.Beta.BetaMessageParam[] => {
 /** One chat turn: Claude calls our tools; tool results become the cards. */
 export async function runChat(req: ChatRequest, deps: ChatDeps): Promise<ChatResponse> {
   const cards: ActionCard[] = [];
-  const tools = createTools({ ...deps, locale: req.locale ?? 'en' }).map((t) =>
+  const tools = createTools({ ...deps, locale: req.locale ?? 'en', locationButton: req.canShareLocation }).map((t) =>
     betaZodTool({
       name: t.name,
       description: t.description,

@@ -34,6 +34,10 @@ export interface ChatRequest {
   trips?: TripContext[];
   /** The user's home (Settings), so "from home" needs no question. For this request only. */
   home?: LatLon & { label: string };
+  /** Where the phone is right now, when the user allowed location. For this request only. */
+  here?: LatLon;
+  /** The app can show the Share my location button (the request_location card). Absent in older app versions. */
+  canShareLocation?: boolean;
   /** Extra minutes the user wants on top of the walk (Settings). */
   bufferMin?: number;
   locale?: 'ka' | 'en';
@@ -131,7 +135,9 @@ export type ActionCard =
   | { type: 'stops'; stops: StopHit[] }
   | { type: 'confirm_trip'; trip: ProposedTrip }
   | { type: 'confirm_events'; events: ProposedEvent[] }
-  | { type: 'confirm_route'; route: ProposedRoute };
+  | { type: 'confirm_route'; route: ProposedRoute }
+  /** A button that asks the phone for its position and then repeats the question with it. */
+  | { type: 'request_location' };
 
 export interface ChatResponse {
   /** One short sentence; the cards carry the content. */
