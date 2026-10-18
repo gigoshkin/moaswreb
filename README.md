@@ -57,7 +57,7 @@ Until then, run it from source with Expo Go in a few minutes: [Run it](#run-it).
 - **Road shapes.** Rides are drawn along the road where TTC's planner gives a geometry, otherwise straight between stops.
 - **AI assistant.** One chat input that understands text, photos and PDFs: a screenshot of a timetable, a photo of a notice, a Georgian TTC announcement. It answers in English, shows cards with real numbers from TTC data (stops, arrivals, plans) and proposes trips you confirm with one tap, with a name and days filled in. Paste a Google Maps link (full or shortened) and it turns the From and To into a trip.
 - **Alerts.** A push notification "Leave in 10 min", and "Departure time changed" when the plan moves by 3 minutes or more. Works with the app closed.
-- **Lock-screen leave card (Android development build or APK).** An ongoing notification that counts down to the leave time, from 30 minutes before. Tapping it opens the trip.
+- **Lock-screen leave card (Android development build or APK).** An ongoing notification that counts down to the leave time, from 30 minutes before, and stays current while the plan changes (the leave time, a progress bar, "switch to 17" when your line runs late). Tapping it opens the trip.
 - **First-open intro.** Three skippable screens; notifications are asked for on the last one only.
 - **English only.** No sign-up and no accounts. TTC's Georgian stop names are still searchable.
 
