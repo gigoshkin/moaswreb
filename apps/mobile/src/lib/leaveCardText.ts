@@ -1,5 +1,6 @@
 // Pure rules for the Android "leave card" (see leaveCard.ts): when it shows,
-// when it flips to "Leave now", when it goes away, and what it says.
+// when it flips to "Leave now", when it goes away, what it says and how far
+// the progress bar is.
 // No React Native imports, so `node --test` can run it (test/leaveCard.test.ts).
 
 /** The card appears this long before the leave time. */
@@ -21,7 +22,15 @@ export interface CardText {
   /** Countdown card title. The chronometer in the header ticks; the title stays put. */
   title: string;
   leaveNowTitle: string;
+  /** Ride, stop and arrival, then "08:46 → 08:55" (leave time to arrival) on its own line. */
   body: string;
+}
+
+/** Determinate bar over the trip: empty at the leave time, full on arrival. Null when the times don't make a span. */
+export function cardProgress(leaveAt: number, arriveAt: number, at: number): { max: number; current: number } | null {
+  if (arriveAt <= leaveAt) return null;
+  const f = (at - leaveAt) / (arriveAt - leaveAt);
+  return { max: 100, current: Math.round(100 * Math.min(1, Math.max(0, f))) };
 }
 
 /** Card times for a leave time: show at `showAt` (now, if the window has started), "Leave now" at `leaveAt`, gone at `endAt`. */
@@ -61,7 +70,7 @@ export function cardText(c: CardInput, fmt: (ms: number) => string, minibus = fa
   }
   parts.push(`arrive ${fmt(c.arriveAt)}${c.late ? ' (late)' : ''}`);
   const name = c.tripName ? `${c.tripName}: ` : '';
-  return { title: `${name}Leave at ${fmt(c.leaveAt)}`, leaveNowTitle: `${name}Leave now`, body: parts.join(' · ') };
+  return { title: `${name}Leave at ${fmt(c.leaveAt)}`, leaveNowTitle: `${name}Leave now`, body: `${parts.join(' · ')}\n${fmt(c.leaveAt)} → ${fmt(c.arriveAt)}` };
 }
 
 /** Same plan, same card: only re-post when this changes, so the card doesn't flicker or buzz again. */

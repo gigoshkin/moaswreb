@@ -5,7 +5,7 @@ import { cachedPlan, fetchPlan, hasApi } from './api';
 import { readCache, writeCache } from './cache';
 import { isExpoGo } from './kv';
 import { choose, transitLegs } from './plans';
-import { cardKey, cardText, cardTimes, KEEP_AFTER_MS, type CardInput, type CardTimes } from './leaveCardText';
+import { cardKey, cardProgress, cardText, cardTimes, KEEP_AFTER_MS, type CardInput, type CardTimes } from './leaveCardText';
 import { settings } from './settings';
 import { addDays, hhmm, isoWeekday, todayLocal } from './time';
 import { tripDays, tripsStore, type SavedTrip } from './trips';
@@ -14,8 +14,9 @@ import { tripQuery } from './useTripPlan';
 // Android "leave card": an ongoing notification that appears 30 min before
 // the leave time and counts down by itself (the system chronometer, no app
 // wake-ups), then turns into "Leave now" at the leave time and goes away
-// 10 min later. Both parts are scheduled as AlarmManager triggers, so they
-// fire with the app closed. Needs the dev build (react-native-notify-kit is
+// 10 min later. A progress bar spans leave time to arrival, set when each
+// part is posted (it is not redrawn in between). Both parts are scheduled as
+// AlarmManager triggers, so they fire with the app closed. Needs the dev build (react-native-notify-kit is
 // native); in Expo Go, on iOS and on the web every function here does nothing.
 
 type NotifyKit = typeof NotifyKitModule;
@@ -111,7 +112,7 @@ async function cardFor(trip: SavedTrip, date: string, now: number): Promise<{ in
   };
 }
 
-function parts(ids: { card: string; now: string }, tripId: string, title: string, leaveNowTitle: string, body: string, t: CardTimes) {
+function parts(ids: { card: string; now: string }, tripId: string, title: string, leaveNowTitle: string, body: string, t: CardTimes, arriveAt: number) {
   if (!kit) throw new Error('no notify-kit');
   const { AndroidImportance, AndroidStyle, AndroidVisibility, AndroidCategory } = kit;
   const base = {
@@ -128,6 +129,12 @@ function parts(ids: { card: string; now: string }, tripId: string, title: string
     style: { type: AndroidStyle.BIGTEXT, text: body } as const,
     pressAction: { id: 'default', launchActivity: 'default' },
   };
+  // The bar is fixed at what is true when the part is posted (a part scheduled for later starts at its own time):
+  // nothing redraws it between the card's triggers, and the card is re-posted when the app syncs the plan.
+  const bar = (at: number) => {
+    const p = cardProgress(t.leaveAt, arriveAt, at);
+    return p ? { progress: p } : {};
+  };
   const countdown: Notification = {
     id: ids.card,
     title,
@@ -135,7 +142,7 @@ function parts(ids: { card: string; now: string }, tripId: string, title: string
     data: { tripId, leaveAt: String(t.leaveAt) },
     // Counts down to the leave time in the header (and, on Android 16+, would in a Live Update chip).
     // Gone at the leave time, when the "Leave now" part takes over.
-    android: { ...base, chronometerDirection: 'down', onlyAlertOnce: true, timeoutAfter: Math.max(1_000, t.leaveAt - t.showAt) },
+    android: { ...base, ...bar(t.showAt), chronometerDirection: 'down', onlyAlertOnce: true, timeoutAfter: Math.max(1_000, t.leaveAt - t.showAt) },
   };
   const leaveNow: Notification = {
     id: ids.now,
@@ -143,7 +150,7 @@ function parts(ids: { card: string; now: string }, tripId: string, title: string
     body,
     data: { tripId, leaveAt: String(t.leaveAt) },
     // Counts up from the leave time ("02:10" late), gone once the user has surely left.
-    android: { ...base, chronometerDirection: 'up', onlyAlertOnce: false, timeoutAfter: Math.max(1_000, t.endAt - Math.max(t.leaveAt, Date.now())) },
+    android: { ...base, ...bar(Math.max(t.leaveAt, Date.now())), chronometerDirection: 'up', onlyAlertOnce: false, timeoutAfter: Math.max(1_000, t.endAt - Math.max(t.leaveAt, Date.now())) },
   };
   return { countdown, leaveNow };
 }
@@ -171,7 +178,7 @@ async function show(ids: { card: string; now: string }, tripId: string, input: C
   const t = cardTimes(input.leaveAt, now);
   if (!t) return false;
   const text = cardText(input, hhmm, minibus);
-  const { countdown, leaveNow } = parts(ids, tripId, text.title, text.leaveNowTitle, text.body, t);
+  const { countdown, leaveNow } = parts(ids, tripId, text.title, text.leaveNowTitle, text.body, t, input.arriveAt);
   if (now < t.leaveAt) {
     await post(countdown, t.showNow ? null : t.showAt);
     await post(leaveNow, t.leaveAt);
@@ -271,7 +278,7 @@ export async function testLeaveCard(): Promise<string> {
   // Shorter than the real card: show 2 min before the leave time, keep 2 min after.
   const t: CardTimes = { showAt: now + 60_000, leaveAt: input.leaveAt, endAt: input.leaveAt + Math.min(KEEP_AFTER_MS, 2 * 60_000), showNow: false };
   const text = cardText(input, hhmm);
-  const { countdown, leaveNow } = parts({ card: TEST_CARD, now: TEST_NOW }, 'test', text.title, text.leaveNowTitle, text.body, t);
+  const { countdown, leaveNow } = parts({ card: TEST_CARD, now: TEST_NOW }, 'test', text.title, text.leaveNowTitle, text.body, t, input.arriveAt);
   await post(countdown, t.showAt);
   await post(leaveNow, t.leaveAt);
   const exact = settingsNow.android.alarm === kit.AndroidNotificationSetting.ENABLED;
