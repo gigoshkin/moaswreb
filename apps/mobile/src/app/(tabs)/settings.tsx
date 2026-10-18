@@ -1,17 +1,22 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
+import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { cancelBackups, setUpAlerts } from '../../lib/alerts';
 import { deleteMyData, hasApi } from '../../lib/api';
-import { exactAlarmsAllowed, openExactAlarmSettings, testLeaveCard } from '../../lib/leaveCard';
+import { isExpoGo } from '../../lib/kv';
+import { exactAlarmsAllowed, leaveCardAvailable, openExactAlarmSettings, testLeaveCard } from '../../lib/leaveCard';
 import { clearChat } from '../../lib/chat';
 import { pickPlace } from '../../lib/handoff';
 import { alertsOffered, replayIntro } from '../../lib/onboarding';
 import { bufferText, settings, updateSettings } from '../../lib/settings';
-import { clearTrips, syncNow } from '../../lib/trips';
+import { clearTrips, listTrips, syncNow } from '../../lib/trips';
 import { ask, notify } from '../../ui/Dialog';
 import { Icon } from '../../ui/Icon';
 import { haptic } from '../../ui/Tap';
+import { Button } from '../../ui/Button';
+import { Sheet } from '../../ui/Sheet';
+import { Text } from '../../ui/Text';
 import { Group, GroupRow, ScreenTitle, Switch } from '../../ui/kit';
 import { color, gutter } from '../../ui/theme';
 
@@ -21,8 +26,29 @@ import { color, gutter } from '../../ui/theme';
 const build = Constants.expoConfig?.extra?.build as { branch?: string; commit?: string; dirty?: boolean } | undefined;
 const versionText = [Constants.expoConfig?.version, build?.commit ? `${build.branch ? `${build.branch} ` : ''}${build.commit}${build.dirty ? '+' : ''}` : ''].filter(Boolean).join(' · ');
 
+const apiHost = (() => {
+  try {
+    return new URL(process.env.EXPO_PUBLIC_API_URL ?? '').host || 'not set';
+  } catch {
+    return 'not set';
+  }
+})();
+
 export default function Settings() {
   const s = settings.use();
+
+  // Hidden developer menu: tap the Version row 7 times.
+  const [dev, setDev] = useState(false);
+  const taps = useRef({ n: 0, at: 0 });
+  const tapVersion = () => {
+    const now = Date.now();
+    taps.current = { n: now - taps.current.at > 2000 ? 1 : taps.current.n + 1, at: now };
+    if (taps.current.n >= 7) {
+      taps.current.n = 0;
+      haptic('success');
+      setDev(true);
+    }
+  };
 
   const setHome = async () => {
     const place = await pickPlace('home');
@@ -94,12 +120,39 @@ export default function Settings() {
           </Group>
         )}
         <Group>
-          <GroupRow label="Version" value={versionText} right={<View />} last />
+          <GroupRow label="Version" value={versionText} onPress={tapVersion} right={<View />} last />
         </Group>
         <Group>
           <GroupRow label="Delete my data" icon="alert" onPress={deleteAll} right={<View />} last />
         </Group>
       </ScrollView>
+      <Sheet visible={dev} onClose={() => setDev(false)}>
+        <Text variant="title26">Developer</Text>
+        <View style={styles.devInfo}>
+          {[
+            ['Build', versionText],
+            ['Server', `${apiHost}${hasApi ? '' : ' (no server)'}`],
+            ['API key', process.env.EXPO_PUBLIC_API_KEY ? 'set' : 'missing'],
+            ['Runs in', isExpoGo ? 'Expo Go' : 'standalone build'],
+            ['Leave card', leaveCardAvailable ? 'available' : 'not here (Android build only)'],
+            ['Trips on this phone', String(listTrips().length)],
+          ].map(([k, v]) => (
+            <View key={k} style={styles.devRow}>
+              <Text variant="body14" color={color.textSecondary}>
+                {k}
+              </Text>
+              <Text variant="body14" style={styles.devValue} numberOfLines={1}>
+                {v}
+              </Text>
+            </View>
+          ))}
+        </View>
+        <View style={styles.devActions}>
+          <Button label="Test leave card in 1 min" kind="secondary" onPress={testCard} />
+          <Button label="Replay intro and tips" kind="secondary" onPress={() => { setDev(false); replayIntro(); setTimeout(() => router.replace('/welcome'), 0); }} />
+          <Button label="Clear saved trips" kind="secondary" onPress={async () => { if (await ask({ title: 'Clear all trips on this phone?', confirm: 'Clear', destructive: true })) { clearTrips(); syncNow(); } }} />
+        </View>
+      </Sheet>
     </View>
   );
 }
@@ -107,4 +160,8 @@ export default function Settings() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.bg },
   content: { paddingHorizontal: gutter, gap: 12, paddingBottom: 24 },
+  devInfo: { gap: 8, paddingVertical: 12 },
+  devRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 16 },
+  devValue: { flexShrink: 1, textAlign: 'right' },
+  devActions: { gap: 8, paddingBottom: 4 },
 });
