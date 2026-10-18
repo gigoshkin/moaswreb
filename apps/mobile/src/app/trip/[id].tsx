@@ -32,6 +32,8 @@ export default function TripDetail() {
   const trip = preview ? null : (trips.find((t) => t.id === id) ?? null);
   const date = dateParam ?? (trip ? nextArriveBy(trip.arriveBy, tripDays(trip), now).slice(0, 10) : '');
   const live = useTripPlan(trip, date, now, { refreshMs: 60_000 });
+  // A hook, so it lives here and not inside the conditional JSX below: the number of hooks must not change between renders.
+  const bufferMin = settings.use().bufferMin;
   const p = preview ? getPreview(id) : undefined;
 
   const it: Itinerary | null = useMemo(() => {
@@ -76,7 +78,7 @@ export default function TripDetail() {
                 itineraries={live.itineraries}
                 chosenId={live.choice.kind === 'none' ? undefined : live.choice.it.id}
                 now={now}
-                bufferMin={settings.use().bufferMin}
+                bufferMin={bufferMin}
                 avoid={trip.avoid}
                 loading={!live.error && (!live.loaded || live.refreshing)}
                 onAvoid={(avoid) => {
