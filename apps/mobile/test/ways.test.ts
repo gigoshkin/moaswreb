@@ -18,7 +18,7 @@ registerHooks({
 const { groupWays, sameWay, variantSteps, fitsWay, isTicked, toggleWay, tripWays, waysFields } = await import('../src/lib/ways.ts');
 const { wireSteps, mergeItineraries, mergePlans } = await import('../src/lib/plans.ts');
 
-// SYNTHETIC stops in the shape of Didi Dighomi -> Caucasus University: 321, 335 and minibus 518
+// SYNTHETIC stops in the shape of Didi Dighomi -> Caucasus University: buses 321, 335 and 518
 // stop a few dozen metres apart near the same metro station, then metro 1, then 490.
 const P = (stopId: string, lat: number, lon: number) => ({ name: stopId, stopId, lat, lon });
 const home = P('1:home321', 41.791, 44.738);
@@ -40,7 +40,7 @@ const it = (arr: string, legs: PlanLeg[]): Itinerary => ({
 const tail = [ride('SUBWAY', '1', metroA, metroB), ride('BUS', '490', b490a, b490b)];
 const via321 = it('10:50', [ride('BUS', '321', home, metroBus), ...tail]);
 const via335 = it('10:52', [ride('BUS', '335', home335, metroBus), ...tail]);
-const via518 = it('10:55', [ride('BUS', '518', home, metroBus518, true), ...tail]);
+const via518 = it('10:55', [ride('BUS', '518', home, metroBus518), ...tail]);
 
 test('rides boarding and leaving at stops within 150 m stack into one way', () => {
   const ways = groupWays([via518, via335, via321], 0);
@@ -68,7 +68,7 @@ test('a picked way becomes its rides: every variation of each ride allowed, its 
   assert.deepEqual(steps[0].fromStops, ['1:home335', '1:home321']);
   assert.deepEqual(steps[0].toStops, ['1:m-bus', '1:m-bus-518']);
   assert.deepEqual(steps[0].routes, ['335', '321', '518'], '330 from a stop 1 km away is another way, not a variation');
-  assert.deepEqual(steps[0].lines!.map((l) => l.kind), ['bus', 'bus', 'minibus']);
+  assert.deepEqual(steps[0].lines!.map((l) => l.kind), ['bus', 'bus', 'bus']);
   assert.deepEqual(steps[1], { fromStops: ['1:metro_1_a'], toStops: ['1:metro_1_b'], routes: ['1'], lines: [{ label: '1', kind: 'metro' }] });
   assert.deepEqual(steps[2].routes, ['490']);
   // What the server gets: stops and allowed lines only.

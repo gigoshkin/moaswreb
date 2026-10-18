@@ -13,3 +13,18 @@ export const tbilisiLocalToIso = (local: string): string | null => {
   if (back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d || back.getUTCHours() !== h) return null;
   return date.toISOString();
 };
+
+/**
+ * Next Tbilisi wall-clock occurrence of "HH:mm" on one of `days` (ISO
+ * weekdays, 1 = Monday) as `YYYY-MM-DDTHH:mm`. Today counts if the time is
+ * still ahead. All days when `days` is empty or omitted.
+ */
+export const nextArriveBy = (time: string, days?: number[], now = Date.now()): string => {
+  const [h, m] = time.split(':').map(Number);
+  const local = new Date(now + TBILISI_UTC_OFFSET_MIN * 60_000);
+  const target = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), h, m));
+  if (target.getTime() <= local.getTime()) target.setUTCDate(target.getUTCDate() + 1);
+  const allowed = days?.length ? days : [1, 2, 3, 4, 5, 6, 7];
+  for (let i = 0; i < 7 && !allowed.includes(target.getUTCDay() || 7); i++) target.setUTCDate(target.getUTCDate() + 1);
+  return target.toISOString().slice(0, 16);
+};
