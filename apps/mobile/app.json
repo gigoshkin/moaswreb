@@ -33,6 +33,7 @@
       "expo-router",
       "expo-sqlite",
       "expo-notifications",
+      ["react-native-notify-kit", { "android": { "icons": [{ "name": "ic_leave_card", "path": "./assets/android-icon-monochrome.png", "type": "small" }] } }],
       "@react-native-community/datetimepicker",
       "expo-splash-screen",
       ["expo-image-picker", { "cameraPermission": "Take a photo to send in the chat.", "photosPermission": "Choose photos to send in the chat.", "microphonePermission": false }],
