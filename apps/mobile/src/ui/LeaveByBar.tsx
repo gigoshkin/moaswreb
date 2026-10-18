@@ -22,7 +22,7 @@ const LABEL_W = 34;
 const COMBINED_W = 76;
 
 const tones = {
-  cream: { track: '#DCDCE0', window: color.ink, now: color.ink, label: color.textSecondary, nowW: 2, nowH: 16, nowTop: -4 },
+  cream: { track: 'rgba(28,26,26,0.12)', window: color.ink, now: color.ink, label: color.textSecondary, nowW: 2, nowH: 16, nowTop: -4 },
   dark: { track: color.onInkFaint, window: color.onInk, now: color.onInkMuted, label: color.onInkMuted, nowW: 2, nowH: 16, nowTop: -4 },
   card: { track: '#EBEBEC', window: color.sky, now: color.ink, label: color.textSecondary, nowW: 6, nowH: 20, nowTop: -6 },
 };

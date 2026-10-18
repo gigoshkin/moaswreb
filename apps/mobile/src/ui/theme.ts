@@ -17,6 +17,9 @@ export const color = {
   track: '#E7E7EA',
   cream: '#F0F0F2', // the Today hero (was beige; George, 18 Oct)
   sky: '#D0EDF6',
+  // Today hero (George, 18 Oct): sky while counting down, bus green at "Leave now".
+  hero: '#D0EDF6',
+  heroNow: '#1F7A4D',
   onInk: '#FFFFFF',
   onInkMuted: 'rgba(255,255,255,0.6)',
   onInkFaint: 'rgba(255,255,255,0.13)',

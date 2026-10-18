@@ -90,7 +90,7 @@ function Hero({ trip, date, now, plan }: { trip: SavedTrip; date: string; now: n
     d.value = withSpring(dark ? 1 : 0, spring.smooth);
     if (dark) haptic('success');
   }, [dark]);
-  const bg = useAnimatedStyle(() => ({ backgroundColor: interpolateColor(d.value, [0, 1], [color.cream, color.ink]) }));
+  const bg = useAnimatedStyle(() => ({ backgroundColor: interpolateColor(d.value, [0, 1], [color.hero, color.heroNow]) }));
 
   const fg = dark ? color.onInk : color.text;
   const muted = dark ? color.onInkMuted : color.textSecondary;
@@ -221,7 +221,7 @@ function NothingLeft({ trips, now }: { trips: SavedTrip[]; now: number }) {
     if (t) next = { date, trip: t };
   }
   return (
-    <View style={[styles.hero, { backgroundColor: color.cream }]}>
+    <View style={[styles.hero, { backgroundColor: color.hero }]}>
       <Text variant="title26">Nothing else today</Text>
       {next && (
         <Tap onPress={() => router.push({ pathname: '/trip/[id]', params: { id: next.trip.id, date: next.date } })} style={styles.nextRow} scaleTo={0.98}>
@@ -238,7 +238,7 @@ function NothingLeft({ trips, now }: { trips: SavedTrip[]; now: number }) {
 /** No trips saved yet. */
 function FirstRun() {
   return (
-    <View style={[styles.hero, { backgroundColor: color.cream }]}>
+    <View style={[styles.hero, { backgroundColor: color.hero }]}>
       <Text variant="title26">Where do you go often?</Text>
       <Text variant="body14" color={color.textSecondary}>
         Add a trip and this screen counts down to when you leave.
