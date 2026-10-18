@@ -1,6 +1,6 @@
 import type { Itinerary } from '@transit/shared';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, interpolateColor, LinearTransition, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +8,7 @@ import { openNewTrip } from '../../lib/handoff';
 import { durationText, leaveAt as leaveAtOf, minutesUntil, transitLegs, firstWalkMin, type Choice } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { addDays, hhmm, isoWeekday, longDate, relativeDay, todayLocal } from '../../lib/time';
-import { tripDays, useTrips, type SavedTrip } from '../../lib/trips';
+import { DEFAULT_DAYS, newTripId, saveTrip, tripDays, useTrips, withStops, type SavedTrip } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { chainOf, slotsFor } from '../../lib/ways';
@@ -239,8 +239,27 @@ function NothingLeft({ trips, now }: { trips: SavedTrip[]; now: number }) {
   );
 }
 
+/** A ready-made trip for trying the app with nothing saved. Weekends: every day, so Today has something to show. */
+const exampleTrip = (): SavedTrip => ({
+  id: newTripId(),
+  name: 'Example: Didi Dighomi to Rustaveli',
+  from: { label: 'Didi Dighomi III microdistrict', lat: 41.7910541, lon: 44.7380951 },
+  to: { label: 'Rustaveli Ave, Freedom Square', lat: 41.6934, lon: 44.8015 },
+  arriveBy: '09:00',
+  days: isoWeekday(todayLocal()) <= 5 ? DEFAULT_DAYS : [1, 2, 3, 4, 5, 6, 7],
+});
+
 /** No trips saved yet. */
 function FirstRun() {
+  const [busy, setBusy] = useState(false);
+  const tryExample = async () => {
+    if (busy) return;
+    setBusy(true);
+    const base = exampleTrip();
+    const trip = await Promise.race([withStops(base), new Promise<SavedTrip>((r) => setTimeout(() => r(base), 3000))]); // the stop lookup can be slow; save without it after 3 s
+    saveTrip(trip);
+    haptic('success');
+  };
   return (
     <View style={[styles.hero, { backgroundColor: color.hero }]}>
       <Text variant="title26">Where do you go often?</Text>
@@ -249,6 +268,10 @@ function FirstRun() {
       </Text>
       <View style={styles.firstRunActions}>
         <Button label="Add a trip" onPress={() => openNewTrip()} />
+        <Button label="Try an example trip" kind="secondary" onPress={tryExample} disabled={busy} haptic="none" />
+        <Text variant="caption" color={color.textSecondary} style={styles.exampleNote}>
+          You can delete it any time.
+        </Text>
         <Tap onPress={() => router.navigate('/chat')} style={styles.textButton} scaleTo={0.96}>
           <Text variant="label14">Or ask the assistant to set it up</Text>
         </Tap>
@@ -275,6 +298,7 @@ const styles = StyleSheet.create({
   metaText: { marginLeft: 4 },
   cta: { paddingHorizontal: gutter, paddingTop: 20 },
   nextRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  firstRunActions: { gap: 4, marginTop: 8 },
+  firstRunActions: { gap: 8, marginTop: 8 },
+  exampleNote: { textAlign: 'center' },
   textButton: { alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 8 },
 });
