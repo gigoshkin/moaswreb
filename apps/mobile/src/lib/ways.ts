@@ -180,22 +180,3 @@ export function toggleWay(kept: RideStep[][], way: Way, all: Itinerary[]): RideS
   const steps = variantSteps(way.its[0], all);
   return steps ? [...kept, steps] : kept;
 }
-
-/**
- * The lines offered for a ride and the ones ticked. `planned` are the ride's
- * lines in the current plan, for rides saved without their list (older trips).
- * No allow-list means every line is ticked.
- */
-export function rideChoice(step: RideStep, planned: LineRef[] = []): { lines: LineRef[]; on: string[] } {
-  const lines = [...(step.lines ?? [])];
-  for (const l of planned) if (!lines.some((x) => x.label === l.label)) lines.push(l);
-  for (const r of step.routes ?? []) if (!lines.some((x) => x.label === r)) lines.push({ label: r, kind: 'bus' });
-  return { lines, on: step.routes?.length ? lines.map((l) => l.label).filter((l) => step.routes!.includes(l)) : lines.map((l) => l.label) };
-}
-
-/** Tick or untick one line of a ride. The last ticked line can't be unticked; the result lists the allowed lines explicitly. */
-export function toggleRideLine(step: RideStep, label: string, planned: LineRef[] = []): RideStep {
-  const { lines, on } = rideChoice(step, planned);
-  const next = on.includes(label) ? (on.length > 1 ? on.filter((l) => l !== label) : on) : [...on, label];
-  return { ...step, lines, routes: lines.map((l) => l.label).filter((l) => next.includes(l)) };
-}

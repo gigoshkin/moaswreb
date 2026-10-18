@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { buildRoute, buildSteps, takeDraft } from '../../lib/handoff';
 import { tripTourSeen } from '../../lib/onboarding';
 import { firstWalkMin, leaveAt, placeName, transitLegs } from '../../lib/plans';
-import { chainOf } from '../../lib/ways';
+import { chainOf, tripWays, waysFields } from '../../lib/ways';
 import { settings } from '../../lib/settings';
 import { DAY_SHORT, hhmm, nextArriveBy } from '../../lib/time';
 import { DEFAULT_DAYS, getTrip, newTripId, removeTrip, saveTrip, withStops, type Place, type SavedTrip } from '../../lib/trips';
@@ -41,7 +41,7 @@ export default function EditTrip() {
       arriveBy: existing?.arriveBy ?? draft?.arriveBy ?? '09:00',
       days: existing?.days ?? draft?.days ?? DEFAULT_DAYS,
       avoid: existing?.avoid ?? draft?.avoid,
-      steps: existing?.steps ?? draft?.steps,
+      ways: tripWays(existing ?? draft ?? {}),
     };
   });
   const [from, setFrom] = useState<Place | null>(init.from);
@@ -50,7 +50,8 @@ export default function EditTrip() {
   const [arriveBy, setArriveBy] = useState(init.arriveBy);
   const [days, setDays] = useState<number[]>(init.days);
   const [avoid, setAvoid] = useState(init.avoid);
-  const [steps, setSteps] = useState(init.steps);
+  // The ways kept for the trip (ticked in the route builder, or built by hand); empty: the app picks.
+  const [ways, setWays] = useState(init.ways);
   const [iosPicker, setIosPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   // First open of a NEW trip only; the flag is set when the tour ends (or is skipped).
@@ -65,8 +66,8 @@ export default function EditTrip() {
 
   // Preview of the next occurrence, also the source of the stop ids on save.
   const draftTrip: SavedTrip | null = useMemo(
-    () => (from && to ? { id: existing?.id ?? 'draft', name: '', from, to, arriveBy, days, avoid, steps } : null),
-    [from, to, arriveBy, days.join(), JSON.stringify(avoid), JSON.stringify(steps)],
+    () => (from && to ? { id: existing?.id ?? 'draft', name: '', from, to, arriveBy, days, avoid, ...waysFields(ways) } : null),
+    [from, to, arriveBy, days.join(), JSON.stringify(avoid), JSON.stringify(ways)],
   );
   const date = nextArriveBy(arriveBy, days, now).slice(0, 10);
   const { choice } = useTripPlan(draftTrip, date, now);
@@ -74,23 +75,25 @@ export default function EditTrip() {
   const legs = it ? transitLegs(it) : [];
 
   const openBuilder = async () => {
-    const r = await buildRoute({ from, to, arriveBy, days, avoid, steps });
+    const r = await buildRoute({ from, to, arriveBy, days, avoid, ...waysFields(ways) });
     if (r) {
       setFrom(r.from);
       setTo(r.to);
       setAvoid(r.avoid);
-      setSteps(r.steps); // a new start or end keeps a hand-built route; only the walks change
+      setWays(tripWays(r)); // a new start or end keeps the kept ways; only the walks change
       if (r.arriveBy) setArriveBy(r.arriveBy); // changed on the route screen
     }
   };
 
   // Straight into the manual builder. Without ends it starts from scratch and takes them from the first and last stop.
   const buildByHand = async () => {
-    const r = await buildSteps({ from, to, arriveBy, days, steps: steps ?? [], avoid });
+    const r = await buildSteps({ from, to, arriveBy, days, steps: ways[0] ?? [], avoid });
     if (!r) return;
     setFrom(r.from);
     setTo(r.to);
-    setSteps(r.steps);
+    // The builder edits the first kept way; the others stay.
+    const built = JSON.stringify(r.steps);
+    setWays([r.steps, ...ways.slice(1).filter((w) => JSON.stringify(w) !== built)]);
   };
 
   const changeTime = () => {
@@ -102,7 +105,7 @@ export default function EditTrip() {
   const save = async () => {
     if (!from || !to || saving) return;
     setSaving(true);
-    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || to.label, from, to, arriveBy, days, ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) };
+    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || to.label, from, to, arriveBy, days, ...(avoid ? { avoid } : {}), ...(ways.length > 1 ? { ways } : {}), ...(ways.length ? { steps: ways[0] } : {}) };
     const first = legs[0];
     const trip =
       it && first
@@ -217,11 +220,11 @@ export default function EditTrip() {
             feedback="tint"
             style={styles.byHand}
             accessibilityRole="button"
-            accessibilityLabel={steps?.length ? 'Change my hand-built route' : 'Build route by hand, stop by stop'}
+            accessibilityLabel={ways.length ? 'Change my hand-built route' : 'Build route by hand, stop by stop'}
           >
             <Icon name="map" size={18} />
             <Text variant="label14" style={styles.byHandText}>
-              {steps?.length ? 'Change my hand-built route' : 'Build route by hand'}
+              {ways.length ? 'Change my hand-built route' : 'Build route by hand'}
             </Text>
             <Icon name="chevron-right" size={18} color={color.textTertiary} />
           </Tap>

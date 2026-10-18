@@ -5,18 +5,17 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPreview, openNewTrip } from '../../lib/handoff';
-import { firstWalkMin, isMetro, kindOf, lastWalkMin, leaveAt, placeName } from '../../lib/plans';
+import { firstWalkMin, isMetro, kindOf, lastWalkMin, leaveAt, mergeItineraries, placeName } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { hhmm, nextArriveBy } from '../../lib/time';
 import { getTrip, saveTrip, tripDays, useTrips, withStops } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
-import { slotsFor, variantSteps } from '../../lib/ways';
+import { slotsFor, tripWays, variantSteps, waysFields, type RideStep } from '../../lib/ways';
 import { Button } from '../../ui/Button';
 import { Busy } from '../../ui/Spinner';
 import { Icon, type IconName } from '../../ui/Icon';
 import { LeaveByBar } from '../../ui/LeaveByBar';
-import { RideLines } from '../../ui/RideLines';
 import { Ways } from '../../ui/Ways';
 import { RoutePlate } from '../../ui/RoutePlate';
 import { StaticMap } from '../../ui/StaticMap';
@@ -36,6 +35,11 @@ export default function TripDetail() {
   // A hook, so it lives here and not inside the conditional JSX below: the number of hooks must not change between renders.
   const bufferMin = settings.use().bufferMin;
   const p = preview ? getPreview(id) : undefined;
+  // A trip that keeps ways lists every way for its ends, ticked or not: a second plan over every line.
+  const kept = trip ? tripWays(trip) : [];
+  const anyLine = useMemo(() => (trip && kept.length ? { ...trip, steps: undefined, ways: undefined } : null), [trip, kept.length]);
+  const every = useTripPlan(anyLine, date, now);
+  const listed = useMemo(() => (kept.length ? mergeItineraries([every.itineraries, live.itineraries]) : live.itineraries), [kept.length, every.itineraries, live.itineraries]);
 
   const it: Itinerary | null = useMemo(() => {
     if (p) return p.plan.itineraries.find((x) => x.id === p.itineraryId) ?? null;
@@ -72,30 +76,28 @@ export default function TripDetail() {
               <Timeline it={it} destination={p?.to.label ?? trip?.to.label ?? ''} />
             </Animated.View>
           ) : null}
-          {trip?.steps?.length ? (
-            <Card>
-              <RideLines
-                steps={trip.steps}
-                planned={it ? slotsFor(it, live.itineraries) : []}
-                onChange={(steps) => {
-                  const next = { ...trip, steps };
-                  saveTrip(next);
-                  // The first stop can change with the lines; a slower answer must not undo a newer tick.
-                  withStops(next).then((t) => JSON.stringify(getTrip(t.id)?.steps) === JSON.stringify(steps) && saveTrip(t));
-                }}
-              />
-            </Card>
-          ) : null}
-          {trip && (live.itineraries.length > 0 || trip.avoid) ? (
+          {trip && (listed.length > 0 || trip.avoid) ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.gap}>
               <SectionLabel style={styles.sectionLabel}>All ways to get there</SectionLabel>
               <Ways
-                itineraries={live.itineraries}
+                itineraries={listed}
                 chosenId={live.choice.kind === 'none' ? undefined : live.choice.it.id}
                 now={now}
                 bufferMin={bufferMin}
                 avoid={trip.avoid}
-                loading={!live.error && (!live.loaded || live.refreshing)}
+                loading={!live.error && (!live.loaded || live.refreshing || (kept.length > 0 && !every.loaded))}
+                // A trip with kept ways ticks them here: the trip uses the ticked ways and nothing else.
+                kept={kept}
+                onKeep={
+                  kept.length
+                    ? (ways: RideStep[][]) => {
+                        const next = { ...trip, ...waysFields(ways) };
+                        saveTrip(next);
+                        // The first stop can change with the ways; a slower answer must not undo a newer tick.
+                        withStops(next).then((t) => JSON.stringify(tripWays(getTrip(t.id) ?? {})) === JSON.stringify(ways) && saveTrip(t));
+                      }
+                    : undefined
+                }
                 onAvoid={(avoid) => {
                   // The first stop and the walk can change with the avoid list: save now, refresh the server's copy after.
                   const next = { ...trip, avoid };
