@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPreview, openNewTrip } from '../../lib/handoff';
-import { firstWalkMin, isMetro, kindOf, lastWalkMin, leaveAt, placeName } from '../../lib/plans';
+import { firstWalkMin, isMetro, kindOf, lastWalkMin, leaveAt, placeName, stepsOf } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { hhmm, nextArriveBy } from '../../lib/time';
 import { saveTrip, tripDays, useTrips, withStops } from '../../lib/trips';
@@ -103,7 +103,9 @@ export default function TripDetail() {
             <Button
               label="Save this route"
               onPress={() => {
-                const { avoid, steps } = p.plan.query;
+                const { avoid } = p.plan.query;
+                // The route that was picked is the one that gets saved, not whatever the planner prefers next time.
+                const steps = p.plan.query.steps?.length ? p.plan.query.steps : it ? stepsOf(it) : undefined;
                 openNewTrip({ name: p.name, from: p.from, to: p.to, arriveBy: p.plan.query.arriveBy.slice(11, 16), ...(p.days?.length ? { days: p.days } : {}), ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) });
               }}
             />
