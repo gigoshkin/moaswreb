@@ -27,8 +27,10 @@ export interface SavedTrip {
   walkMin?: number;
   /** Lines this trip never uses ("not 518", "no microbuses"). Only this trip. */
   avoid?: PlanAvoid;
-  /** A pinned route (hand-built or a picked way): the rides in order, each with the lines ticked for it. Without it the planner looks at every line that fits. */
+  /** A pinned route (hand-built or a picked way): the rides in order, each with the lines allowed on it. Without it the planner looks at every line that fits. With `ways`, the first of them (what the server's alerts plan with). */
   steps?: RideStep[];
+  /** Every way ticked for the trip when there are several (see tripWays); the app plans each and uses nothing else. Phone only. */
+  ways?: RideStep[][];
 }
 
 /** True when the avoid list excludes anything. */

@@ -51,13 +51,16 @@ export interface RouteDraft {
   days: number[];
   avoid?: PlanAvoid;
   steps?: RideStep[];
+  /** Every way kept for the trip, when there are several (`steps` is the first). */
+  ways?: RideStep[][];
 }
-/** What the builder hands back: the ends, the lines the trip never uses and, for a hand-built route, its rides. */
+/** What the builder hands back: the ends, the lines the trip never uses and the ways kept for it (`steps` is the first, see waysFields). */
 export interface RouteResult {
   from: Place;
   to: Place;
   avoid?: PlanAvoid;
   steps?: RideStep[];
+  ways?: RideStep[][];
   /** Arrive-by changed on the route screen; absent when untouched. */
   arriveBy?: string;
 }

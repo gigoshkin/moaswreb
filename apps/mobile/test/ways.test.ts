@@ -15,8 +15,8 @@ registerHooks({
     }
   },
 });
-const { groupWays, sameWay, variantSteps, rideChoice, toggleRideLine } = await import('../src/lib/ways.ts');
-const { wireSteps } = await import('../src/lib/plans.ts');
+const { groupWays, sameWay, variantSteps, fitsWay, isTicked, toggleWay, tripWays, waysFields } = await import('../src/lib/ways.ts');
+const { wireSteps, mergeItineraries, mergePlans } = await import('../src/lib/plans.ts');
 
 // SYNTHETIC stops in the shape of Didi Dighomi -> Caucasus University: 321, 335 and minibus 518
 // stop a few dozen metres apart near the same metro station, then metro 1, then 490.
@@ -77,23 +77,58 @@ test('a picked way becomes its rides: every variation of each ride allowed, its 
   assert.equal(variantSteps(it('10:50', [ride('BUS', '321', { ...home, stopId: null }, metroBus)]), []), undefined);
 });
 
-test('ticking lines of a ride: at least one stays, unticked ones can come back', () => {
-  const [first] = variantSteps(via321, [via321, via335, via518])!;
-  let s = toggleRideLine(first, '335');
-  assert.deepEqual(s.routes, ['321', '518']);
-  s = toggleRideLine(toggleRideLine(s, '518'), '321');
-  assert.deepEqual(s.routes, ['321'], 'the last ticked line stays');
-  assert.deepEqual(rideChoice(s).lines.map((l) => l.label), ['321', '335', '518'], 'unticked lines are still offered');
-  assert.deepEqual(toggleRideLine(s, '335').routes, ['321', '335']);
+// Two more ways for the same trip: 314 then metro 1 then 490 from other stops, and 315 > 550 (never metro).
+const s314a = P('1:314a', 41.79, 44.75);
+const metroC = P('1:metro_1_c', 41.73, 44.79);
+const via314 = it('10:48', [ride('BUS', '314', s314a, P('1:314b', 41.731, 44.791)), { ...tail[0], from: metroC }, tail[1]]);
+const via315 = it('10:45', [ride('BUS', '315', P('1:315a', 41.78, 44.76), P('1:315b', 41.71, 44.80)), ride('BUS', '550', P('1:550a', 41.709, 44.801), b490b)]);
+const all = [via321, via335, via518, via314, via315];
+
+test('a kept way fits only its own rides, stops and lines', () => {
+  const kept = variantSteps(via335, all)!;
+  assert.ok(fitsWay(kept, via321) && fitsWay(kept, via518), 'every variation of the ticked row');
+  assert.equal(fitsWay(kept, via314), false, 'another way to the same metro');
+  assert.equal(fitsWay(kept, via315), false, 'never 315 > 550');
+  // Same stops, a line the way never had: not this way.
+  assert.equal(fitsWay(kept, it('10:50', [ride('BUS', '999', home, metroBus), ...tail])), false);
 });
 
-test('a ride saved without its line list (older trips) offers the planned lines, all ticked, and pins them once changed', () => {
-  const old = { fromStops: ['1:home321'], toStops: ['1:m-bus'] };
-  const planned = [{ label: '321', kind: 'bus' as const }, { label: '335', kind: 'bus' as const }];
-  assert.deepEqual(rideChoice(old, planned).on, ['321', '335']);
-  const s = toggleRideLine(old, '321', planned);
-  assert.deepEqual(s.routes, ['335']);
-  assert.deepEqual(s.lines, planned);
-  // Allowed lines the plan didn't return are still listed.
-  assert.deepEqual(rideChoice({ ...old, routes: ['321', '999'] }, planned).on, ['321', '999']);
+test('ticking rows: each tick keeps a whole row, unticking drops it, the last one stays', () => {
+  const rows = groupWays(all, 0);
+  const row = (line: string) => rows.find((w) => w.its.some((i) => i.legs[0].route!.shortName === line))!;
+  assert.equal(rows.length, 3);
+  let kept = toggleWay([], row('335'), all);
+  assert.equal(kept.length, 1);
+  assert.deepEqual(kept[0][0].routes, ['321', '335', '518'], 'the row with all its variations');
+  assert.ok(isTicked(row('321'), kept) && !isTicked(row('314'), kept) && !isTicked(row('315'), kept));
+  kept = toggleWay(kept, row('314'), all);
+  assert.equal(kept.length, 2);
+  assert.ok(isTicked(row('314'), kept));
+  kept = toggleWay(kept, row('321'), all);
+  assert.deepEqual(kept.map((k) => k[0].routes), [['314']], 'unticked');
+  assert.deepEqual(toggleWay(kept, row('314'), all), kept, 'the last ticked way stays');
+});
+
+test('kept ways on the trip: the first stays `steps`, `ways` only when there are several', () => {
+  const a = variantSteps(via321, all)!;
+  const b = variantSteps(via314, all)!;
+  assert.deepEqual(tripWays({}), []);
+  assert.deepEqual(tripWays({ steps: a }), [a], 'trips saved before ways');
+  assert.deepEqual(waysFields([a]), { steps: a, ways: undefined });
+  assert.deepEqual(waysFields([a, b]), { steps: a, ways: [a, b] });
+  assert.deepEqual(tripWays(waysFields([a, b])), [a, b]);
+  assert.deepEqual(waysFields([]), { steps: undefined, ways: undefined });
+});
+
+test('plans of several ways merge: each option once, earliest arrival first, unique ids', () => {
+  const dup = { ...via321 };
+  const clash = { ...via314, id: via321.id };
+  const merged = mergeItineraries([[via335, via321], [dup, clash]]);
+  assert.deepEqual(merged.map((i) => i.legs[0].route!.shortName), ['314', '321', '335']);
+  assert.equal(new Set(merged.map((i) => i.id)).size, 3);
+  const plan = (its: Itinerary[]) => ({ query: { from: home, to: b490b, arriveBy: '2026-10-19T11:00' }, itineraries: its, source: 'ttc' as const, fetchedAt: '' });
+  const one = plan([via321]);
+  assert.equal(mergePlans([one]), one, 'one way: the plan as it came');
+  assert.equal(mergePlans([]), null);
+  assert.equal(mergePlans([one, plan([via314])])!.itineraries.length, 2);
 });
