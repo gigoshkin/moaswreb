@@ -17,3 +17,9 @@ export const finishIntro = (offeredAlerts: boolean) => {
 
 /** Settings -> Replay intro. */
 export const replayIntro = () => introSeen.set(false);
+
+/** True once the New trip coach tour was finished or skipped. Bump the key to show it again. */
+export const tripTourSeen = persisted<boolean>('tour:trip-form:v1', false);
+
+/** Shows the New trip coach tour again on the next New trip. */
+export const replayTripTour = () => tripTourSeen.set(false);

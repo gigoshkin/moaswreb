@@ -1,9 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { buildRoute, takeDraft } from '../../lib/handoff';
+import { buildRoute, buildSteps, pickPlace, takeDraft, type PickKind } from '../../lib/handoff';
+import { tripTourSeen } from '../../lib/onboarding';
 import { firstWalkMin, leaveAt, placeName, transitLegs } from '../../lib/plans';
 import { chainOf } from '../../lib/ways';
 import { settings } from '../../lib/settings';
@@ -12,6 +13,7 @@ import { DEFAULT_DAYS, getTrip, newTripId, removeTrip, saveTrip, withStops, type
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
+import { CoachTour, type ViewRef } from '../../ui/CoachTour';
 import { ask } from '../../ui/Dialog';
 import { Icon } from '../../ui/Icon';
 import { LineChain } from '../../ui/LineChain';
@@ -51,6 +53,15 @@ export default function EditTrip() {
   const [steps, setSteps] = useState(init.steps);
   const [iosPicker, setIosPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+  // First open of a NEW trip only; the flag is set when the tour ends (or is skipped).
+  const [tour, setTour] = useState(() => !existing && !tripTourSeen.get());
+  const arriveRef = useRef<ViewRef>(null);
+  const routeRef = useRef<ViewRef>(null);
+  const handRef = useRef<ViewRef>(null);
+  const endTour = () => {
+    tripTourSeen.set(true);
+    setTour(false);
+  };
 
   // Preview of the next occurrence, also the source of the stop ids on save.
   const draftTrip: SavedTrip | null = useMemo(
@@ -73,6 +84,25 @@ export default function EditTrip() {
       setSteps(moved && !r.steps ? undefined : r.steps);
       if (r.arriveBy) setArriveBy(r.arriveBy); // changed on the route screen
     }
+  };
+
+  // Straight into the manual builder; asks for any missing end first.
+  const buildByHand = async () => {
+    let f = from;
+    let t = to;
+    for (const kind of ['from', 'to'] as PickKind[]) {
+      if ((kind === 'from' ? f : t)) continue;
+      const p = await pickPlace(kind, { near: (kind === 'from' ? t : f) ?? undefined });
+      if (!p) return; // cancelled: stop quietly
+      if (kind === 'from') f = p;
+      else t = p;
+    }
+    if (!f || !t) return;
+    const r = await buildSteps({ from: f, to: t, arriveBy, days, steps: steps ?? [], avoid });
+    setFrom(f);
+    setTo(t);
+    if (r) setSteps(r);
+    else if (f !== from || t !== to) setSteps(undefined); // new ends: any old hand-built route no longer fits
   };
 
   const changeTime = () => {
@@ -118,12 +148,13 @@ export default function EditTrip() {
           ) : undefined
         }
       />
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView scrollEnabled={!tour} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
+        <View ref={arriveRef} collapsable={false}>
         <Card style={styles.arriveCard}>
           <View style={styles.arriveRow}>
             <View>
               <Text variant="caption" color={color.textSecondary}>
-                1 · Arrive by
+                Arrive by
               </Text>
               <Text variant="time56">{arriveBy}</Text>
             </View>
@@ -137,6 +168,7 @@ export default function EditTrip() {
             <TimeSpinner value={arriveBy} onChange={setArriveBy} />
           )}
         </Card>
+        </View>
 
         <Card style={styles.daysCard}>
           <Text variant="caption" color={color.textSecondary}>
@@ -149,9 +181,15 @@ export default function EditTrip() {
           </View>
         </Card>
 
-        <Text variant="caption" color={color.textSecondary} style={styles.stepLabel}>
-          2 · Route, planned for {arriveBy}
-        </Text>
+        <View style={styles.stepLabel}>
+          <Text variant="caption" color={color.textSecondary}>
+            Route
+          </Text>
+          <Text variant="caption" color={color.textSecondary}>
+            Planned for {arriveBy}
+          </Text>
+        </View>
+        <View ref={routeRef} collapsable={false}>
         {from && to ? (
           <Tap onPress={openBuilder} scaleTo={0.99} style={styles.routeMap} accessibilityRole="button" accessibilityLabel={`Route from ${from.label} to ${to.label}. Change`}>
             <StaticMap itinerary={it} endpoints={{ from, to }} height={150} fadeTo={color.surface} />
@@ -181,6 +219,22 @@ export default function EditTrip() {
             <Field label="To" value={to?.label} onPress={openBuilder} />
           </View>
         )}
+        </View>
+        <View ref={handRef} collapsable={false}>
+          <Tap
+            onPress={buildByHand}
+            feedback="tint"
+            style={styles.byHand}
+            accessibilityRole="button"
+            accessibilityLabel={steps?.length ? 'Change my hand-built route' : 'Build route by hand, stop by stop'}
+          >
+            <Icon name="map" size={18} />
+            <Text variant="label14" style={styles.byHandText}>
+              {steps?.length ? 'Change my hand-built route' : 'Build route by hand'}
+            </Text>
+            <Icon name="chevron-right" size={18} color={color.textTertiary} />
+          </Tap>
+        </View>
 
         <Card style={styles.nameCard}>
           <Text variant="caption" color={color.textSecondary}>
@@ -204,6 +258,16 @@ export default function EditTrip() {
           <Button label={saving ? 'Saving…' : 'Save'} onPress={save} disabled={!from || !to || saving} haptic="none" />
         </View>
       </ScrollView>
+      {tour && (
+        <CoachTour
+          onDone={endTour}
+          steps={[
+            { target: arriveRef, text: 'Pick when you need to be there. The app tells you when to leave.' },
+            { target: routeRef, text: 'Choose where you start and where you go. We compare every bus and the metro.' },
+            { target: handRef, text: 'Want a specific bus, a change or the metro? Build it stop by stop on the map.' },
+          ]}
+        />
+      )}
     </View>
   );
 }
@@ -238,7 +302,9 @@ const styles = StyleSheet.create({
   fieldDivider: { borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: 'rgba(28,26,26,0.08)' },
   fieldText: { flex: 1, gap: 2 },
   fieldValue: { fontFamily: font.bold },
-  stepLabel: { paddingHorizontal: 4, marginBottom: -4 },
+  stepLabel: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: -4 },
+  byHand: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.surfaceMuted, borderRadius: radius.full, paddingHorizontal: 20, paddingVertical: 14 },
+  byHandText: { flex: 1 },
   arriveCard: { gap: 4 },
   arriveRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   changePill: { backgroundColor: color.surfaceMuted, borderRadius: radius.full, paddingHorizontal: 16, paddingVertical: 8 },
