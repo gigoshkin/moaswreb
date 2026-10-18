@@ -8,6 +8,8 @@ import { contextOf, SYSTEM } from './agent.ts';
 // REST API, same tools, same cards. Photos and PDFs go in as inline data.
 
 const MAX_TURNS = 8;
+export let RETRY_DELAY_MS = 1500;
+export const setRetryDelay = (ms: number) => { RETRY_DELAY_MS = ms; };
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 interface Part {
@@ -46,6 +48,29 @@ const toContents = (req: ChatRequest): Content[] => {
   });
 };
 
+const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** One request: busy or failing answers are retried with a pause, then once on the fallback model if one is set. */
+async function generate(doFetch: Fetch, body: string): Promise<Response> {
+  const models = [config.gemini.model, ...(config.gemini.fallbackModel ? [config.gemini.fallbackModel] : [])];
+  let last: Response | null = null;
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await sleep(RETRY_DELAY_MS * attempt);
+      const res = await doFetch(`${ENDPOINT}/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': config.gemini.key },
+        body,
+      });
+      if (res.ok) return res;
+      last = res;
+      if (!RETRY_STATUS.has(res.status)) throw new GeminiError(res.status, (await res.text()).slice(0, 300));
+    }
+  }
+  throw new GeminiError(last!.status, (await last!.text()).slice(0, 300));
+}
+
 /** One chat turn on Gemini: the model calls our tools; tool results become the cards. */
 export async function runGeminiChat(req: ChatRequest, deps: ToolDeps, doFetch: Fetch = fetch): Promise<ChatResponse> {
   const cards: ActionCard[] = [];
@@ -61,16 +86,14 @@ export async function runGeminiChat(req: ChatRequest, deps: ToolDeps, doFetch: F
   const system = `${SYSTEM}\n\n${contextOf(req)}`;
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const res = await doFetch(`${ENDPOINT}/${config.gemini.model}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': config.gemini.key },
-      body: JSON.stringify({
+    const res = await generate(
+      doFetch,
+      JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents,
         tools: [{ functionDeclarations: declarations }],
       }),
-    });
-    if (!res.ok) throw new GeminiError(res.status, (await res.text()).slice(0, 300));
+    );
     const data = (await res.json()) as GenerateResponse;
     if (data.promptFeedback?.blockReason) return { reply: "I can't help with that.", cards: [] };
 

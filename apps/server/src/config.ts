@@ -35,6 +35,8 @@ export const config = {
   gemini: {
     key: process.env.GEMINI_API_KEY ?? '',
     model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+    /** Tried after the main model stays busy or failing (e.g. a lite model). */
+    fallbackModel: process.env.GEMINI_FALLBACK_MODEL ?? '',
   },
   aiProvider: ((): 'anthropic' | 'gemini' | null => {
     const want = process.env.AI_PROVIDER;

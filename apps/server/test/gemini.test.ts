@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { runGeminiChat } from '../src/chat/gemini.ts';
+import { runGeminiChat, setRetryDelay } from '../src/chat/gemini.ts';
 import { PlanService } from '../src/plan/service.ts';
 import { StopIndex } from '../src/ttc/stops.ts';
 import { fakeTtc } from './fakes.ts';
@@ -40,4 +40,19 @@ test('Gemini: photos go in as inline data on the last user message', async () =>
     doFetch,
   );
   assert.deepEqual(bodies[0].contents[0].parts[0], { inlineData: { mimeType: 'image/png', data: 'aGk=' } });
+});
+
+test('Gemini: a busy answer (503) is retried', async () => {
+  setRetryDelay(0);
+  const ttc = fakeTtc();
+  const stops = new StopIndex(ttc);
+  let calls = 0;
+  const doFetch = (async () => {
+    calls++;
+    if (calls === 1) return new Response('{"error":{"code":503}}', { status: 503 });
+    return new Response(JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text: 'ok' }] } }] }), { status: 200 });
+  }) as typeof fetch;
+  const out = await runGeminiChat({ messages: [{ role: 'user', text: 'hi' }] }, { ttc, stops, plans: new PlanService(ttc, stops) }, doFetch);
+  assert.equal(out.reply, 'ok');
+  assert.equal(calls, 2);
 });
