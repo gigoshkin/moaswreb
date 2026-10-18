@@ -19,6 +19,7 @@ after(() => app.close());
 test('a real MCP client lists the read-only tools and calls one', async () => {
   const client = new Client({ name: 'test', version: '1.0.0' });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${address}/mcp`)));
+  assert.match(client.getInstructions() ?? '', /Read-only/);
   const { tools } = await client.listTools();
   assert.deepEqual(tools.map((t) => t.name).sort(), ['find_place', 'find_stop', 'lines_at_stop', 'next_arrivals', 'plan_trip', 'stops_near']);
   assert.ok(tools.every((t) => t.annotations?.readOnlyHint === true && t.description));
