@@ -15,6 +15,8 @@
 
 <p align="center"><b>▶ <a href="https://drive.google.com/file/d/10gHC7BZdNcD1FLhUqrHzMBLTnKve7O2s/view?usp=sharing">Watch the demo video</a></b></p>
 
+<p align="center"><b>▶ <a href="https://drive.google.com/file/d/1TK0YQrZpvKOlX4Huhk81qRknlFLCQWHe/view?usp=sharing">Watch the app video</a></b></p>
+
 Built at Hacktoberfest Georgia 2026 (Free University of Tbilisi, 17-18 October).
 
 ## The problem and the idea
