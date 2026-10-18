@@ -2,9 +2,9 @@
 id: 0005
 from: george
 to: andro
-status: pending
+status: approved
 created: 2026-10-18 03:00
-decided:
+decided: 2026-10-18
 ---
 
 # Add-trip flow: options list, per-trip avoid, map stop picker, ride rail
@@ -26,3 +26,5 @@ The Add-trip screens and flow in the product spec (04-product-spec.md) and the F
 George keeps the flow on the branch, and only the unchanged screens reach `main`.
 
 ## Decision (owner fills in)
+
+Decided by George 18 Oct: time first, then route; implemented

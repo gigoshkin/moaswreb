@@ -1,7 +1,6 @@
-import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { buildRoute, takeDraft } from '../../lib/handoff';
@@ -18,6 +17,7 @@ import { Icon } from '../../ui/Icon';
 import { LineChain } from '../../ui/LineChain';
 import { StaticMap } from '../../ui/StaticMap';
 import { Tap, haptic } from '../../ui/Tap';
+import { TimeSpinner, openTimeDialog } from '../../ui/TimePick';
 import { Text } from '../../ui/Text';
 import { Card, Chip, TopBar } from '../../ui/kit';
 import { color, font, gutter, radius, shadow } from '../../ui/theme';
@@ -71,21 +71,12 @@ export default function EditTrip() {
       setTo(r.to);
       setAvoid(r.avoid);
       setSteps(moved && !r.steps ? undefined : r.steps);
+      if (r.arriveBy) setArriveBy(r.arriveBy); // changed on the route screen
     }
   };
 
   const changeTime = () => {
-    const [h, m] = arriveBy.split(':').map(Number);
-    const value = new Date();
-    value.setHours(h, m, 0, 0);
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value,
-        mode: 'time',
-        is24Hour: true,
-        onChange: (e: DateTimePickerEvent, d?: Date) => e.type === 'set' && d && setArriveBy(hhmmLocal(d)),
-      });
-    } else setIosPicker((v) => !v);
+    if (!openTimeDialog(arriveBy, setArriveBy)) setIosPicker((v) => !v);
   };
 
   const toggleDay = (d: number) => setDays((cur) => (cur.includes(d) ? (cur.length > 1 ? cur.filter((x) => x !== d) : cur) : [...cur, d].sort()));
@@ -128,6 +119,39 @@ export default function EditTrip() {
         }
       />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
+        <Card style={styles.arriveCard}>
+          <View style={styles.arriveRow}>
+            <View>
+              <Text variant="caption" color={color.textSecondary}>
+                1 · Arrive by
+              </Text>
+              <Text variant="time56">{arriveBy}</Text>
+            </View>
+            <Tap onPress={changeTime} style={styles.changePill} scaleTo={0.94} accessibilityRole="button" accessibilityLabel="Change arrive-by time">
+              <Text variant="label13" color={color.textSecondary}>
+                {iosPicker ? 'Done' : 'Change'}
+              </Text>
+            </Tap>
+          </View>
+          {iosPicker && (
+            <TimeSpinner value={arriveBy} onChange={setArriveBy} />
+          )}
+        </Card>
+
+        <Card style={styles.daysCard}>
+          <Text variant="caption" color={color.textSecondary}>
+            Days
+          </Text>
+          <View style={styles.days}>
+            {DAY_SHORT.map((label, i) => (
+              <Chip key={label} label={label} on={days.includes(i + 1)} onPress={() => toggleDay(i + 1)} />
+            ))}
+          </View>
+        </Card>
+
+        <Text variant="caption" color={color.textSecondary} style={styles.stepLabel}>
+          2 · Route, planned for {arriveBy}
+        </Text>
         {from && to ? (
           <Tap onPress={openBuilder} scaleTo={0.99} style={styles.routeMap} accessibilityRole="button" accessibilityLabel={`Route from ${from.label} to ${to.label}. Change`}>
             <StaticMap itinerary={it} endpoints={{ from, to }} height={150} fadeTo={color.surface} />
@@ -158,48 +182,6 @@ export default function EditTrip() {
           </View>
         )}
 
-        <Card style={styles.arriveCard}>
-          <View style={styles.arriveRow}>
-            <View>
-              <Text variant="caption" color={color.textSecondary}>
-                Arrive by
-              </Text>
-              <Text variant="time56">{arriveBy}</Text>
-            </View>
-            <Tap onPress={changeTime} style={styles.changePill} scaleTo={0.94} accessibilityRole="button" accessibilityLabel="Change arrive-by time">
-              <Text variant="label13" color={color.textSecondary}>
-                {iosPicker ? 'Done' : 'Change'}
-              </Text>
-            </Tap>
-          </View>
-          {iosPicker && (
-            <DateTimePicker
-              value={(() => {
-                const d = new Date();
-                const [h, m] = arriveBy.split(':').map(Number);
-                d.setHours(h, m, 0, 0);
-                return d;
-              })()}
-              mode="time"
-              display="spinner"
-              themeVariant="light"
-              is24Hour
-              onChange={(_e: DateTimePickerEvent, d?: Date) => d && setArriveBy(hhmmLocal(d))}
-            />
-          )}
-        </Card>
-
-        <Card style={styles.daysCard}>
-          <Text variant="caption" color={color.textSecondary}>
-            Days
-          </Text>
-          <View style={styles.days}>
-            {DAY_SHORT.map((label, i) => (
-              <Chip key={label} label={label} on={days.includes(i + 1)} onPress={() => toggleDay(i + 1)} />
-            ))}
-          </View>
-        </Card>
-
         <Card style={styles.nameCard}>
           <Text variant="caption" color={color.textSecondary}>
             Name
@@ -226,7 +208,6 @@ export default function EditTrip() {
   );
 }
 
-const hhmmLocal = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
 function Field({ label, value, sub, onPress, divider }: { label: string; value?: string; sub?: string; onPress: () => void; divider?: boolean }) {
   return (
@@ -257,6 +238,7 @@ const styles = StyleSheet.create({
   fieldDivider: { borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: 'rgba(28,26,26,0.08)' },
   fieldText: { flex: 1, gap: 2 },
   fieldValue: { fontFamily: font.bold },
+  stepLabel: { paddingHorizontal: 4, marginBottom: -4 },
   arriveCard: { gap: 4 },
   arriveRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   changePill: { backgroundColor: color.surfaceMuted, borderRadius: radius.full, paddingHorizontal: 16, paddingVertical: 8 },

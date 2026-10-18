@@ -8,7 +8,7 @@ import { slotsFor } from '../../lib/ways';
 import { buildSteps, finishRoute, pickPlace, routeDraft, type PickKind } from '../../lib/handoff';
 import { firstWalkMin, leaveAt } from '../../lib/plans';
 import { settings } from '../../lib/settings';
-import { hhmm, nextArriveBy } from '../../lib/time';
+import { daysText, hhmm, nextArriveBy } from '../../lib/time';
 import type { Place } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
 import { useRoadItinerary } from '../../lib/shapes';
@@ -22,6 +22,7 @@ import { MapCanvas, type MapCanvasHandle } from '../../ui/MapCanvas';
 import { overlay } from '../../ui/overlay';
 
 import { Tap, haptic } from '../../ui/Tap';
+import { TimeSpinner, openTimeDialog } from '../../ui/TimePick';
 import { Text } from '../../ui/Text';
 import { MapButton } from '../../ui/kit';
 import { color, gutter, radius, shadow, spring } from '../../ui/theme';
@@ -37,6 +38,8 @@ export default function RouteBuilder() {
   const [to, setTo] = useState<Place | null>(init.to);
   const [avoid, setAvoid] = useState<PlanAvoid | undefined>(init.avoid);
   const [steps, setSteps] = useState<JourneyStep[] | undefined>(init.steps);
+  const [arriveBy, setArriveBy] = useState(init.arriveBy);
+  const [timeOpen, setTimeOpen] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [sheetH, setSheetH] = useState(230);
@@ -45,8 +48,8 @@ export default function RouteBuilder() {
   // Closing without Done resolves the form with null.
   useEffect(() => () => finishRoute(null), []);
 
-  const trip = useMemo(() => (from && to ? { id: 'draft', name: '', from, to, arriveBy: init.arriveBy, days: init.days, avoid, steps } : null), [from, to, init.arriveBy, init.days, JSON.stringify(avoid), JSON.stringify(steps)]);
-  const date = nextArriveBy(init.arriveBy, init.days, now).slice(0, 10);
+  const trip = useMemo(() => (from && to ? { id: 'draft', name: '', from, to, arriveBy, days: init.days, avoid, steps } : null), [from, to, arriveBy, init.days, JSON.stringify(avoid), JSON.stringify(steps)]);
+  const date = nextArriveBy(arriveBy, init.days, now).slice(0, 10);
   const plan = useTripPlan(trip, date, now);
   const best: Itinerary | null = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
   // A way tapped in the list is shown on the map; the app still uses the best one.
@@ -90,14 +93,14 @@ export default function RouteBuilder() {
 
   const buildByHand = async () => {
     if (!from || !to) return;
-    const r = await buildSteps({ from, to, arriveBy: init.arriveBy, days: init.days, steps: steps ?? [], avoid });
+    const r = await buildSteps({ from, to, arriveBy, days: init.days, steps: steps ?? [], avoid });
     if (r) setSteps(r);
   };
 
   const finish = () => {
     if (!from || !to) return;
     haptic('success');
-    finishRoute({ from, to, avoid, steps });
+    finishRoute({ from, to, avoid, steps, ...(arriveBy !== init.arriveBy ? { arriveBy } : {}) });
     router.back();
   };
 
@@ -117,6 +120,17 @@ export default function RouteBuilder() {
         style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}
         onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
       >
+        <Tap onPress={() => (openTimeDialog(arriveBy, setArriveBy) ? undefined : setTimeOpen((v) => !v))} feedback="tint" style={styles.timeChip} accessibilityRole="button" accessibilityLabel={`Arrive by ${arriveBy}, ${daysText(init.days)}. Change`}>
+          <Icon name="clock" size={16} />
+          <Text variant="label14" style={styles.flex}>
+            Arrive by {arriveBy} · {daysText(init.days)}
+          </Text>
+          <Text variant="label13" color={color.textSecondary}>
+            {timeOpen ? 'Done' : 'Change'}
+          </Text>
+        </Tap>
+        {timeOpen && <TimeSpinner value={arriveBy} onChange={setArriveBy} />}
+
         {from && to ? (
           // Both ends set: one row split in half, with the swap button between, and the by-hand builder under it.
           <View style={styles.gap}>
@@ -244,6 +258,7 @@ function Summary({ it, all, busy, error }: { it: Itinerary | null; all: Itinerar
 }
 
 const styles = StyleSheet.create({
+  timeChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: color.surfaceMuted, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12 },
   byHand: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: color.surfaceMuted, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12 },
   screen: { flex: 1, backgroundColor: color.bg },
   floating: { position: 'absolute', left: 12 },

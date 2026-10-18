@@ -47,6 +47,8 @@ export interface RouteResult {
   to: Place;
   avoid?: PlanAvoid;
   steps?: JourneyStep[];
+  /** Arrive-by changed on the route screen; absent when untouched. */
+  arriveBy?: string;
 }
 let routeDraftNow: RouteDraft | null = null;
 let routePending: ((r: RouteResult | null) => void) | null = null;
