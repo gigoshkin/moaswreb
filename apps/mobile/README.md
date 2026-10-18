@@ -12,7 +12,7 @@ In Expo Go, storage falls back from MMKV to `expo-sqlite/kv-store` (`src/lib/kv.
 Real push needs a **development build**: `npx eas-cli@latest build --profile development --platform android`.
 
 ## Server
-Set `EXPO_PUBLIC_API_URL` (e.g. in `apps/mobile/.env`) to the server, e.g. `https://<DOMAIN>` on the VPS or `http://<laptop-LAN-IP>:8080`.
+Set `EXPO_PUBLIC_API_URL` (e.g. in `apps/mobile/.env`) to the server, e.g. `https://<DOMAIN>` on the VPS or `http://<laptop-LAN-IP>:8080`. iOS dev/prod builds block plain `http://` (App Transport Security) except local-network addresses (`NSAllowsLocalNetworking` is set in app.json); real iOS builds must use `https://`.
 Without it the app shows synthetic sample trips.
 Note: `docker-compose.yml` binds the server to `127.0.0.1`, so a phone can't reach the laptop's Docker server; use the VPS (Caddy), or run `npm run dev -w @transit/server` directly.
 
