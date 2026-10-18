@@ -102,7 +102,10 @@ export default function TripDetail() {
           {p ? (
             <Button
               label="Save this route"
-              onPress={() => openNewTrip({ name: p.name, from: p.from, to: p.to, arriveBy: p.plan.query.arriveBy.slice(11, 16) })}
+              onPress={() => {
+                const { avoid, steps } = p.plan.query;
+                openNewTrip({ name: p.name, from: p.from, to: p.to, arriveBy: p.plan.query.arriveBy.slice(11, 16), ...(p.days?.length ? { days: p.days } : {}), ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) });
+              }}
             />
           ) : (
             <Button label="Edit trip" kind="secondary" haptic="none" onPress={() => router.push({ pathname: '/trip/edit', params: { id } })} />

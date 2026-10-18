@@ -168,7 +168,7 @@ function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanR
       }
     >
       {rows.map((it, i) => (
-        <PlanRow key={it.id} it={it} best={it.id === bestId} border={i < rows.length - 1} onPress={() => openPreview({ plan, itineraryId: it.id, name: tripName, from, to })} />
+        <PlanRow key={it.id} it={it} best={it.id === bestId} border={i < rows.length - 1} onPress={() => openPreview({ plan, itineraryId: it.id, name: tripName, from, to, ...(meta?.days?.length ? { days: meta.days } : {}) })} />
       ))}
       {!rows.length && (
         <Text variant="body15" color={color.textSecondary}>
