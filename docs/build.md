@@ -33,7 +33,7 @@ npx eas-cli@latest build --profile preview --platform android        # an instal
 npx eas-cli@latest build --profile development --platform android && npx expo start --dev-client
 ```
 
-EAS prints a download link and QR code (queue plus build: about 15 to 60 minutes). On the phone allow notifications. On Android 14+ also turn on *Settings -> Apps -> this app -> Alarms & reminders*, and set battery use to Unrestricted, or the leave card can be late. A Google Maps key (`android.config.googleMaps.apiKey` in `app.json`) is needed for the map in an installed build; Expo Go supplies its own. **Unverified:** no APK has been built yet.
+EAS prints a download link and QR code (queue plus build: about 15 to 60 minutes). On the phone allow notifications. On Android 14+ also turn on *Settings -> Apps -> this app -> Alarms & reminders*, and set battery use to Unrestricted, or the leave card can be late. A Google Maps key is needed for the map in an installed build (Expo Go supplies its own): `npx eas-cli@latest env:create --name GOOGLE_MAPS_ANDROID_KEY --value <key> --environment preview --visibility sensitive`. `app.config.js` reads it, so the key is never committed. **Unverified:** no APK has been built yet.
 
 The leave card (`src/lib/leaveCard.ts`) is an ongoing notification that appears 30 minutes before the leave time and counts down with the system timer while the app is closed. It uses `react-native-notify-kit` (a maintained fork of Notifee).
 
