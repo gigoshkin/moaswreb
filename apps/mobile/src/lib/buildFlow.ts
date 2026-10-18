@@ -157,6 +157,24 @@ export function ridesEnded(f: Flow, add: BuiltRide[]): Flow {
   return { ...f, rides, board: null, slot: null, end: f.slot || f.fixedEnd ? f.end : null };
 }
 
+/** A stop of the same name across the road is this close (Tevdore Mghvdeli Street's two are 9 m apart). */
+export const ACROSS_M = 80;
+
+/** The stop of the same name on the other side of the road from `board`, if one is among `stops`: its lines go the other way. */
+export function twinAcross(board: StopHit, stops: StopHit[]): StopHit | null {
+  if (board.mode === 'SUBWAY') return null;
+  let best: { s: StopHit; d: number } | null = null;
+  for (const s of stops) {
+    if (s.id === board.id || s.name !== board.name || s.mode !== board.mode) continue;
+    const d = distM(board, s);
+    if (d <= ACROSS_M && (!best || d < best.d)) best = { s, d };
+  }
+  return best?.s ?? null;
+}
+
+/** The ride being built boards at another stop instead (across the road); the rest stays as it is. */
+export const reboard = (f: Flow, stop: StopHit): Flow => (f.board && f.board.id !== stop.id ? { ...f, board: stop } : f);
+
 /** Drop the ride being built (or the insert / replace): the pin floats again. */
 export const cancelRide = (f: Flow): Flow => ({ ...f, board: null, slot: null });
 export const insertAt = (f: Flow, at: number): Flow => ({ ...f, board: null, slot: { at, replace: false } });

@@ -225,6 +225,17 @@ test('a ride drawn along a known road shape is cut at the get-off stop', () => {
   assert.deepEqual(F.shapeTo([], busMid), [busMid]);
 });
 
+test('the stop of the same name across the road can be boarded instead', () => {
+  const near = { ...S('Tevdore', 41.720637, 44.796943), id: '4335' };
+  const other = { ...S('Tevdore', 41.720555, 44.796992), id: '4336' };
+  const stops = [near, { ...other, id: 'far', lat: 41.73 }, other, S('Other', 41.72056, 44.79699)];
+  assert.equal(F.twinAcross(near, stops)?.id, '4336');
+  assert.equal(F.twinAcross(sarMetro, [sarMetro, { ...sarMetro, id: 'x' }]), null);
+  const f = F.pinDropped(fresh(), at(near), near);
+  assert.equal(F.reboard(f, other).board, other);
+  assert.equal(F.reboard(fresh(), other).board, null);
+});
+
 test('several rides end the ride being built in a row, in its slot', () => {
   const a = S('A', 41.7, 44.8, 'SUBWAY');
   const b = S('B', 41.71, 44.8, 'SUBWAY');
