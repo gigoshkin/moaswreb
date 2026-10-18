@@ -63,6 +63,12 @@ const bodySchema = {
       },
     },
     home: place,
+    here: {
+      type: 'object',
+      required: ['lat', 'lon'],
+      additionalProperties: false,
+      properties: { lat: { type: 'number', minimum: -90, maximum: 90 }, lon: { type: 'number', minimum: -180, maximum: 180 } },
+    },
     bufferMin: { type: 'integer', minimum: 0, maximum: 60 },
     locale: { type: 'string', enum: ['ka', 'en'] },
   },

@@ -42,6 +42,9 @@ export const contextOf = (req: ChatRequest): string =>
     req.home
       ? `The user's home (from Settings; use it for "home" without asking): ${JSON.stringify({ label: req.home.label, lat: req.home.lat, lon: req.home.lon })}`
       : 'The user has not set a home yet; ask where they start if it matters.',
+    req.here
+      ? `The user's current location (phone GPS, for this request only; use it for "near me", "here", "from my location" and "current location" without asking): ${JSON.stringify(req.here)}`
+      : 'The phone did not share a location. For "near me" or "from here" ask the user to allow location for the app, or to name the place.',
     ...(req.bufferMin ? [`The user wants ${req.bufferMin} extra minutes on top of the walk (the app adds it to leave times).`] : []),
     req.trips?.length
       ? `The user's saved trips (from their phone, for this request only): ${JSON.stringify(req.trips)}`

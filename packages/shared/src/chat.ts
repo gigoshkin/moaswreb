@@ -33,6 +33,8 @@ export interface ChatRequest {
   trips?: TripContext[];
   /** The user's home (Settings), so "from home" needs no question. For this request only. */
   home?: LatLon & { label: string };
+  /** Where the phone is right now, when the user allowed location. For this request only. */
+  here?: LatLon;
   /** Extra minutes the user wants on top of the walk (Settings). */
   bufferMin?: number;
   locale?: 'ka' | 'en';
