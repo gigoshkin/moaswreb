@@ -4,6 +4,7 @@ import { cancelBackups, setUpAlerts } from '../../lib/alerts';
 import { deleteMyData, hasApi } from '../../lib/api';
 import { clearChat } from '../../lib/chat';
 import { pickPlace } from '../../lib/handoff';
+import { alertsOffered, replayIntro } from '../../lib/onboarding';
 import { bufferText, settings, updateSettings } from '../../lib/settings';
 import { clearTrips, syncNow } from '../../lib/trips';
 import { ask, notify } from '../../ui/Dialog';
@@ -26,7 +27,10 @@ export default function Settings() {
   const setAlerts = (on: boolean) => {
     updateSettings({ alerts: on });
     syncNow();
-    if (on) setUpAlerts().catch(() => {});
+    if (on) {
+      alertsOffered.set(true); // so later launches keep the token and trips in sync
+      setUpAlerts().catch(() => {});
+    }
     else cancelBackups();
   };
 
@@ -67,7 +71,8 @@ export default function Settings() {
           <GroupRow label="Notifications" right={<Switch value={s.alerts} onChange={setAlerts} label="Notifications" />} last />
         </Group>
         <Group>
-          <GroupRow label="Privacy" onPress={() => router.push('/privacy')} last />
+          <GroupRow label="Privacy" onPress={() => router.push('/privacy')} />
+          <GroupRow label="Replay intro" onPress={replayIntro} last />
         </Group>
         <Group>
           <GroupRow label="Delete my data" icon="alert" onPress={deleteAll} right={<View />} last />

@@ -11,6 +11,20 @@ export interface Slide {
   art: ReactNode;
 }
 
+const styles = StyleSheet.create({
+  card: { padding: 24, gap: 20 },
+  bar: { height: 8, borderRadius: 4, backgroundColor: color.track, overflow: 'hidden' },
+  barFill: { width: '60%', height: 8, borderRadius: 4, backgroundColor: color.ink },
+  modes: { flexDirection: 'row', gap: 8 },
+  mode: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  chat: { gap: 10 },
+  userBubble: { alignSelf: 'flex-end', maxWidth: 272, backgroundColor: color.ink, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderBottomRightRadius: 6 },
+  replyBubble: { alignSelf: 'flex-start', maxWidth: 272 },
+  chip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: color.surface, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 8, ...shadow.card },
+  notif: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: color.surface, borderRadius: radius.md, padding: 14, ...shadow.card },
+  notifIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: color.ink, alignItems: 'center', justifyContent: 'center' },
+});
+
 function Dot({ icon, bg }: { icon: IconName; bg: string }) {
   return (
     <View style={[styles.mode, { backgroundColor: bg }]}>
@@ -82,17 +96,3 @@ export const SLIDES: Slide[] = [
     art: alertArt,
   },
 ];
-
-const styles = StyleSheet.create({
-  card: { padding: 24, gap: 20 },
-  bar: { height: 8, borderRadius: 4, backgroundColor: color.track, overflow: 'hidden' },
-  barFill: { width: '60%', height: 8, borderRadius: 4, backgroundColor: color.ink },
-  modes: { flexDirection: 'row', gap: 8 },
-  mode: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  chat: { gap: 10 },
-  userBubble: { alignSelf: 'flex-end', maxWidth: 272, backgroundColor: color.ink, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20, borderBottomRightRadius: 6 },
-  replyBubble: { alignSelf: 'flex-start', maxWidth: 272 },
-  chip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: color.surface, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 8, ...shadow.card },
-  notif: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: color.surface, borderRadius: radius.md, padding: 14, ...shadow.card },
-  notifIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: color.ink, alignItems: 'center', justifyContent: 'center' },
-});
