@@ -21,6 +21,19 @@ Getting to work or class in Tbilisi means guessing: which of three buses, which 
 
 Moaswreb starts from the deadline. You save the trips you repeat with an arrive-by time, and the Today screen counts down to the minute you should leave, comparing every bus, minibus and metro line against live arrival data. A phone alert and an AI assistant that can read a photo of a timetable or a city notice take care of the rest.
 
+## Why this app, and what it is not
+
+მოასწრებ is not a new kind of AI tool, and it does not try to replace anything. Getting to a place on time in Tbilisi already works, in pieces: the TTC app knows the buses, a maps app knows the streets, a calendar or a message knows when you have to be there, and an alarm clock is what wakes you. None of these talk to each other well, so the person is the glue: you look up the bus, work out the walk, subtract it from the time you must arrive, set an alarm, and check again if the bus is late.
+
+Our argument is that the useful thing is the **connection**, not another source of data:
+
+- **One question, answered backwards.** You say when you must arrive; the app works out the rest from live TTC data and gives you one time: leave at 08:14.
+- **It keeps watching.** The plan is re-checked as the day goes on, and you are told when it changes (a different bus, a later departure), instead of finding out at the stop.
+- **It uses what already exists.** TTC's own planner and live arrivals, OpenStreetMap and Google for places, a map for the route. We add the part that was missing between them: the arrival time, the repeat on your days, the walk, the buffer and the countdown.
+- **AI is only the input.** The chat reads a photo or PDF of a timetable or a notice, or a sentence like "when do I leave for work?", and turns it into the same trips you could have made by hand. Every change still needs your tap, and the numbers come from TTC data, not from the model.
+
+It is a small, practical tool that makes several mediocre-fitting apps work as one good routine.
+
 ## Download
 
 > **APK: coming soon.** A built Android APK will be linked here once the first EAS build is published (see [Build the APK](#build-the-apk)).
