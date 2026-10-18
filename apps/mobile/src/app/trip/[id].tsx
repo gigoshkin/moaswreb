@@ -19,6 +19,7 @@ import { LeaveByBar } from '../../ui/LeaveByBar';
 import { Ways } from '../../ui/Ways';
 import { RoutePlate } from '../../ui/RoutePlate';
 import { StaticMap } from '../../ui/StaticMap';
+import { SuggestionCard } from '../../ui/Suggestion';
 import { Text } from '../../ui/Text';
 import { Card, RouteSummary, SectionLabel, TopBar } from '../../ui/kit';
 import { color, gutter } from '../../ui/theme';
@@ -31,7 +32,8 @@ export default function TripDetail() {
   const trips = useTrips();
   const trip = preview ? null : (trips.find((t) => t.id === id) ?? null);
   const date = dateParam ?? (trip ? nextArriveBy(trip.arriveBy, tripDays(trip), now).slice(0, 10) : '');
-  const live = useTripPlan(trip, date, now, { refreshMs: 60_000 });
+  // Follows the kept ways only; another way is suggested apart from them, and only when they all missed.
+  const live = useTripPlan(trip, date, now, { refreshMs: 60_000, suggest: true });
   // A hook, so it lives here and not inside the conditional JSX below: the number of hooks must not change between renders.
   const bufferMin = settings.use().bufferMin;
   const p = preview ? getPreview(id) : undefined;
@@ -72,9 +74,12 @@ export default function TripDetail() {
           {it ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.gap}>
               <Departure it={it} all={live.itineraries} now={now} />
+              {trip && live.suggestion ? <SuggestionCard trip={trip} date={date} s={live.suggestion} /> : null}
               <SectionLabel style={styles.sectionLabel}>Route details</SectionLabel>
               <Timeline it={it} destination={p?.to.label ?? trip?.to.label ?? ''} />
             </Animated.View>
+          ) : trip && live.suggestion ? (
+            <SuggestionCard trip={trip} date={date} s={live.suggestion} />
           ) : null}
           {trip && (listed.length > 0 || trip.avoid) ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.gap}>

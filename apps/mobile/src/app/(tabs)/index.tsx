@@ -11,7 +11,7 @@ import { addDays, hhmm, isoWeekday, longDate, relativeDay, todayLocal } from '..
 import { tripDays, useTrips, type SavedTrip } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
-import { chainOf, slotsFor } from '../../lib/ways';
+import { chainOf, slotsFor, tripWays } from '../../lib/ways';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
 import { LeaveByBar } from '../../ui/LeaveByBar';
@@ -21,6 +21,7 @@ import { Text } from '../../ui/Text';
 import { Wordmark } from '../../ui/Wordmark';
 import { Countdown } from '../../ui/Countdown';
 import { RouteSummary } from '../../ui/kit';
+import { SuggestionCard } from '../../ui/Suggestion';
 import { color, gutter, shadow, spring } from '../../ui/theme';
 
 /** Tbilisi wall-clock `HH:mm` now, for comparing with trips' arrive-by times. */
@@ -38,7 +39,8 @@ export default function Today() {
   const ahead = useMemo(() => tripsOn(trips, today).filter((t) => t.arriveBy > clock(now)), [trips, today, now]);
   const hero = ahead[0] ?? null;
   const later = ahead.slice(1);
-  const plan = useTripPlan(hero, today, now, { refreshMs: 60_000, trackChanges: true });
+  // The hero follows the trip's kept ways only; another way shows apart from it, and only when they all missed.
+  const plan = useTripPlan(hero, today, now, { refreshMs: 60_000, trackChanges: true, suggest: true });
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
@@ -57,6 +59,7 @@ export default function Today() {
       </View>
 
       {hero ? <Hero trip={hero} date={today} now={now} plan={plan} /> : trips.length ? <NothingLeft trips={trips} now={now} /> : <FirstRun />}
+      {hero && plan.suggestion && <SuggestionCard trip={hero} date={today} s={plan.suggestion} inset />}
 
       {later.length > 0 && (
         <Animated.View layout={LinearTransition.duration(240)}>
@@ -183,7 +186,11 @@ function HeroEmpty({ plan, trip }: { plan: ReturnType<typeof useTripPlan>; trip:
     <View style={styles.heroBody}>
       <Text variant="title26">{plan.error && !plan.loaded ? "Can't reach the planner" : 'No route found'}</Text>
       <Text variant="body14" color={color.textSecondary}>
-        {plan.error && !plan.loaded ? 'It will try again in a minute.' : `Nothing runs from ${trip.from.label} in time. Check the trip's start and end.`}
+        {plan.error && !plan.loaded
+          ? 'It will try again in a minute.'
+          : tripWays(trip).length
+            ? `None of your ways runs from ${trip.from.label} in time.`
+            : `Nothing runs from ${trip.from.label} in time. Check the trip's start and end.`}
       </Text>
     </View>
   );
