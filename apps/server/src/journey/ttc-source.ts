@@ -166,14 +166,13 @@ export class TtcSource implements Source {
     return { times };
   }
 
-  live(stopId: string, p: PatternRef): Promise<number[]> {
-    return this.memo(`live:${stopId}:${p.routeId}`, 15_000, async () => {
-      const arrivals = await this.ttc.routeArrivals(stopId, p.routeId, 'en');
-      return arrivals
-        .filter((a) => a.realtime && a.patternSuffix === p.suffix && a.realtimeArrivalMinutes >= 0)
-        .map((a) => a.realtimeArrivalMinutes)
-        .sort((x, y) => x - y);
-    });
+  async live(stopId: string, p: PatternRef): Promise<number[]> {
+    // Cached per stop and route (one TTC call serves every pattern of the route); filtered per pattern after.
+    const arrivals = await this.memo(`live:${stopId}:${p.routeId}`, 15_000, () => this.ttc.routeArrivals(stopId, p.routeId, 'en'));
+    return arrivals
+      .filter((a) => a.realtime && a.patternSuffix === p.suffix && a.realtimeArrivalMinutes >= 0)
+      .map((a) => a.realtimeArrivalMinutes)
+      .sort((x, y) => x - y);
   }
 
   async walk(a: LatLon, b: LatLon): Promise<{ sec: number; m: number }> {
