@@ -289,6 +289,18 @@ export const waysFields = (ways: RideStep[][]): { steps: RideStep[] | undefined;
 });
 
 /**
+ * A kept way as a chain of rides without a plan: per ride the lines it allows
+ * (`lines`, narrowed to `routes` when the rider switched some off). Steps that
+ * only carry route numbers (older trips) take the kind of road ride; a ride
+ * that names no line comes out empty.
+ */
+export const stepSlots = (steps: RideStep[]): Slot[] =>
+  steps.map((s) => {
+    const lines: LineRef[] = s.lines?.length ? s.lines : (s.routes ?? []).map((label) => ({ label, kind: 'bus' as Kind }));
+    return s.routes?.length ? lines.filter((l) => s.routes!.includes(l.label)) : [...lines];
+  });
+
+/**
  * True when `it` rides exactly the kept way `steps`: as many rides, each from
  * one of its stops, to one of its stops, on one of its lines, and of a kind the
  * ride has (when the step knows its lines).
