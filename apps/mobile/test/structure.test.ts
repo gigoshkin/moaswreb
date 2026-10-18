@@ -85,14 +85,16 @@ test('a 2-ride way never matches a 3-ride way', () => {
   assert.equal(groupWays([three, via321]).length, 2);
 });
 
-test('bus, minibus and metro rides are different kinds: same stops, different ways', () => {
+test('bus and minibus are one family, metro is another: same stops, same way only within a family', () => {
   const minibus = it([ride('BUS', '518', home, metroBus, '04:14', '04:39', true), metro('04:44', '04:56')]);
-  assert.equal(sameWay(via321, minibus), false);
-  assert.equal(groupWays([via321, minibus]).length, 2);
+  // 518 (minibus) stands in for 321 (bus): one row, 321|518 -> metro 1.
+  assert.equal(sameWay(via321, minibus), true);
+  assert.equal(groupWays([via321, minibus]).length, 1);
+  assert.equal(wayLabel(groupWays([via321, minibus])[0].slots), '321|518 -> metro 1');
   assert.equal(wayLabel(groupWays([minibus])[0].slots), 'minibus 518 -> metro 1');
-  // A kept bus way does not take a minibus over the same stops, even with no line list.
+  // A kept bus way takes the minibus over the same stops.
   const busOnly = variantSteps(via321, [via321])!.map(({ routes: _r, ...s }) => s);
-  assert.equal(fitsWay(busOnly, minibus), false);
+  assert.ok(fitsWay(busOnly, minibus));
   assert.ok(fitsWay(busOnly, via321));
   // A metro ride is not a bus ride between the same stops.
   const busOnMetroStops = it([ride('BUS', '321', home, metroBus, '04:10', '04:35'), ride('BUS', '1', metroA, metroB, '04:40', '04:52')]);

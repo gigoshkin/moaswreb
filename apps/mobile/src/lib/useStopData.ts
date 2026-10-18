@@ -4,6 +4,8 @@ import { hasApi, nearStops, reversePlace, stopLines } from './api';
 import { readCache, writeCache } from './cache';
 import { distM } from './chain';
 import { METRO_CHANGE_M, addLines, emptyNet, type MetroNet } from './metro';
+import { pinName } from './nameOfPlace';
+import { isDropped } from './placeNames';
 
 type Point = { lat: number; lon: number };
 
@@ -80,7 +82,11 @@ export function useAddress(p: Point | null) {
     let live = true;
     const t = setTimeout(() => {
       reversePlace(p).then(
-        (hit) => live && setState({ key, name: hit?.name ?? null, sub: hit?.address ?? null }),
+        async (hit) => {
+          // No address here: the closest stop is the next best name.
+          const name = hit?.name ?? (await pinName(p));
+          if (live) setState({ key, name: isDropped(name) ? null : name, sub: hit?.address ?? null });
+        },
         () => live && setState({ key, name: null, sub: null }),
       );
     }, 200);

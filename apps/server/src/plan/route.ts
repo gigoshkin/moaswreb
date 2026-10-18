@@ -26,6 +26,8 @@ interface Querystring {
   /** Route numbers to leave out, comma separated. */
   avoid?: string;
   avoidMinibus?: boolean;
+  /** `ttc`: only TTC's planner answers (the fast part of the plan). */
+  part?: 'ttc';
 }
 
 const avoidOf = (routes: string[], minibus?: boolean): { avoid?: PlanAvoid } => {
@@ -40,10 +42,12 @@ const latLon = (s: string): LatLon | null => {
 };
 
 /**
- * GET /plan?from=lat,lon&to=lat,lon&arriveBy=YYYY-MM-DDTHH:mm[&modes=BUS,SUBWAY][&optimize=quick][&locale=ka]
+ * GET /plan?from=lat,lon&to=lat,lon&arriveBy=YYYY-MM-DDTHH:mm[&modes=BUS,SUBWAY][&optimize=quick][&locale=ka][&part=ttc]
  *
  * Wraps TTC `v2/plan` with departMode=arriveBy. `arriveBy` is Tbilisi wall
- * clock. Caching lives in PlanService.
+ * clock. Caching lives in PlanService. `part=ttc` answers with TTC's planner
+ * alone, fast, marked `partial: true`; the app asks it beside the full plan to
+ * show something while our own planner is still loading.
  */
 export const registerPlanRoute = (app: FastifyInstance, plans: PlanService): void => {
   app.get<{ Querystring: Querystring }>(
@@ -62,6 +66,7 @@ export const registerPlanRoute = (app: FastifyInstance, plans: PlanService): voi
             locale: { type: 'string', enum: ['ka', 'en'] },
             avoid: { type: 'string', pattern: '^[^,]{1,12}(,[^,]{1,12}){0,19}$' },
             avoidMinibus: { type: 'boolean' },
+            part: { type: 'string', enum: ['ttc'] },
           },
         },
       },
@@ -87,7 +92,7 @@ export const registerPlanRoute = (app: FastifyInstance, plans: PlanService): voi
         ...avoidOf(q.avoid ? q.avoid.split(',') : [], q.avoidMinibus),
       };
       try {
-        return await plans.plan(query);
+        return q.part === 'ttc' ? await plans.planTtc(query) : await plans.plan(query);
       } catch (err) {
         req.log.warn({ err }, 'TTC plan failed');
         return reply.code(upstreamFailed(err)).send({ error: 'upstream', message: 'TTC trip planner unavailable' });

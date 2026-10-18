@@ -43,6 +43,8 @@ export interface TripPlan {
   /** One line when the plan moved since it was first shown today, e.g. "Switch to 17 — leave at 08:16". */
   change: string | null;
   refreshing: boolean;
+  /** True while only the quick part of the plan is in (the full plan follows; `refreshing` is true too). */
+  partial: boolean;
   error: string | null;
   loaded: boolean;
   itineraries: Itinerary[];
@@ -70,7 +72,8 @@ export function useTripPlan(trip: SavedTrip | null, date: string, now: number, o
   // later deadline (rounded to 15 min, so the query stays stable) to still show the soonest arrival, marked late.
   // Every kept way is asked again, and only those: a trip with ways never falls back to other lines.
   const lateQueries = useMemo(() => {
-    if (!queries || !query || !main.plan || mainChoice.kind !== 'none') return null;
+    // Not on the quick part alone: the full plan may well still have a ride that arrives in time.
+    if (!queries || !query || !main.plan || main.partial || mainChoice.kind !== 'none') return null;
     const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '');
     // Long enough to include a ride leaving now: the trip's own duration (from the plans just received) plus a margin.
     const longest = Math.max(0, ...main.plan.itineraries.map((i) => i.durationSec)) * 1000;
@@ -78,13 +81,13 @@ export function useTripPlan(trip: SavedTrip | null, date: string, now: number, o
     if (!(deadline < later)) return null;
     const arriveBy = new Date(later + TBILISI_UTC_OFFSET_MIN * 60_000).toISOString().slice(0, 16);
     return queries.map((q) => ({ ...q, arriveBy }));
-  }, [queries, query, main.plan, mainChoice.kind, Math.floor(now / (15 * 60_000))]);
+  }, [queries, query, main.plan, main.partial, mainChoice.kind, Math.floor(now / (15 * 60_000))]);
   const retry = usePlans(lateQueries, { refreshMs: opts.refreshMs });
   const second = lateQueries && retry.plan ? { ...retry, error: null } : main;
   const secondChoice = useMemo(() => (query && second.plan ? choose(second.plan.itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [second.plan, query, now, bufferMin]);
 
   // A pinned route never falls back to a different one: it may be late, but it stays the route the user picked.
-  const { plan, refreshing, error } = second;
+  const { plan, refreshing, partial, error } = second;
   const itineraries = plan?.itineraries ?? [];
   const choice = useMemo(() => (query ? choose(itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [itineraries, query, now, bufferMin]);
 
@@ -94,7 +97,7 @@ export function useTripPlan(trip: SavedTrip | null, date: string, now: number, o
   const kept = trip ? tripWays(trip) : [];
   const keepsWays = kept.length > 0;
   const waved = dismissed.use();
-  const missed = !!opts.suggest && keepsWays && plan !== null && choice.kind !== 'onTime' && !(trip && waved[`${trip.id}|${date}`]);
+  const missed = !!opts.suggest && keepsWays && plan !== null && !partial && choice.kind !== 'onTime' && !(trip && waved[`${trip.id}|${date}`]);
   const otherQueries = useMemo(() => {
     if (!missed || !trip || !query) return null;
     const anyLine = tripQuery(everyLine(trip), date);
@@ -110,7 +113,8 @@ export function useTripPlan(trip: SavedTrip | null, date: string, now: number, o
   }, [otherQueries, others.plan, query, now, bufferMin, choice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   let change: string | null = null;
-  if (opts.trackChanges && trip && choice.kind !== 'none') {
+  // Not on the quick part: the full plan may pick another ride, which is not a change in the plan.
+  if (opts.trackChanges && trip && choice.kind !== 'none' && !partial) {
     const key = `${trip.id}|${date}`;
     const seen = firstSeen.get()[key];
     const current = { routes: routeKey(choice.it), leaveAt: leaveAt(choice.it, bufferMin), label: rideLabel(choice.it) };
@@ -128,7 +132,7 @@ export function useTripPlan(trip: SavedTrip | null, date: string, now: number, o
     }
   }
 
-  return { choice, change, refreshing, error, loaded: plan !== null, itineraries, suggestion: missed ? suggestion : null };
+  return { choice, change, refreshing, partial, error, loaded: plan !== null, itineraries, suggestion: missed ? suggestion : null };
 }
 
 /** Wave a suggestion away: it doesn't come back for that trip that day. */

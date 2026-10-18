@@ -10,6 +10,7 @@ import { firstWalkMin, leaveAt, mergeItineraries } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { daysText, hhmm, nextArriveBy } from '../../lib/time';
 import type { Place } from '../../lib/trips';
+import { useNamedPlace } from '../../lib/useNamedPlace';
 import { useNow } from '../../lib/useNow';
 import { useRoadItinerary } from '../../lib/shapes';
 import { everyLine, useTripPlan } from '../../lib/useTripPlan';
@@ -36,6 +37,9 @@ export default function RouteBuilder() {
   const [init] = useState(routeDraft);
   const [from, setFrom] = useState<Place | null>(init.from);
   const [to, setTo] = useState<Place | null>(init.to);
+  // An end still called "Dropped pin" (an older trip, or a pin placed a moment ago) gets its address.
+  useNamedPlace(from, setFrom);
+  useNamedPlace(to, setTo);
   const [avoid, setAvoid] = useState<PlanAvoid | undefined>(init.avoid);
   // Every way ticked in the list (or built by hand): the trip plans these and nothing else. Empty: the app picks.
   const [ways, setWays] = useState<RideStep[][]>(() => tripWays(init));

@@ -236,6 +236,21 @@ test('the stop of the same name across the road can be boarded instead', () => {
   assert.equal(F.reboard(fresh(), other).board, null);
 });
 
+test('an unnamed Start or End gets its name when the lookup answers, through the undo history too', () => {
+  const unnamed = (l: string) => l === 'Dropped pin';
+  const pin = { lat: 41.79, lon: 44.75, label: 'Dropped pin' };
+  let b = F.builder(fresh());
+  b = F.commit(b, F.pinDropped(b.flow, pin, null));
+  b = F.commit(b, F.pinDropped(b.flow, at(busA), busA));
+  const n = F.namedAll(b, { ...pin, label: 'Tsereteli Ave 5' }, unnamed);
+  assert.equal(n.flow.start?.label, 'Tsereteli Ave 5');
+  assert.equal(F.undo(n).flow.start?.label, 'Tsereteli Ave 5');
+  // Another point, a named end or a lookup that found nothing: nothing changes.
+  assert.equal(F.namedAll(b, { ...pin, lat: 41.7, label: 'Elsewhere' }, unnamed), b);
+  assert.equal(F.namedAll(b, pin, unnamed), b);
+  assert.equal(F.named(n.flow, { ...pin, label: 'Other' }, unnamed), n.flow);
+});
+
 test('several rides end the ride being built in a row, in its slot', () => {
   const a = S('A', 41.7, 44.8, 'SUBWAY');
   const b = S('B', 41.71, 44.8, 'SUBWAY');

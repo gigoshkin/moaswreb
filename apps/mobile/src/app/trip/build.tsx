@@ -8,12 +8,14 @@ import * as Haptics from 'expo-haptics';
 import { finishSteps, stepsDraft } from '../../lib/handoff';
 import { distM, rideFromStep, stepOf } from '../../lib/chain';
 import {
-  builder, cancelRide, canFinish, commit, endsOf, finish, groundOk, initFlow, insertAt, onwardLines, phaseOf, pinDropped, reachableFrom,
+  builder, cancelRide, canFinish, commit, endsOf, finish, groundOk, initFlow, insertAt, namedAll, onwardLines, phaseOf, pinDropped, reachableFrom,
   reboard, removeRide, replaceAt, rideEnded, ridesEnded, rowsOf, seeded, toggleRideLine, twinAcross, undo as undoFlow, type Flow, type Phase,
 } from '../../lib/buildFlow';
 import { metroLinesDrawn, metroReach, metroRides } from '../../lib/metro';
 import { kindOf, leaveAt } from '../../lib/plans';
 import { locateMe } from '../../lib/locate';
+import { nameOfPlace } from '../../lib/nameOfPlace';
+import { DROPPED_PIN, isDropped } from '../../lib/placeNames';
 import { settings } from '../../lib/settings';
 import { distanceLabel } from '../../lib/stops';
 import { hhmm, nextArriveBy } from '../../lib/time';
@@ -91,8 +93,21 @@ export default function BuildRoute() {
   const hotRef = useRef<string | null>(null);
   const [sheetH, setSheetH] = useState(MIN_SHEET);
   const [locating, setLocating] = useState(false);
+  // A ground pin waits (briefly) for its address before it becomes a Start or an End.
+  const [naming, setNaming] = useState(false);
 
   useEffect(() => () => finishSteps(null), []);
+
+  // A Start or End still called "Dropped pin" (it came in that way, or the lookup was slow) gets its name when the lookup answers.
+  const unnamed = [f.start, f.end].filter((p): p is NonNullable<typeof p> => !!p && isDropped(p.label));
+  const unnamedKey = unnamed.map((p) => `${p.lat},${p.lon}`).join('|');
+  useEffect(() => {
+    let live = true;
+    for (const p of unnamed) nameOfPlace(p).then((n) => live && n !== p && setB((cur) => namedAll(cur, n, isDropped)));
+    return () => {
+      live = false;
+    };
+  }, [unnamedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const home = settings.get().home;
   const startAt: Point = init?.from ?? home ?? TBILISI;
@@ -197,10 +212,13 @@ export default function BuildRoute() {
     if (init?.to) map.current?.fit([s, init.to]);
     else map.current?.flyTo(s, 14.8);
   };
-  const dropOnGround = () => {
+  const dropOnGround = async () => {
     haptic('selection');
     setOpen(null);
-    act((x) => pinDropped(x, { lat: pinAt.lat, lon: pinAt.lon, label: address.name ?? 'Dropped pin' }, null));
+    // Pressed before the address came back: wait a moment for it rather than keep an unnamed pin.
+    setNaming(true);
+    const p = await nameOfPlace({ lat: pinAt.lat, lon: pinAt.lon, label: address.name ?? DROPPED_PIN }).finally(() => setNaming(false));
+    act((x) => pinDropped(x, p, null));
   };
   const getOff = (s: StopHit) => {
     if (!lines || !f.board) return;
@@ -289,7 +307,7 @@ export default function BuildRoute() {
   const via = change && change.length > 1 ? ` (change at ${change.slice(0, -1).map((r) => r.off.name).join(', ')})` : '';
   if (phase === 'awaitingOff') main = { label: hotStop ? `Get off at ${hotStop.name}` : 'Move the pin onto a stop', onPress: () => hotStop && getOff(hotStop), disabled: !hotStop || !lines };
   else if (hotStop) main = { label: sameStop ? `Change here at ${hotStop.name}` : `Board at ${hotStop.name}`, onPress: () => dropOnStop(hotStop) };
-  else if (groundOk(f)) main = { label: phase === 'first' ? 'Walk starts here' : phase === 'walkEnd' ? 'Walk ends here' : 'Walk to here', onPress: dropOnGround, disabled: address.loading || (phase === 'walkEnd' && !!f.start && distM(pinAt, f.start) < 30) };
+  else if (groundOk(f)) main = { label: phase === 'first' ? 'Walk starts here' : phase === 'walkEnd' ? 'Walk ends here' : 'Walk to here', onPress: dropOnGround, disabled: address.loading || naming || (phase === 'walkEnd' && !!f.start && distM(pinAt, f.start) < 30) };
   else main = { label: 'Move the pin onto a stop', onPress: () => {}, disabled: true };
 
   // The row to keep in view: the ride being built or replaced, else an open ride, else the newest row.

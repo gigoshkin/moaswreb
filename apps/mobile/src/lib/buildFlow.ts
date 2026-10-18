@@ -181,6 +181,23 @@ export const insertAt = (f: Flow, at: number): Flow => ({ ...f, board: null, slo
 export const replaceAt = (f: Flow, at: number): Flow => ({ ...f, board: null, slot: { at, replace: true } });
 export const removeRide = (f: Flow, at: number): Flow => ({ ...f, rides: removeAt(f.rides, at), board: null, slot: null });
 export const toggleRideLine = (f: Flow, at: number, label: string): Flow => ({ ...f, rides: f.rides.map((r, i) => (i === at ? toggleLine(r, label) : r)) });
+/**
+ * A walk's Start or End at this point gets its looked-up name (it was pinned, or came in, before the
+ * address was known). Only an end still at the same point and still unnamed (`unnamed`) changes.
+ */
+export function named(f: Flow, p: Place, unnamed: (label: string) => boolean): Flow {
+  const same = (x: Place | null) => !!x && x.lat === p.lat && x.lon === p.lon && unnamed(x.label) && !unnamed(p.label);
+  const start = same(f.start) ? { ...f.start!, label: p.label } : f.start;
+  const end = same(f.end) ? { ...f.end!, label: p.label } : f.end;
+  return start === f.start && end === f.end ? f : { ...f, start, end };
+}
+/** The same, for the whole undo history, so undoing a step doesn't bring the unnamed pin back. */
+export const namedAll = (b: Builder, p: Place, unnamed: (label: string) => boolean): Builder => {
+  const flow = named(b.flow, p, unnamed);
+  const past = b.past.map((x) => named(x, p, unnamed));
+  return flow === b.flow && past.every((x, i) => x === b.past[i]) ? b : { flow, past };
+};
+
 /** A kept way opened for editing: its rides, named from the planned legs (not an undoable change). */
 export const seeded = (f: Flow, rides: BuiltRide[]): Flow => ({ ...f, rides });
 

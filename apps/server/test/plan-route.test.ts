@@ -7,6 +7,7 @@ import { PlanService, TTC_EARLIER_MIN, byArrivalThenTransfers, lineChain, onePer
 import type { Itinerary } from '@transit/shared';
 import { StopIndex } from '../src/ttc/stops.ts';
 import { TtcError, type TtcClient } from '../src/ttc/client.ts';
+import type { TtcSource } from '../src/journey/ttc-source.ts';
 
 const raw = JSON.parse(await readFile(new URL('./fixtures/plan-otp-synthetic.json', import.meta.url), 'utf8'));
 
@@ -126,4 +127,61 @@ test('shiftLocal crosses midnight; ranking breaks arrival ties by fewer changes'
   const late = { ...mk('2026-10-19T05:10:00.000Z', 0, '2026-10-19T04:20:00.000Z'), legs: [] };
   const early = { ...mk('2026-10-19T04:50:00.000Z', 0, '2026-10-19T03:50:00.000Z'), legs: [] };
   assert.deepEqual(onePerChain([late, early], deadline), [early]);
+});
+
+// part=ttc: the quick half of a plan, TTC's planner alone.
+test('part=ttc answers with TTC only, marked partial, without waiting for our planner', async () => {
+  const calls: unknown[] = [];
+  const fake = { plan: async (p: unknown) => (calls.push(p), raw) } as unknown as TtcClient;
+  // A planner that never finishes loading: the full plan would wait for it up to the engine budget.
+  const hung = { stopsNear: () => new Promise(() => {}), minibusNames: async () => new Set<string>() } as unknown as TtcSource;
+  const app = Fastify();
+  registerPlanRoute(app, new PlanService(fake, new StopIndex(fake), hung));
+  const res = await app.inject(url + '&part=ttc');
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(body.partial, true);
+  assert.equal(body.source, 'ttc');
+  assert.equal(body.itineraries.length, 2);
+  assert.equal(body.query.arriveBy, '2026-10-19T09:00');
+});
+
+test('the quick part is not kept as the full answer; the full plan has no partial flag', async () => {
+  const { app, calls } = setup(async () => raw);
+  const quick = (await app.inject(url + '&part=ttc')).json();
+  assert.equal(quick.partial, true);
+  assert.equal(calls.length, 2);
+  // The same quick query again is served from memory.
+  assert.equal((await app.inject(url + '&part=ttc')).json().partial, true);
+  assert.equal(calls.length, 2);
+  // The full plan is asked afresh (its own cache key) and carries no flag.
+  const full = (await app.inject(url)).json();
+  assert.equal(calls.length, 4);
+  assert.equal('partial' in full, false);
+  // Now the full plan is in memory: the quick request returns it unmarked, without asking TTC.
+  const again = (await app.inject(url + '&part=ttc')).json();
+  assert.equal('partial' in again, false);
+  assert.equal(calls.length, 4);
+});
+
+test('the quick part and the full plan of one query share the TTC lookups', async () => {
+  const calls: unknown[] = [];
+  const fake = { plan: async (p: unknown) => (await new Promise((r) => setTimeout(r, 20)), calls.push(p), raw) } as unknown as TtcClient;
+  const plans = new PlanService(fake, new StopIndex(fake));
+  const q = { from: { lat: 41.7151, lon: 44.8271 }, to: { lat: 41.7099, lon: 44.7929 }, arriveBy: '2026-10-19T09:00', modes: ['BUS' as const], optimize: 'quick' as const, locale: 'en' as const };
+  const [quick, full] = await Promise.all([plans.planTtc(q), plans.plan(q)]);
+  assert.equal(calls.length, 2);
+  assert.equal(quick.partial, true);
+  assert.equal(full.partial, undefined);
+  assert.equal(quick.itineraries.length, full.itineraries.length);
+});
+
+test('part=ttc: bad value → 400, TTC down → 503', async () => {
+  const ok = setup(async () => raw);
+  assert.equal((await ok.app.inject(url + '&part=engine')).statusCode, 400);
+  assert.equal(ok.calls.length, 0);
+  const down = setup(async () => { throw new TtcError(500, 'v2/plan', 'boom'); });
+  const res = await down.app.inject(url + '&part=ttc');
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.json().error, 'upstream');
 });

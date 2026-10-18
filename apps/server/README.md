@@ -30,10 +30,11 @@ npm run dev -w @transit/server
 Wraps TTC `v2/plan` with `departMode=arriveBy` and returns `PlanResponse` from `@transit/shared`.
 
 ```
-GET /plan?from=41.7151,44.8271&to=41.7099,44.7929&arriveBy=2026-10-19T09:00[&modes=BUS,SUBWAY][&optimize=quick][&locale=en]
+GET /plan?from=41.7151,44.8271&to=41.7099,44.7929&arriveBy=2026-10-19T09:00[&modes=BUS,SUBWAY][&optimize=quick][&locale=en][&part=ttc]
 ```
 - `arriveBy` is Tbilisi wall-clock time. `from`/`to` must be inside Tbilisi (rejects swapped lat/lon).
 - Identical queries are answered from memory for 60 s.
+- `part=ttc` answers with TTC's planner alone (no wait for our own planner or Google, which can take ~25 s for a new area) and sets `partial: true`. It has its own cache entry and is never kept as the full answer; when the full plan of the query is already in memory, that is returned unmarked. The app asks for it beside the full plan and shows it first. Servers that predate it ignore the parameter and answer in full, without `partial`.
 - 400 on bad input, 502/503 when TTC fails.
 - Leg `arrivalDelay` is dropped: it was off by up to ±1 h in testing.
 - TTC sends no stop id on a ride's boarding/alighting place, and no headsign. `PlanService` fills `stopId` with the nearest stop of the same mode within 25 m (live data matches at 0 m; the opposite-direction stop can be 7 m away). `headsign` stays null.

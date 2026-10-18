@@ -96,6 +96,8 @@ export interface PlanResponse {
   source: 'ttc';
   /** ISO time TTC answered (cached responses keep the original time). */
   fetchedAt: string;
+  /** True on the quick answer to `GET /plan?part=ttc` (TTC's planner only); the full plan follows. Absent on a full plan. */
+  partial?: boolean;
 }
 
 export interface ApiError {
