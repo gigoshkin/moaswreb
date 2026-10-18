@@ -48,6 +48,14 @@ test('plan_trip returns a plan card and Tbilisi times in text', async () => {
   assert.match(res.text, /leave 08:15, arrive 08:58 \(Tbilisi\), 43 min: BUS 306 \+ BUS 347/);
 });
 
+test('plan_trip card carries the trip name, place names and days for the Save button', async () => {
+  const { run } = setup();
+  const res = await run('plan_trip', { from: { lat: 41.7151, lon: 44.8271 }, to: { lat: 41.7099, lon: 44.7929 }, arriveBy: '2026-10-19T09:00', name: 'University', toName: 'Caucasus University', days: [3, 1, 3] });
+  assert.deepEqual(res.card?.type === 'plan' && res.card.trip, { name: 'University', to: 'Caucasus University', days: [1, 3] });
+  const bare = await run('plan_trip', { from: { lat: 41.7151, lon: 44.8271 }, to: { lat: 41.7099, lon: 44.7929 }, arriveBy: '2026-10-19T09:00' });
+  assert.equal(bare.card && 'trip' in bare.card, false);
+});
+
 test('plan_trip rejects places outside Tbilisi at the schema', () => {
   const { tools } = setup();
   const plan = tools.find((t) => t.name === 'plan_trip')!;

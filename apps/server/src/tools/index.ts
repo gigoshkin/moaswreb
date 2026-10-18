@@ -49,6 +49,7 @@ const latLon = z
   .object({ lat: z.number(), lon: z.number() })
   .refine((p) => insideTbilisi(p.lat, p.lon), 'must be inside Tbilisi (lat ≈ 41.7, lon ≈ 44.8)');
 const place = z.object({ label: z.string(), lat: z.number(), lon: z.number() });
+const dayList = z.array(z.number().int().min(1).max(7)).min(1).max(7);
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:mm');
 const stopId = z.string().regex(new RegExp(STOP_ID_PATTERN), 'TTC stop id like "1:1405" or "1:metro_1_11"');
 const routeName = z.string().min(1).max(12);
@@ -136,9 +137,13 @@ export const createTools = ({ ttc, stops, plans, locale = 'en', geo, source, fet
       modes: z.array(modeSchema).min(1).optional().describe('Only these modes; default all'),
       optimize: z.enum(['quick', 'lessWalking', 'fewerTransfers']).optional(),
       steps: stepsSchema.optional(),
+      name: z.string().min(1).max(100).optional().describe('A short name for the trip if the user saves it, from context (e.g. "University", "Work", "Gym"); not "Start to Destination"'),
+      fromName: z.string().min(1).max(200).optional().describe('What the user calls the start (e.g. "Home", the place name)'),
+      toName: z.string().min(1).max(200).optional().describe('What the user calls the destination'),
+      days: dayList.optional().describe('ISO weekdays the trip repeats on, 1 = Monday; default Mon–Fri. Set it when the user says which days'),
     }),
     mcp: true,
-    run: async ({ from, to, arriveBy, avoid, modes, optimize, steps }) => {
+    run: async ({ from, to, arriveBy, avoid, modes, optimize, steps, name, fromName, toName, days }) => {
       if (!tbilisiLocalToIso(arriveBy)) return { text: 'arriveBy must be YYYY-MM-DDTHH:mm (Tbilisi time).' };
       const a = cleanAvoid(avoid);
       const plan = await plans.plan({
@@ -161,7 +166,8 @@ export const createTools = ({ ttc, stops, plans, locale = 'en', geo, source, fet
         : steps?.length || a || modes?.length
           ? 'No itineraries fit those choices (avoid list, modes or hand-built route). Say so and offer to relax them.'
           : 'No itineraries found.';
-      return { text, card: { type: 'plan', plan } };
+      const trip = name || fromName || toName || days ? { ...(name ? { name } : {}), ...(fromName ? { from: fromName } : {}), ...(toName ? { to: toName } : {}), ...(days ? { days: [...new Set(days)].sort((x, y) => x - y) } : {}) } : undefined;
+      return { text, card: { type: 'plan', plan, ...(trip ? { trip } : {}) } };
     },
   }),
 
@@ -246,7 +252,7 @@ export const createTools = ({ ttc, stops, plans, locale = 'en', geo, source, fet
     name: 'propose_trip',
     description:
       'Propose a repeating trip for the user to save (e.g. home → work, arrive by 09:00). Nothing is saved until the user confirms the card in the app. Resolve both places to coordinates first.',
-    schema: z.object({ name: z.string(), from: place, to: place, arriveBy: hhmm }),
+    schema: z.object({ name: z.string(), from: place, to: place, arriveBy: hhmm, days: dayList.optional().describe('ISO weekdays, 1 = Monday; default Mon–Fri. Set it when the user says which days') }),
     mcp: false,
     run: async (trip) => ({
       text: 'Shown to the user as a card to confirm. Not saved yet.',
@@ -263,7 +269,7 @@ export const createTools = ({ ttc, stops, plans, locale = 'en', geo, source, fet
       from: place,
       to: place,
       arriveBy: hhmm,
-      days: z.array(z.number().int().min(1).max(7)).min(1).max(7).optional().describe('ISO weekdays, 1 = Monday; default Mon–Fri'),
+      days: dayList.optional().describe('ISO weekdays, 1 = Monday; default Mon–Fri'),
       avoid: avoidSchema.optional(),
       steps: stepsSchema.optional(),
     }),

@@ -64,6 +64,18 @@ export interface ProposedTrip {
   to: ProposedPlace;
   /** Tbilisi wall clock `HH:mm`. */
   arriveBy: string;
+  /** ISO weekdays, 1 = Monday; missing = Mon–Fri. */
+  days?: number[];
+}
+
+/** What the assistant knows about a planned trip beyond coordinates: names the user would recognise, and when it repeats. */
+export interface PlanTripMeta {
+  /** Name for the saved trip, e.g. "University". */
+  name?: string;
+  from?: string;
+  to?: string;
+  /** ISO weekdays, 1 = Monday; missing = Mon–Fri. */
+  days?: number[];
 }
 
 export interface ProposedEvent {
@@ -97,7 +109,7 @@ export interface ProposedRoute extends ProposedTrip {
 }
 
 export type ActionCard =
-  | { type: 'plan'; plan: PlanResponse }
+  | { type: 'plan'; plan: PlanResponse; trip?: PlanTripMeta }
   | { type: 'arrivals'; stop: { id: string; name: string }; arrivals: Arrival[] }
   | { type: 'stops'; stops: StopHit[] }
   | { type: 'confirm_trip'; trip: ProposedTrip }
