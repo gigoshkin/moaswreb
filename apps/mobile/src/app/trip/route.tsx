@@ -6,7 +6,7 @@ import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { slotsFor } from '../../lib/ways';
 import { buildSteps, finishRoute, pickPlace, routeDraft, type PickKind } from '../../lib/handoff';
-import { firstWalkMin, leaveAt } from '../../lib/plans';
+import { firstWalkMin, leaveAt, stepsOf } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { daysText, hhmm, nextArriveBy } from '../../lib/time';
 import type { Place } from '../../lib/trips';
@@ -99,7 +99,9 @@ export default function RouteBuilder() {
   const finish = () => {
     if (!from || !to) return;
     haptic('success');
-    finishRoute({ from, to, avoid, steps, ...(arriveBy !== init.arriveBy ? { arriveBy } : {}) });
+    // A way picked in the list is the route: it goes back as its own rides (every line that serves each ride still counts), not just a highlight.
+    const chosen = picked ? plan.itineraries.find((x) => x.id === picked) : undefined;
+    finishRoute({ from, to, avoid, steps: (chosen && stepsOf(chosen)) || steps, ...(arriveBy !== init.arriveBy ? { arriveBy } : {}) });
     router.back();
   };
 

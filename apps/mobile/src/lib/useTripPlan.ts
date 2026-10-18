@@ -58,16 +58,8 @@ export function useTripPlan(trip: SavedTrip | null, date: string, now: number, o
   const second = lateQuery && retry.plan ? { ...retry, error: null } : main;
   const secondChoice = useMemo(() => (query && second.plan ? choose(second.plan.itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [second.plan, query, now, bufferMin]);
 
-  // A pinned route (hand-built, or the one picked in chat) that gives nothing, not even a late one, must not end in "No route
-  // found": plan the trip without the pinned rides, so the fastest way still shows (marked late when it is).
-  const looseQuery = useMemo(() => {
-    if (!query?.steps?.length || !second.plan || secondChoice.kind !== 'none') return null;
-    const { steps: _pinned, ...loose } = lateQuery ?? query;
-    return loose as PlanQuery;
-  }, [query, lateQuery, second.plan, secondChoice.kind]);
-  const loose = usePlan(looseQuery, { refreshMs: opts.refreshMs });
-
-  const { plan, refreshing, error } = looseQuery && loose.plan ? { ...loose, error: null } : second;
+  // A pinned route never falls back to a different one: it may be late, but it stays the route the user picked.
+  const { plan, refreshing, error } = second;
   const itineraries = plan?.itineraries ?? [];
   const choice = useMemo(() => (query ? choose(itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [itineraries, query, now, bufferMin]);
 
