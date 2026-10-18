@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Tbilisi Transit",
+    "name": "მოასწრებ",
     "slug": "tbilisi-transit",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,7 +17,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#F7F5F0",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -35,7 +35,7 @@
       "expo-notifications",
       ["react-native-notify-kit", { "android": { "icons": [{ "name": "ic_leave_card", "path": "./assets/android-icon-monochrome.png", "type": "small" }] } }],
       "@react-native-community/datetimepicker",
-      "expo-splash-screen",
+      ["expo-splash-screen", { "image": "./assets/splash-icon.png", "imageWidth": 220, "backgroundColor": "#FFFFFF", "resizeMode": "contain" }],
       ["expo-image-picker", { "cameraPermission": "Take a photo to send in the chat.", "photosPermission": "Choose photos to send in the chat.", "microphonePermission": false }],
       ["expo-location", { "locationWhenInUsePermission": "Your location is used to find nearby stops and plan from where you are." }],
       ["expo-media-library", { "photosPermission": "Choose photos to send in the chat.", "savePhotosPermission": false, "isAccessMediaLocationEnabled": false }]

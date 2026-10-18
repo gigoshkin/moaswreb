@@ -18,6 +18,7 @@ import { LeaveByBar } from '../../ui/LeaveByBar';
 import { LineChain } from '../../ui/LineChain';
 import { Tap, haptic } from '../../ui/Tap';
 import { Text } from '../../ui/Text';
+import { Wordmark } from '../../ui/Wordmark';
 import { Countdown } from '../../ui/Countdown';
 import { RouteSummary } from '../../ui/kit';
 import { color, gutter, shadow, spring } from '../../ui/theme';
@@ -42,9 +43,12 @@ export default function Today() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
       <View style={[styles.header, { paddingTop: insets.top + 28 }]}>
-        <Text variant="caption" color={color.textSecondary}>
-          {longDate(today)}
-        </Text>
+        <View style={styles.brand}>
+          <Wordmark height={26} />
+          <Text variant="caption" color={color.textSecondary}>
+            {longDate(today)}
+          </Text>
+        </View>
         {hero && plan.choice.kind !== 'none' && (
           <Animated.View key={plan.choice.kind} entering={FadeIn.duration(250)}>
             <Text variant="title18">{plan.choice.kind === 'onTime' ? "You'll make it." : 'Running late'}</Text>
@@ -255,6 +259,7 @@ function FirstRun() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.bg },
+  brand: { gap: 4 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: gutter, paddingBottom: 12 },
   hero: { padding: 20, gap: 12, ...shadow.soft },
   heroBody: { gap: 12 },
