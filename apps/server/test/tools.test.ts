@@ -65,6 +65,8 @@ test('proposals only produce confirm cards and are not on MCP', async () => {
   assert.deepEqual((await run('propose_trip', trip)).card, { type: 'confirm_trip', trip });
   const ev = await run('propose_events', { events: [{ title: 'Math', days: [1, 3], start: '10:00', end: '11:30', place: 'Free Uni' }] });
   assert.equal(ev.card?.type, 'confirm_events');
+  const dup = await run('propose_events', { events: [{ title: 'Math', days: [3, 1, 3], start: '10:00', end: null, place: null }] });
+  assert.deepEqual(dup.card?.type === 'confirm_events' && dup.card.events[0].days, [1, 3], 'repeated days would make /me/trips reject every trip');
   assert.deepEqual(tools.filter((t) => t.mcp).map((t) => t.name), ['find_stop', 'find_place', 'next_arrivals', 'plan_trip', 'stops_near', 'lines_at_stop']);
   assert.deepEqual(tools.filter((t) => !t.mcp).map((t) => t.name), ['propose_trip', 'propose_route', 'propose_events']);
 });
