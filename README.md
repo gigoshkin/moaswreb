@@ -159,7 +159,7 @@ All variables, rate limits and the endpoint list are in [.env.example](.env.exam
 
 ### Development build (push alerts and the leave card)
 
-Expo Go cannot run push notifications or the lock-screen card. They need a development build of the app, made once in the cloud with EAS; after that JavaScript changes reload from Metro. Steps, permissions and known limits: knowledge-base/dev-build.md.
+Expo Go cannot run push notifications or the lock-screen card. They need a development build of the app, made once in the cloud with EAS; after that JavaScript changes reload from Metro.
 
 ## Build the APK
 
@@ -172,7 +172,7 @@ npx eas-cli@latest init                  # first time only: creates the EAS proj
 npx eas-cli@latest build --profile preview --platform android
 ```
 
-EAS prints a download URL and QR code when the build finishes. Set `EXPO_PUBLIC_API_URL` for the build (for example as an EAS environment variable) so the APK talks to the real server. There is no local `expo run:android` without an Android SDK; EAS builds in the cloud. A build takes roughly 15-30 minutes plus the queue (unverified: no APK has been produced yet). Full notes: knowledge-base/dev-build.md.
+EAS prints a download URL and QR code when the build finishes. Set `EXPO_PUBLIC_API_URL` for the build (for example as an EAS environment variable) so the APK talks to the real server. There is no local `expo run:android` without an Android SDK; EAS builds in the cloud. A build takes roughly 15-30 minutes plus the queue (unverified: no APK has been produced yet).
 
 ## Use it from an AI client (MCP)
 
