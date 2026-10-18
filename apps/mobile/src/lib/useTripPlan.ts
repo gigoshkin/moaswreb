@@ -53,8 +53,19 @@ export function useTripPlan(trip: SavedTrip | null, date: string, now: number, o
     return { ...query, arriveBy: new Date(later + TBILISI_UTC_OFFSET_MIN * 60_000).toISOString().slice(0, 16) };
   }, [query, main.plan, mainChoice.kind, Math.floor(now / (15 * 60_000))]);
   const retry = usePlan(lateQuery, { refreshMs: opts.refreshMs });
+  const second = lateQuery && retry.plan ? { ...retry, error: null } : main;
+  const secondChoice = useMemo(() => (query && second.plan ? choose(second.plan.itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [second.plan, query, now, bufferMin]);
 
-  const { plan, refreshing, error } = lateQuery && retry.plan ? { ...retry, error: null } : main;
+  // A pinned route (hand-built, or the one picked in chat) that gives nothing, not even a late one, must not end in "No route
+  // found": plan the trip without the pinned rides, so the fastest way still shows (marked late when it is).
+  const looseQuery = useMemo(() => {
+    if (!query?.steps?.length || !second.plan || secondChoice.kind !== 'none') return null;
+    const { steps: _pinned, ...loose } = lateQuery ?? query;
+    return loose as PlanQuery;
+  }, [query, lateQuery, second.plan, secondChoice.kind]);
+  const loose = usePlan(looseQuery, { refreshMs: opts.refreshMs });
+
+  const { plan, refreshing, error } = looseQuery && loose.plan ? { ...loose, error: null } : second;
   const itineraries = plan?.itineraries ?? [];
   const choice = useMemo(() => (query ? choose(itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [itineraries, query, now, bufferMin]);
 
