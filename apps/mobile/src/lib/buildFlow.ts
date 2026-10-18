@@ -133,9 +133,20 @@ export interface End {
   lon: number;
   stop?: StopHit;
 }
+/** A walk: Start | End. `to` null while the pin is placing it; `metres`/`minutes` once both are known (0: a change on the spot). */
+export interface WalkRow {
+  kind: 'walk';
+  from: End;
+  to: End | null;
+  metres: number | null;
+  minutes: number | null;
+  /** A ride can be inserted here (before ride `insertAt`). */
+  insertAt?: number;
+  /** One of the trip's ends the caller gave. */
+  fixed?: 'start' | 'end';
+}
 export type Row =
-  /** A walk: Start | End. `to` null while the pin is placing it; `metres`/`minutes` once both are known. */
-  | { kind: 'walk'; from: End; to: End | null; metres: number | null; minutes: number | null; /** Insert a ride here (between rides i-1 and i). */ insertAt?: number; fixed?: 'start' | 'end' }
+  | WalkRow
   | { kind: 'ride'; ride: BuiltRide; index: number; replacing: boolean }
   /** The ride being built: boarded, waiting for its get-off stop. */
   | { kind: 'boarding'; board: StopHit };
@@ -145,9 +156,10 @@ const placeEnd = (p: Place): End => ({ label: p.label, lat: p.lat, lon: p.lon })
 /** Walks this short (or between the same stop) are a change on the spot, not a walk. */
 const SAME_SPOT_M = 30;
 
-function walkRow(from: End, to: End | null, extra: Partial<Extract<Row, { kind: 'walk' }>> = {}): Row {
-  const m = to ? distM(from, to) : null;
-  return { kind: 'walk', from, to, metres: m, minutes: m === null ? null : walkMinutes(m), ...extra };
+function walkRow(from: End, to: End | null, extra: Partial<WalkRow> = {}): WalkRow {
+  const onSpot = to?.stop && from.stop && (to.stop.id === from.stop.id || distM(from, to) <= SAME_SPOT_M);
+  const m = to ? (onSpot ? 0 : distM(from, to)) : null;
+  return { kind: 'walk', from, to, metres: m, minutes: m === null ? null : m === 0 ? 0 : walkMinutes(m), ...extra };
 }
 
 export function rowsOf(f: Flow): Row[] {
@@ -161,9 +173,7 @@ export function rowsOf(f: Flow): Row[] {
   f.rides.forEach((r, i) => {
     if (f.slot && !f.slot.replace && f.slot.at === i && f.board) rows.push({ kind: 'boarding', board: f.board });
     if (i > 0) {
-      const prev = f.rides[i - 1].off;
-      if (prev.id !== r.board.id && distM(prev, r.board) > SAME_SPOT_M) rows.push(walkRow(stopEnd(prev), stopEnd(r.board), { insertAt: i }));
-      else rows.push({ ...walkRow(stopEnd(prev), stopEnd(r.board), { insertAt: i }), metres: 0, minutes: 0 });
+      rows.push(walkRow(stopEnd(f.rides[i - 1].off), stopEnd(r.board), { insertAt: i }));
     }
     const replacing = !!f.slot?.replace && f.slot.at === i;
     if (replacing && f.board) rows.push({ kind: 'boarding', board: f.board });
