@@ -76,12 +76,10 @@ export default function EditTrip() {
   const openBuilder = async () => {
     const r = await buildRoute({ from, to, arriveBy, days, avoid, steps });
     if (r) {
-      // A different start or end makes an old hand-built route meaningless.
-      const moved = r.from.lat !== from?.lat || r.from.lon !== from?.lon || r.to.lat !== to?.lat || r.to.lon !== to?.lon;
       setFrom(r.from);
       setTo(r.to);
       setAvoid(r.avoid);
-      setSteps(moved && !r.steps ? undefined : r.steps);
+      setSteps(r.steps); // a new start or end keeps a hand-built route; only the walks change
       if (r.arriveBy) setArriveBy(r.arriveBy); // changed on the route screen
     }
   };

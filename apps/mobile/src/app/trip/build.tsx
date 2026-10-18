@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { nearStops, stopLines } from '../../lib/api';
+import { hasApi, nearStops, reversePlace, stopLines } from '../../lib/api';
 import * as Haptics from 'expo-haptics';
 import { finishSteps, stepsDraft } from '../../lib/handoff';
 import { FAR_WALK_M, UNDO_DEPTH, distM, gapBefore, place, removeAt, stepOf, toggleLine, walkMinutes, type BuiltRide } from '../../lib/chain';
 import { kindOf, leaveAt, type Kind } from '../../lib/plans';
+import { locateMe } from '../../lib/locate';
 import { settings } from '../../lib/settings';
 import type { Place } from '../../lib/trips';
 import { distanceLabel } from '../../lib/stops';
@@ -79,26 +80,37 @@ export default function BuildRoute() {
   const [centre, setCentre] = useState<Point | null>(null);
   const [hot, setHot] = useState<string | null>(null);
   const hotRef = useRef<string | null>(null);
-  const adding = slot !== null;
+  // The ends: pinned on the map first (Start) and last (End) when the route is built from scratch.
+  const [phase, setPhase] = useState<'start' | 'end' | null>(!init?.from && !init?.steps.length ? 'start' : null);
+  const [startPlace, setStartPlace] = useState<Place | null>(null);
+  const [endPlace, setEndPlace] = useState<Place | null>(null);
+  const [endChosen, setEndChosen] = useState(false);
+  const [endFromDone, setEndFromDone] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [locNote, setLocNote] = useState<string | null>(null);
+  const pinning = phase !== null;
+  const adding = slot !== null && !pinning;
 
   useEffect(() => () => finishSteps(null), []);
 
   // Built from scratch (no ends yet): the ends are the first boarding stop and the last stop.
   const home = settings.get().home;
-  const from: Place = init?.from ?? (rides.length ? { ...rides[0].board, label: rides[0].board.name } : { ...(home ?? TBILISI), label: 'Start' });
-  const to: Place = init?.to ?? (rides.length ? { ...rides.at(-1)!.off, label: rides.at(-1)!.off.name } : { ...TBILISI, label: 'End' });
+  const firstStop: Place | null = rides.length ? { ...rides[0].board, label: rides[0].board.name } : null;
+  const lastStop: Place | null = rides.length ? { ...rides.at(-1)!.off, label: rides.at(-1)!.off.name } : null;
+  const from: Place = init?.from ?? startPlace ?? firstStop ?? { ...(home ?? TBILISI), label: 'First stop' };
+  const to: Place = init?.to ?? endPlace ?? lastStop ?? { ...TBILISI, label: 'End' };
   const steps = useMemo(() => (rides.length ? rides.map(stepOf) : seed), [rides, seed]);
-  // The preview plans only the rides built so far, from the first boarding stop to the last stop: the walk home
-  // and the walk to the destination are not part of it, and a metro-only ride would otherwise fail on a long walk.
-  const ends = rides.length ? { from: { ...rides[0].board, label: rides[0].board.name }, to: { ...rides.at(-1)!.off, label: rides.at(-1)!.off.name } } : { from, to };
+  // The preview plans the rides built so far. A start or end pinned here is part of it (the walk counts towards the leave time);
+  // ends that came in with the draft are not, and a metro-only ride would otherwise fail on a long walk.
+  const ends = rides.length ? { from: startPlace ?? firstStop!, to: endPlace ?? lastStop! } : { from, to };
   const trip = useMemo(
     () => (steps.length ? { id: 'draft', name: '', from: ends.from, to: ends.to, arriveBy: init?.arriveBy ?? '09:00', days: init?.days ?? [1, 2, 3, 4, 5], steps, avoid: init?.avoid } : null),
-    [steps, rides],
+    [steps, rides, startPlace, endPlace],
   );
   const date = nextArriveBy(init?.arriveBy ?? '09:00', init?.days ?? [1, 2, 3, 4, 5], now).slice(0, 10);
   const plan = useTripPlan(trip, date, now);
   const it = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
-  const here: Point = rides.length ? rides.at(-1)!.off : from;
+  const here: Point = rides.length ? rides.at(-1)!.off : (init?.from ?? startPlace ?? centre ?? from);
 
   // Steps that came in from the route screen: name their stops and lines from the planned legs.
   useEffect(() => {
@@ -226,6 +238,11 @@ export default function BuildRoute() {
 
   // What the map shows depends on the step: stops to board at, the lines and stops to get off at, or the planned route.
   const { routes, markers, points } = useMemo(() => {
+    if (phase === 'start') return { routes: [] as MapRoute[], markers: [] as MapMarker[], points: [] as Point[] };
+    if (phase === 'end') {
+      const mk: MapMarker[] = lastStop ? [{ key: 'last', at: lastStop, node: <StopDot on tint={color.ink} /> }] : [];
+      return { routes: built, markers: mk, points: [] as Point[] };
+    }
     if (adding && !board) {
       const mk: MapMarker[] = nearby.stops.map((s) => ({ key: s.id, at: s, node: <StopDot big={hot === s.id} />, sig: hot === s.id ? 'big' : '', onPress: () => pickBoard(s) }));
       return { routes: built, markers: mk, points: [] as Point[] };
@@ -240,17 +257,17 @@ export default function BuildRoute() {
       return { routes: rt, markers: mk, points: [board, to] as Point[] };
     }
     return { routes: planned.routes, markers: planned.markers, points: planned.points };
-  }, [adding, board, nearby.stops, reachable, onLines, built, planned, hot, cellKey, slot, rides]);
+  }, [phase, adding, board, nearby.stops, reachable, onLines, built, planned, hot, cellKey, slot, rides]);
 
   // Frame the map when the step changes (not on the first frame: the map starts framed).
-  const fitKey = `${adding}|${board ? 1 : 0}|${it?.id ?? ''}`;
+  const fitKey = `${phase}|${adding}|${board ? 1 : 0}|${it?.id ?? ''}`;
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
       first.current = false;
       return;
     }
-    if (adding && board) return; // pickBoard already moved the map to the trip's end
+    if (pinning || (adding && board)) return; // pickBoard already moved the map to the trip's end; the pin phases keep the map where it is
     if (points.length) map.current?.fit(points);
     else if (adding) map.current?.flyTo(here, 15.5);
   }, [fitKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -296,10 +313,66 @@ export default function BuildRoute() {
     setCentre(c);
   };
 
-  const done = () => {
+  const finishWith = (end: Place) => {
     haptic('success');
-    finishSteps(steps.length ? { steps, from, to } : null);
+    finishSteps(steps.length ? { steps, from, to: end } : null);
     router.back();
+  };
+  // Without a destination yet, Done first offers the End step; the walk from the last stop is then counted.
+  const done = () => {
+    if (!init?.to && !endChosen && rides.length) {
+      haptic('selection');
+      setEndFromDone(true);
+      setPhase('end');
+      return;
+    }
+    finishWith(to);
+  };
+
+  // The address under the pin while a pin step is open.
+  const address = useAddress(pinning ? (centre ?? here) : null);
+  const pinPlace = (): Place => {
+    const c = centre ?? here;
+    return { lat: c.lat, lon: c.lon, label: address.name ?? 'Dropped pin' };
+  };
+  const startHere = () => {
+    haptic('success');
+    setStartPlace(pinPlace());
+    setPhase(null);
+  };
+  const startAtStop = () => {
+    haptic('selection');
+    setStartPlace(null);
+    setPhase(null);
+  };
+  const locate = async () => {
+    setLocating(true);
+    setLocNote(null);
+    try {
+      const at = await locateMe();
+      if (typeof at === 'object') map.current?.flyTo(at, 16);
+      else if (at === 'denied') setLocNote('Location is off for the app. Move the map to your start instead.');
+      else if (at === 'error') setLocNote("Couldn't find your location. Move the map to your start instead.");
+    } finally {
+      setLocating(false);
+    }
+  };
+  const endHere = () => {
+    const p = pinPlace();
+    setEndPlace(p);
+    setEndChosen(true);
+    setPhase(null);
+    if (endFromDone) finishWith(p);
+  };
+  const endAtStop = () => {
+    setEndPlace(null);
+    setEndChosen(true);
+    setPhase(null);
+    if (endFromDone && lastStop) finishWith(lastStop);
+  };
+  const cancelEnd = () => {
+    setEndFromDone(false);
+    setPhase(null);
   };
 
   const start = it ? { fit: planned.points } : { center: here, zoom: 15.5 };
@@ -313,10 +386,10 @@ export default function BuildRoute() {
         start={start}
         routes={routes}
         markers={markers}
-        pin={adding}
+        pin={adding || pinning}
         onMove={onMove}
         onIdle={onIdle}
-        inset={{ top: insets.top + 64, bottom: adding ? PICK_INSET : REVIEW_INSET }}
+        inset={{ top: insets.top + 64, bottom: adding || pinning ? PICK_INSET : REVIEW_INSET }}
       />
       <View style={[styles.floating, { top: insets.top + 12 }]} pointerEvents="box-none">
         <MapButton icon="back" label="Back" onPress={() => router.back()} />
@@ -324,11 +397,11 @@ export default function BuildRoute() {
 
       <Animated.View
         entering={FadeInDown.springify().damping(spring.sheet.damping).stiffness(spring.sheet.stiffness)}
-        style={[styles.sheet, { paddingBottom: insets.bottom + 16, minHeight: adding ? PICK_INSET : REVIEW_INSET }]}
+        style={[styles.sheet, { paddingBottom: insets.bottom + 16, minHeight: adding || pinning ? PICK_INSET : REVIEW_INSET }]}
       >
         <View style={styles.header}>
           <Text variant="label16" numberOfLines={1} style={styles.flex}>
-            {init?.from || init?.to || rides.length ? `${from.label} → ${to.label}` : 'Build your route'}
+            {phase === 'start' ? 'Where do you start?' : phase === 'end' ? 'Where do you end up?' : init?.from || init?.to || rides.length || startPlace ? `${from.label} → ${to.label}` : 'Build your route'}
           </Text>
           {history.length > 0 && (
             <Tap onPress={undo} hitSlop={8} haptic="none" style={styles.undo} accessibilityRole="button" accessibilityLabel="Undo the last change">
@@ -338,7 +411,34 @@ export default function BuildRoute() {
           )}
         </View>
 
-        {(rides.length > 0 || slot) && (
+        {phase === 'start' && (
+          <Animated.View key="start" entering={FadeIn.duration(160)} style={styles.gap}>
+            <PinCard caption="Start" address={address} />
+            {locNote && (
+              <Text variant="caption" color={color.textSecondary}>
+                {locNote}
+              </Text>
+            )}
+            <Button label="Start here" onPress={startHere} haptic="none" />
+            <View style={styles.actions2}>
+              <Button label="Use my location" icon="locate" kind="secondary" onPress={locate} disabled={locating} haptic="none" style={styles.editBtn} />
+              <Button label="I start at the stop" kind="secondary" onPress={startAtStop} haptic="none" style={styles.editBtn} />
+            </View>
+          </Animated.View>
+        )}
+
+        {phase === 'end' && (
+          <Animated.View key="end" entering={FadeIn.duration(160)} style={styles.gap}>
+            <PinCard caption="Destination" address={address} />
+            <Button label="End here" onPress={endHere} haptic="none" />
+            <View style={styles.actions2}>
+              <Button label={lastStop ? `End at ${lastStop.label}` : 'End at this stop'} kind="secondary" onPress={endAtStop} haptic="none" style={styles.editBtn} />
+              {!endFromDone && <Button label="Cancel" kind="secondary" onPress={cancelEnd} haptic="none" style={styles.editBtn} />}
+            </View>
+          </Animated.View>
+        )}
+
+        {!pinning && (rides.length > 0 || slot) && (
           <Rail
             rides={rides}
             from={from}
@@ -350,6 +450,8 @@ export default function BuildRoute() {
             onReplace={(i) => startPick({ at: i, replace: true }, null)}
             onRemove={removeRide}
             onInsert={(i) => startPick({ at: i, replace: false }, rides[i - 1]?.off ?? null)}
+            onEditStart={init?.from ? undefined : () => setPhase('start')}
+            onEditEnd={init?.to || !rides.length ? undefined : () => (setEndFromDone(false), setPhase('end'))}
           />
         )}
 
@@ -416,7 +518,7 @@ export default function BuildRoute() {
           </Animated.View>
         )}
 
-        {!adding && (
+        {!adding && !pinning && (
           <View style={styles.gap}>
             {it ? (
               <View style={styles.gap}>
@@ -450,8 +552,8 @@ export default function BuildRoute() {
 
 interface RailProps {
   rides: BuiltRide[];
-  from: { label: string };
-  to: { label: string };
+  from: Place;
+  to: Place;
   open: number | null;
   slot: Slot | null;
   onOpen: (i: number) => void;
@@ -459,23 +561,27 @@ interface RailProps {
   onReplace: (i: number) => void;
   onRemove: (i: number) => void;
   onInsert: (i: number) => void;
+  /** Set when the start / end was not given, so tapping it changes it. */
+  onEditStart?: () => void;
+  onEditEnd?: () => void;
 }
 
 /** The trip as a rail: start, then each ride with the walk before it, then the destination. Tap a ride to change it. */
-function Rail({ rides, from, to, open, slot, onOpen, onToggle, onReplace, onRemove, onInsert }: RailProps) {
+function Rail({ rides, from, to, open, slot, onOpen, onToggle, onReplace, onRemove, onInsert, onEditStart, onEditEnd }: RailProps) {
   const picking = slot?.replace ? slot.at : -1;
   return (
     <ScrollView style={styles.railScroll} contentContainerStyle={styles.rail} showsVerticalScrollIndicator={false}>
-      <View style={styles.railRow}>
+      <Tap onPress={onEditStart} disabled={!onEditStart} feedback={onEditStart ? 'tint' : undefined} style={styles.railRow} accessibilityRole={onEditStart ? 'button' : undefined} accessibilityLabel={onEditStart ? `Start: ${from.label}. Change` : undefined}>
         <View style={styles.railTrack}>
           <View style={styles.endDot} />
         </View>
         <Text variant="caption" color={color.textSecondary} numberOfLines={1} style={styles.flex}>
           {from.label}
         </Text>
-      </View>
+        {onEditStart && <Icon name="chevron-right" size={14} color={color.textTertiary} />}
+      </Tap>
       {rides.map((r, i) => {
-        const walk = gapBefore(rides, i);
+        const walk = i === 0 ? distM(from, r.board) : gapBefore(rides, i);
         const far = walk > FAR_WALK_M;
         const kind = r.lines[0]?.kind ?? 'bus';
         const expanded = open === i;
@@ -541,15 +647,79 @@ function Rail({ rides, from, to, open, slot, onOpen, onToggle, onReplace, onRemo
           </View>
         );
       })}
-      <View style={styles.railRow}>
+      {rides.length > 0 && !slot && distM(rides.at(-1)!.off, to) > 30 && (
+        <View style={styles.railRow}>
+          <View style={styles.railTrack}>
+            <View style={styles.railDash} />
+          </View>
+          <Text variant="caption" color={distM(rides.at(-1)!.off, to) > FAR_WALK_M ? color.metro : color.textSecondary} style={styles.flex}>
+            Walk {distanceLabel(distM(rides.at(-1)!.off, to))} · about {walkMinutes(distM(rides.at(-1)!.off, to))} min
+          </Text>
+        </View>
+      )}
+      <Tap onPress={onEditEnd} disabled={!onEditEnd} feedback={onEditEnd ? 'tint' : undefined} style={styles.railRow} accessibilityRole={onEditEnd ? 'button' : undefined} accessibilityLabel={onEditEnd ? `Destination: ${to.label}. Change` : undefined}>
         <View style={styles.railTrack}>
           <View style={styles.endDotRing} />
         </View>
         <Text variant="caption" color={color.textSecondary} numberOfLines={1} style={styles.flex}>
           {to.label}
         </Text>
-      </View>
+        {onEditEnd && <Icon name="chevron-right" size={14} color={color.textTertiary} />}
+      </Tap>
     </ScrollView>
+  );
+}
+
+/** The address under the pin: looked up (debounced) as the map settles, null while it loads or when nothing is known. */
+function useAddress(p: Point | null) {
+  const [state, setState] = useState<{ key: string; name: string | null; sub: string | null } | null>(null);
+  const key = p ? `${p.lat.toFixed(5)},${p.lon.toFixed(5)}` : '';
+  useEffect(() => {
+    if (!p) return;
+    if (!hasApi) {
+      setState({ key, name: null, sub: null });
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      reversePlace(p).then(
+        (hit) => live && setState({ key, name: hit?.name ?? null, sub: hit?.address ?? null }),
+        () => live && setState({ key, name: null, sub: null }),
+      );
+    }, 200);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mine = state && state.key === key ? state : null;
+  return { loading: !!p && !mine, name: mine?.name ?? null, sub: mine?.sub ?? null };
+}
+
+/** The address of the pin, in the sheet of a pin step. */
+function PinCard({ caption, address }: { caption: string; address: { loading: boolean; name: string | null; sub: string | null } }) {
+  return (
+    <View>
+      <Text variant="caption" color={color.textSecondary}>
+        {caption}
+      </Text>
+      <View style={styles.addressBox}>
+        {address.loading ? (
+          <Busy label="Finding the address…" />
+        ) : (
+          <>
+            <Text variant="label16" numberOfLines={1}>
+              {address.name ?? 'Dropped pin'}
+            </Text>
+            {address.sub ? (
+              <Text variant="caption" color={color.textSecondary} numberOfLines={1}>
+                {address.sub}
+              </Text>
+            ) : null}
+          </>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -640,4 +810,6 @@ const styles = StyleSheet.create({
   gap: { gap: 10, flexShrink: 1 },
   flex: { flex: 1 },
   actions: { gap: 8, paddingTop: 4 },
+  actions2: { flexDirection: 'row', gap: 8 },
+  addressBox: { minHeight: 44, justifyContent: 'center' },
 });
