@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hasApi, nearStops, reversePlace, searchPlaces, searchStops } from '../lib/api';
 import { currentPickId, finishPick, pickOptions, type PickKind } from '../lib/handoff';
 import { locateMe } from '../lib/locate';
+import { DROPPED_PIN, NAME_WAIT_MS, pinLabel, within } from '../lib/placeNames';
 import { settings } from '../lib/settings';
 import type { Place } from '../lib/trips';
 import { Button } from '../ui/Button';
@@ -203,6 +204,10 @@ function MapPick({ kind, start, onPick, onBack }: { kind: PickKind; start: { lat
   const [cardH, setCardH] = useState(180);
   const [center, setCenter] = useState(startAt);
   const [found, setFound] = useState<Found>({ state: 'loading' });
+  // The name for the pin once both lookups are in: the address, else the closest stop, else "Dropped pin". Null while loading.
+  const [label, setLabel] = useState<string | null>(null);
+  const labelOf = useRef<Promise<string>>(Promise.resolve(DROPPED_PIN));
+  const [confirming, setConfirming] = useState(false);
   const [stops, setStops] = useState<NearStop[]>([]);
   const [snapped, setSnapped] = useState<NearStop | null>(null);
   const [locating, setLocating] = useState(false);
@@ -222,18 +227,19 @@ function MapPick({ kind, start, onPick, onBack }: { kind: PickKind; start: { lat
     pendingSnap.current = null;
     setSnapped(want && Math.abs(want.lat - p.lat) < 1e-4 && Math.abs(want.lon - p.lon) < 1e-4 ? want : null);
     setFound({ state: 'loading' });
+    setLabel(null);
     if (!hasApi) {
       setFound({ state: 'ok', hit: null });
+      setLabel(DROPPED_PIN);
+      labelOf.current = Promise.resolve(DROPPED_PIN);
       return;
     }
-    reversePlace(p).then(
-      (hit) => id === seq.current && setFound({ state: 'ok', hit }),
-      () => id === seq.current && setFound({ state: 'ok', hit: null }),
-    );
-    nearStops(p, { radiusM: 350, limit: 6 }).then(
-      (s) => id === seq.current && setStops(s),
-      () => id === seq.current && setStops([]),
-    );
+    const rev = reversePlace(p).catch(() => null);
+    const near = nearStops(p, { radiusM: 350, limit: 6 }).catch(() => [] as NearStop[]);
+    rev.then((hit) => id === seq.current && setFound({ state: 'ok', hit }));
+    near.then((s) => id === seq.current && setStops(s));
+    labelOf.current = Promise.all([rev, near]).then(([hit, s]) => pinLabel(hit, s));
+    labelOf.current.then((l) => id === seq.current && setLabel(l));
   }, []);
 
   useEffect(() => look(startAt), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -256,12 +262,18 @@ function MapPick({ kind, start, onPick, onBack }: { kind: PickKind; start: { lat
     setSnapped(s);
   };
 
-  const title = snapped ? snapped.name : found.state === 'ok' && found.hit ? found.hit.name : found.state === 'loading' ? null : 'Dropped pin';
+  const title = snapped ? snapped.name : found.state === 'ok' && found.hit ? found.hit.name : label;
   const sub = snapped ? (snapped.mode === 'SUBWAY' ? 'Metro station' : 'Bus stop') : found.state === 'ok' && found.hit?.address ? found.hit.address : undefined;
 
-  const confirm = () => {
+  const confirm = async () => {
     if (snapped) return onPick({ lat: snapped.lat, lon: snapped.lon, label: snapped.name });
-    onPick({ lat: center.lat, lon: center.lon, label: title ?? 'Dropped pin' });
+    if (confirming) return;
+    const at = center;
+    if (title) return onPick({ lat: at.lat, lon: at.lon, label: title });
+    // Confirmed before the lookup came back: wait for it a little rather than hand back an unnamed pin.
+    setConfirming(true);
+    const name = (await within(labelOf.current, NAME_WAIT_MS)) ?? DROPPED_PIN;
+    onPick({ lat: at.lat, lon: at.lon, label: name });
   };
 
   return (
@@ -312,7 +324,7 @@ function MapPick({ kind, start, onPick, onBack }: { kind: PickKind; start: { lat
             </ScrollView>
           </Animated.View>
         )}
-        <Button label="Confirm" onPress={confirm} haptic="none" />
+        <Button label={confirming ? 'Finding the address…' : 'Confirm'} onPress={confirm} disabled={confirming} haptic="none" />
       </Animated.View>
     </View>
   );

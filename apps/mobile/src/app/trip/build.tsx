@@ -10,6 +10,9 @@ import { finishSteps, stepsDraft } from '../../lib/handoff';
 import { FAR_WALK_M, UNDO_DEPTH, distM, gapBefore, place, removeAt, rideFromStep, stepOf, toggleLine, walkMinutes, type BuiltRide } from '../../lib/chain';
 import { kindOf, leaveAt, type Kind } from '../../lib/plans';
 import { locateMe } from '../../lib/locate';
+import { nameOfPlace, pinName } from '../../lib/nameOfPlace';
+import { DROPPED_PIN, isDropped } from '../../lib/placeNames';
+import { useNamedPlace } from '../../lib/useNamedPlace';
 import { settings } from '../../lib/settings';
 import type { Place } from '../../lib/trips';
 import { distanceLabel } from '../../lib/stops';
@@ -82,6 +85,11 @@ export default function BuildRoute() {
   const hotRef = useRef<string | null>(null);
   // The ends: pinned on the map first (Start) and last (End) when the route is built from scratch.
   const [phase, setPhase] = useState<'start' | 'end' | null>(!init?.from && !init?.steps.length ? 'start' : null);
+  // The ends that came in; one still called "Dropped pin" gets its address as soon as it is looked up.
+  const [initFrom, setInitFrom] = useState<Place | null>(init?.from ?? null);
+  const [initTo, setInitTo] = useState<Place | null>(init?.to ?? null);
+  useNamedPlace(initFrom, setInitFrom);
+  useNamedPlace(initTo, setInitTo);
   const [startPlace, setStartPlace] = useState<Place | null>(null);
   const [endPlace, setEndPlace] = useState<Place | null>(null);
   const [endChosen, setEndChosen] = useState(false);
@@ -97,8 +105,8 @@ export default function BuildRoute() {
   const home = settings.get().home;
   const firstStop: Place | null = rides.length ? { ...rides[0].board, label: rides[0].board.name } : null;
   const lastStop: Place | null = rides.length ? { ...rides.at(-1)!.off, label: rides.at(-1)!.off.name } : null;
-  const from: Place = init?.from ?? startPlace ?? firstStop ?? { ...(home ?? TBILISI), label: 'First stop' };
-  const to: Place = init?.to ?? endPlace ?? lastStop ?? { ...TBILISI, label: 'End' };
+  const from: Place = initFrom ?? startPlace ?? firstStop ?? { ...(home ?? TBILISI), label: 'First stop' };
+  const to: Place = initTo ?? endPlace ?? lastStop ?? { ...TBILISI, label: 'End' };
   const steps = useMemo(() => (rides.length ? rides.map(stepOf) : seed), [rides, seed]);
   // The preview plans the rides built so far. A start or end pinned here is part of it (the walk counts towards the leave time);
   // ends that came in with the draft are not, and a metro-only ride would otherwise fail on a long walk.
@@ -110,7 +118,7 @@ export default function BuildRoute() {
   const date = nextArriveBy(init?.arriveBy ?? '09:00', init?.days ?? [1, 2, 3, 4, 5], now).slice(0, 10);
   const plan = useTripPlan(trip, date, now);
   const it = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
-  const here: Point = rides.length ? rides.at(-1)!.off : (init?.from ?? startPlace ?? centre ?? from);
+  const here: Point = rides.length ? rides.at(-1)!.off : (initFrom ?? startPlace ?? centre ?? from);
 
   // Steps that came in from the route screen: name their stops from the planned legs, keep the way's other stops and every line.
   useEffect(() => {
@@ -333,11 +341,13 @@ export default function BuildRoute() {
   const address = useAddress(pinning ? (centre ?? here) : null);
   const pinPlace = (): Place => {
     const c = centre ?? here;
-    return { lat: c.lat, lon: c.lon, label: address.name ?? 'Dropped pin' };
+    return { lat: c.lat, lon: c.lon, label: address.name ?? DROPPED_PIN };
   };
-  const startHere = () => {
+  const startHere = async () => {
     haptic('success');
-    setStartPlace(pinPlace());
+    // Pressed before the address came back: wait a moment for it rather than keep an unnamed pin.
+    const p = await nameOfPlace(pinPlace());
+    setStartPlace(p);
     setPhase(null);
   };
   const startAtStop = () => {
@@ -357,8 +367,8 @@ export default function BuildRoute() {
       setLocating(false);
     }
   };
-  const endHere = () => {
-    const p = pinPlace();
+  const endHere = async () => {
+    const p = await nameOfPlace(pinPlace());
     setEndPlace(p);
     setEndChosen(true);
     setPhase(null);
@@ -683,7 +693,11 @@ function useAddress(p: Point | null) {
     let live = true;
     const t = setTimeout(() => {
       reversePlace(p).then(
-        (hit) => live && setState({ key, name: hit?.name ?? null, sub: hit?.address ?? null }),
+        async (hit) => {
+          // No address here: the closest stop is the next best name.
+          const name = hit?.name ?? (await pinName(p));
+          if (live) setState({ key, name: isDropped(name) ? null : name, sub: hit?.address ?? null });
+        },
         () => live && setState({ key, name: null, sub: null }),
       );
     }, 200);
@@ -709,7 +723,7 @@ function PinCard({ caption, address }: { caption: string; address: { loading: bo
         ) : (
           <>
             <Text variant="label16" numberOfLines={1}>
-              {address.name ?? 'Dropped pin'}
+              {address.name ?? DROPPED_PIN}
             </Text>
             {address.sub ? (
               <Text variant="caption" color={color.textSecondary} numberOfLines={1}>

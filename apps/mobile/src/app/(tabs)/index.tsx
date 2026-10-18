@@ -5,6 +5,8 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, interpolateColor, LinearTransition, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { openNewTrip } from '../../lib/handoff';
+import { nameSavedTrips } from '../../lib/nameOfPlace';
+import { isDropped } from '../../lib/placeNames';
 import { durationText, leaveAt as leaveAtOf, minutesUntil, transitLegs, firstWalkMin, type Choice } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { addDays, hhmm, isoWeekday, longDate, relativeDay, todayLocal } from '../../lib/time';
@@ -35,6 +37,11 @@ export default function Today() {
   const insets = useSafeAreaInsets();
   const now = useNow();
   const trips = useTrips();
+  // Trips saved with a pin still called "Dropped pin" get their street or stop name, once.
+  const unnamed = trips.some((t) => isDropped(t.name) || isDropped(t.from.label) || isDropped(t.to.label));
+  useEffect(() => {
+    if (unnamed) nameSavedTrips();
+  }, [unnamed]);
   const today = todayLocal(now);
   const ahead = useMemo(() => tripsOn(trips, today).filter((t) => t.arriveBy > clock(now)), [trips, today, now]);
   const hero = ahead[0] ?? null;
