@@ -1,9 +1,19 @@
-import { leaveAtMs, tbilisiLocalToIso, type Itinerary, type PlanLeg } from '@transit/shared';
+import { leaveAtMs, tbilisiLocalToIso, type Itinerary, type JourneyStep, type PlanLeg } from '@transit/shared';
 
 // Plan maths shared by the screens. The server's AlertWatcher uses the same
 // rule (leaveAtMs), so a push and the Today screen agree on the leave time.
 
 export const transitLegs = (it: Itinerary): PlanLeg[] => it.legs.filter((l) => l.mode !== 'WALK');
+
+/**
+ * The rides of a chosen itinerary as planner steps, so a saved trip keeps that route (321, then metro, then 490)
+ * and only its times follow live data. Undefined when a ride has no stop id to pin.
+ */
+export function stepsOf(it: Itinerary): JourneyStep[] | undefined {
+  const legs = transitLegs(it);
+  if (!legs.length || legs.some((l) => !l.from.stopId || !l.to.stopId)) return undefined;
+  return legs.map((l) => ({ fromStops: [l.from.stopId!], toStops: [l.to.stopId!] }));
+}
 
 export const isMetro = (leg: PlanLeg) => leg.mode === 'SUBWAY';
 

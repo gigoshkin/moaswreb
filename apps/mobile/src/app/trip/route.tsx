@@ -60,8 +60,7 @@ export default function RouteBuilder() {
   const pick = async (kind: PickKind) => {
     const p = await pickPlace(kind, { near: (kind === 'from' ? to : from) ?? undefined });
     if (p) {
-      (kind === 'from' ? setFrom : setTo)(p);
-      setSteps(undefined); // a hand-built route belongs to its two ends
+      (kind === 'from' ? setFrom : setTo)(p); // a hand-built route stays: the walk to the first stop and from the last is recomputed from the new end
     }
   };
 
@@ -94,7 +93,7 @@ export default function RouteBuilder() {
   const buildByHand = async () => {
     if (!from || !to) return;
     const r = await buildSteps({ from, to, arriveBy, days: init.days, steps: steps ?? [], avoid });
-    if (r) setSteps(r);
+    if (r) setSteps(r.steps);
   };
 
   const finish = () => {

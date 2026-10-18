@@ -1,12 +1,12 @@
 import type { NearStop, PlaceHit, StopHit } from '@transit/shared';
-import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, FlatList, Keyboard, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hasApi, nearStops, reversePlace, searchPlaces, searchStops } from '../lib/api';
-import { finishPick, pickOptions, type PickKind } from '../lib/handoff';
+import { currentPickId, finishPick, pickOptions, type PickKind } from '../lib/handoff';
+import { locateMe } from '../lib/locate';
 import { settings } from '../lib/settings';
 import type { Place } from '../lib/trips';
 import { Button } from '../ui/Button';
@@ -14,6 +14,7 @@ import { Icon, type IconName } from '../ui/Icon';
 import { MapCanvas, type MapCanvasHandle } from '../ui/MapCanvas';
 import { Tap, haptic } from '../ui/Tap';
 import { SearchLoading } from '../ui/SearchLoading';
+import { Spinner } from '../ui/Spinner';
 import { Text } from '../ui/Text';
 import { MapButton, TopBar } from '../ui/kit';
 import { color, font, gutter, radius, shadow, spring } from '../ui/theme';
@@ -37,9 +38,12 @@ const TITLES: Record<PickKind, string> = { from: 'From', to: 'To', home: 'Home' 
 export default function PickPlace() {
   const { kind = 'to' } = useLocalSearchParams<{ kind: PickKind }>();
   const [mode, setMode] = useState<'search' | 'map'>('search');
+  // "Current location" opens the map on the user's position, so it can be adjusted before confirming.
+  const [here, setHere] = useState<{ lat: number; lon: number } | null>(null);
 
-  // Closing without a choice resolves the caller with null.
-  useEffect(() => () => finishPick(null), []);
+  // Closing without a choice resolves the caller with null. Only this screen's own request: the next picker may already be open.
+  const [pickId] = useState(currentPickId);
+  useEffect(() => () => finishPick(null, pickId), [pickId]);
 
   useEffect(() => {
     if (mode !== 'map' || Platform.OS !== 'android') return; // BackHandler is Android-only; iOS swipe-back is disabled in _layout
@@ -50,16 +54,20 @@ export default function PickPlace() {
 
   const done = (place: Place) => {
     Keyboard.dismiss();
-    finishPick(place);
+    finishPick(place, pickId);
     router.back();
   };
 
-  return mode === 'search' ? <Search kind={kind} onPick={done} onMap={() => (Keyboard.dismiss(), setMode('map'))} /> : <MapPick kind={kind} onPick={done} onBack={() => setMode('search')} />;
+  return mode === 'search' ? (
+    <Search kind={kind} onPick={done} onMap={() => (Keyboard.dismiss(), setMode('map'))} onHere={(p) => (Keyboard.dismiss(), setHere(p), setMode('map'))} />
+  ) : (
+    <MapPick kind={kind} start={here} onPick={done} onBack={() => setMode('search')} />
+  );
 }
 
 // --- search ---
 
-function Search({ kind, onPick, onMap }: { kind: PickKind; onPick: (p: Place) => void; onMap: () => void }) {
+function Search({ kind, onPick, onMap, onHere }: { kind: PickKind; onPick: (p: Place) => void; onMap: () => void; onHere: (p: { lat: number; lon: number }) => void }) {
   const home = settings.use().home;
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Row[]>([]);
@@ -96,25 +104,15 @@ function Search({ kind, onPick, onMap }: { kind: PickKind; onPick: (p: Place) =>
   const here: Row = {
     key: 'here',
     icon: 'locate',
-    title: 'Current location',
+    title: status === 'locating' ? 'Finding you…' : 'Current location',
     place: async () => {
       setStatus('locating');
-      const { granted } = await Location.requestForegroundPermissionsAsync();
-      if (!granted) {
-        setStatus('denied');
-        return null;
-      }
-      try {
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const { latitude: lat, longitude: lon } = pos.coords;
-        const addr = (await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon }).catch(() => []))[0];
-        const street = [addr?.street, addr?.streetNumber].filter(Boolean).join(' ');
+      const at = await locateMe();
+      if (typeof at === 'object') {
         setStatus('idle');
-        return { lat, lon, label: street || 'Current location' };
-      } catch {
-        setStatus('error');
-        return null;
-      }
+        onHere(at);
+      } else setStatus(at === 'cancelled' ? 'idle' : at);
+      return null;
     },
   };
   const homeRow: Row | null = home && kind !== 'home' ? { key: 'home', icon: 'home', title: 'Home', sub: home.label, place: async () => ({ lat: home.lat, lon: home.lon, label: 'Home' }) } : null;
@@ -128,10 +126,8 @@ function Search({ kind, onPick, onMap }: { kind: PickKind; onPick: (p: Place) =>
       : status === 'error'
         ? "Couldn't search right now. Check the connection."
         : status === 'denied'
-          ? 'Location is off for this app.'
-          : status === 'locating'
-            ? 'Finding you…'
-            : !hasApi && searching
+          ? 'Location is off for this app. Turn it on in Settings, or pick the place on the map.'
+          : !hasApi && searching
               ? 'Search needs the server.'
               : searching && !results.length
                 ? 'Nothing found. Try the street name, or select it on the map.'
@@ -186,6 +182,7 @@ function Search({ kind, onPick, onMap }: { kind: PickKind; onPick: (p: Place) =>
                 </Text>
               ) : null}
             </View>
+            {item.key === 'here' && status === 'locating' && <Spinner />}
           </Tap>
         )}
       />
@@ -197,11 +194,11 @@ function Search({ kind, onPick, onMap }: { kind: PickKind; onPick: (p: Place) =>
 
 type Found = { state: 'loading' } | { state: 'ok'; hit: PlaceHit | null };
 
-function MapPick({ kind, onPick, onBack }: { kind: PickKind; onPick: (p: Place) => void; onBack: () => void }) {
+function MapPick({ kind, start, onPick, onBack }: { kind: PickKind; start: { lat: number; lon: number } | null; onPick: (p: Place) => void; onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const home = settings.get().home;
   const { near } = pickOptions();
-  const startAt = near ?? (kind !== 'home' && home ? { lat: home.lat, lon: home.lon } : null) ?? TBILISI;
+  const startAt = start ?? near ?? (kind !== 'home' && home ? { lat: home.lat, lon: home.lon } : null) ?? TBILISI;
   const map = useRef<MapCanvasHandle>(null);
   const [cardH, setCardH] = useState(180);
   const [center, setCenter] = useState(startAt);
@@ -244,12 +241,9 @@ function MapPick({ kind, onPick, onBack }: { kind: PickKind; onPick: (p: Place) 
   const locate = async () => {
     setLocating(true);
     try {
-      const { granted } = await Location.requestForegroundPermissionsAsync();
-      if (!granted) return;
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      map.current?.flyTo({ lat: pos.coords.latitude, lon: pos.coords.longitude }, 16);
-    } catch {
-      // Staying where we are is a fine answer.
+      const at = await locateMe();
+      if (typeof at === 'object') map.current?.flyTo(at, 16);
+      // Otherwise staying where we are is a fine answer.
     } finally {
       setLocating(false);
     }
@@ -273,7 +267,7 @@ function MapPick({ kind, onPick, onBack }: { kind: PickKind; onPick: (p: Place) 
   return (
     <View style={styles.screen}>
       <Animated.View style={StyleSheet.absoluteFill} entering={FadeIn.duration(180)}>
-        <MapCanvas ref={map} style={StyleSheet.absoluteFill} start={{ center: startAt, zoom: near ? 14.8 : 15.6 }} pin inset={{ bottom: cardH, top: insets.top + 64 }} onIdle={look} />
+        <MapCanvas ref={map} style={StyleSheet.absoluteFill} start={{ center: startAt, zoom: start ? 16.2 : near ? 14.8 : 15.6 }} pin inset={{ bottom: cardH, top: insets.top + 64 }} onIdle={look} />
       </Animated.View>
 
       <View style={[styles.floating, { top: insets.top + 12 }]} pointerEvents="box-none">

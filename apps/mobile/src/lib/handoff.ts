@@ -20,14 +20,24 @@ export const pickOptions = (): PickOptions => pickOpts;
 export function pickPlace(kind: PickKind, opts: PickOptions = {}): Promise<Place | null> {
   pending?.(null);
   pickOpts = opts;
+  ++pickId;
   return new Promise((resolve) => {
     pending = resolve;
     router.push({ pathname: '/pick-place', params: { kind } });
   });
 }
 
-/** Called by the picker: with a place when chosen, with null when it closes. */
-export function finishPick(place: Place | null) {
+/** Which request the open picker belongs to; the screen reads it when it mounts. */
+let pickId = 0;
+export const currentPickId = () => pickId;
+
+/**
+ * Called by the picker: with a place when chosen, with null when it closes.
+ * A picker that is still sliding away must not answer for the next one (From then To in a row):
+ * `id` is the request the closing screen was opened for, and anything else is ignored.
+ */
+export function finishPick(place: Place | null, id: number = pickId) {
+  if (id !== pickId) return;
   pending?.(place);
   pending = null;
 }
@@ -107,18 +117,25 @@ export const getPreview = (id: string) => previews.get(id);
 
 /** What the by-hand builder starts from, and what it hands back. */
 export interface StepsDraft {
-  from: Place;
-  to: Place;
+  /** Missing when the route is built from scratch; the builder then takes the ends from the first and last stop. */
+  from: Place | null;
+  to: Place | null;
   arriveBy: string;
   days: number[];
   steps: JourneyStep[];
   avoid?: PlanAvoid;
 }
 let stepsNow: StepsDraft | null = null;
-let stepsPending: ((steps: JourneyStep[] | null) => void) | null = null;
+/** The rides, and the two ends of the trip (the draft's own, or the first boarding stop and the last stop). */
+export interface BuiltSteps {
+  steps: JourneyStep[];
+  from: Place;
+  to: Place;
+}
+let stepsPending: ((built: BuiltSteps | null) => void) | null = null;
 
 /** Opens the by-hand builder; resolves with the rides, or null if closed without Done. */
-export function buildSteps(draft: StepsDraft): Promise<JourneyStep[] | null> {
+export function buildSteps(draft: StepsDraft): Promise<BuiltSteps | null> {
   stepsPending?.(null);
   stepsNow = draft;
   return new Promise((resolve) => {
@@ -129,7 +146,7 @@ export function buildSteps(draft: StepsDraft): Promise<JourneyStep[] | null> {
 
 export const stepsDraft = (): StepsDraft | null => stepsNow;
 
-export function finishSteps(steps: JourneyStep[] | null) {
-  stepsPending?.(steps);
+export function finishSteps(built: BuiltSteps | null) {
+  stepsPending?.(built);
   stepsPending = null;
 }

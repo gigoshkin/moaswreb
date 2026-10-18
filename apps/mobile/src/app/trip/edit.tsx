@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { buildRoute, buildSteps, pickPlace, takeDraft, type PickKind } from '../../lib/handoff';
+import { buildRoute, buildSteps, takeDraft } from '../../lib/handoff';
 import { tripTourSeen } from '../../lib/onboarding';
 import { firstWalkMin, leaveAt, placeName, transitLegs } from '../../lib/plans';
 import { chainOf } from '../../lib/ways';
@@ -76,33 +76,21 @@ export default function EditTrip() {
   const openBuilder = async () => {
     const r = await buildRoute({ from, to, arriveBy, days, avoid, steps });
     if (r) {
-      // A different start or end makes an old hand-built route meaningless.
-      const moved = r.from.lat !== from?.lat || r.from.lon !== from?.lon || r.to.lat !== to?.lat || r.to.lon !== to?.lon;
       setFrom(r.from);
       setTo(r.to);
       setAvoid(r.avoid);
-      setSteps(moved && !r.steps ? undefined : r.steps);
+      setSteps(r.steps); // a new start or end keeps a hand-built route; only the walks change
       if (r.arriveBy) setArriveBy(r.arriveBy); // changed on the route screen
     }
   };
 
-  // Straight into the manual builder; asks for any missing end first.
+  // Straight into the manual builder. Without ends it starts from scratch and takes them from the first and last stop.
   const buildByHand = async () => {
-    let f = from;
-    let t = to;
-    for (const kind of ['from', 'to'] as PickKind[]) {
-      if ((kind === 'from' ? f : t)) continue;
-      const p = await pickPlace(kind, { near: (kind === 'from' ? t : f) ?? undefined });
-      if (!p) return; // cancelled: stop quietly
-      if (kind === 'from') f = p;
-      else t = p;
-    }
-    if (!f || !t) return;
-    const r = await buildSteps({ from: f, to: t, arriveBy, days, steps: steps ?? [], avoid });
-    setFrom(f);
-    setTo(t);
-    if (r) setSteps(r);
-    else if (f !== from || t !== to) setSteps(undefined); // new ends: any old hand-built route no longer fits
+    const r = await buildSteps({ from, to, arriveBy, days, steps: steps ?? [], avoid });
+    if (!r) return;
+    setFrom(r.from);
+    setTo(r.to);
+    setSteps(r.steps);
   };
 
   const changeTime = () => {
