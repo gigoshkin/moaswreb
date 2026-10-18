@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { hasApi, registerPushToken, syncTrips } from './api';
 import { t } from './strings';
 import { isExpoGo } from './kv';
+import { cancelLeaveCard, startLeaveCard } from './leaveCard';
 import { hhmm } from './time';
 import { listTrips, toStored } from './trips';
 
@@ -32,6 +33,8 @@ export async function setUpAlerts(): Promise<'ok' | 'denied' | 'no-server' | 'si
   }
   const { granted } = await Notifications.requestPermissionsAsync();
   if (!granted) return 'denied';
+  // The Android countdown card (dev build only; does nothing elsewhere).
+  startLeaveCard().catch(() => {});
   if (!hasApi) return 'no-server';
   // A failed sync must not block the token: the next trip change or app start syncs again.
   await syncTrips(toStored(listTrips())).catch(() => {});
@@ -79,4 +82,5 @@ export function onAlertTap(open: (tripId: string) => void): () => void {
 /** Alerts switched off in Settings: no local backups either (the server gets no trips, see toStored). */
 export async function cancelBackups(): Promise<void> {
   await Notifications?.cancelAllScheduledNotificationsAsync().catch(() => {});
+  await cancelLeaveCard().catch(() => {});
 }

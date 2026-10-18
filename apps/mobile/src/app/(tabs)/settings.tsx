@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { cancelBackups, setUpAlerts } from '../../lib/alerts';
 import { deleteMyData, hasApi } from '../../lib/api';
+import { exactAlarmsAllowed, openExactAlarmSettings, testLeaveCard } from '../../lib/leaveCard';
 import { clearChat } from '../../lib/chat';
 import { pickPlace } from '../../lib/handoff';
 import { alertsOffered, replayIntro } from '../../lib/onboarding';
@@ -59,6 +60,15 @@ export default function Settings() {
     notify('Your data was deleted', 'Your trips, home and chat are gone from this phone' + (hasApi ? ', and your trips and push token from our server.' : '.'));
   };
 
+  // Dev builds only: a leave card in 1 min, to check it on a phone.
+  const testCard = async () => {
+    const msg = await testLeaveCard().catch((e: Error) => `Failed: ${e.message}`);
+    if ((await exactAlarmsAllowed()) === false) {
+      const open = await ask({ title: 'Test leave card', message: `${msg}\n\nOpen "Alarms & reminders" now?`, confirm: 'Open' });
+      if (open) openExactAlarmSettings();
+    } else notify('Test leave card', msg);
+  };
+
   return (
     <View style={styles.screen}>
       <ScreenTitle title="Settings" right={<Icon name="bus-deco" size={24} color={color.textTertiary} />} />
@@ -74,6 +84,11 @@ export default function Settings() {
           <GroupRow label="Privacy" onPress={() => router.push('/privacy')} />
           <GroupRow label="Replay intro" onPress={replayIntro} last />
         </Group>
+        {__DEV__ && (
+          <Group>
+            <GroupRow label="Test leave card (dev)" value="in 1 min" onPress={testCard} last />
+          </Group>
+        )}
         <Group>
           <GroupRow label="Delete my data" icon="alert" onPress={deleteAll} right={<View />} last />
         </Group>

@@ -5,6 +5,8 @@ export interface Store<T> {
   get(): T;
   set(value: T): void;
   use(): T;
+  /** Called after every set; returns an unsubscribe. For code outside React. */
+  subscribe(listener: () => void): () => void;
 }
 
 /** A value kept on the phone (kv cache) that screens can subscribe to. */
@@ -24,6 +26,7 @@ export function persisted<T>(key: string, initial: T): Store<T> {
       listeners.forEach((l) => l());
     },
     use: () => useSyncExternalStore(subscribe, get),
+    subscribe,
   };
 }
 
@@ -43,5 +46,6 @@ export function memory<T>(initial: T): Store<T> {
       listeners.forEach((l) => l());
     },
     use: () => useSyncExternalStore(subscribe, get),
+    subscribe,
   };
 }
