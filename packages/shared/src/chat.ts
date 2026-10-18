@@ -35,6 +35,8 @@ export interface ChatRequest {
   home?: LatLon & { label: string };
   /** Where the phone is right now, when the user allowed location. For this request only. */
   here?: LatLon;
+  /** The app can show the Share my location button (the request_location card). Absent in older app versions. */
+  canShareLocation?: boolean;
   /** Extra minutes the user wants on top of the walk (Settings). */
   bufferMin?: number;
   locale?: 'ka' | 'en';

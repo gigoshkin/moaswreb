@@ -120,13 +120,16 @@ test('home and buffer from Settings reach the context; a bad home is rejected', 
 });
 
 test('the phone location reaches the context; without it the model is told to ask', async () => {
-  const { app, requests } = setup([message([{ type: 'text', text: 'ok' }], 'end_turn'), message([{ type: 'text', text: 'ok' }], 'end_turn')]);
+  const { app, requests } = setup(Array.from({ length: 3 }, () => message([{ type: 'text', text: 'ok' }], 'end_turn')));
   const bad = await app.inject({ method: 'POST', url: '/chat', payload: { messages: [{ role: 'user', text: 'x' }], here: { lat: 200, lon: 44.8 } } });
   assert.equal(bad.statusCode, 400);
   await app.inject({ method: 'POST', url: '/chat', payload: { messages: [{ role: 'user', text: 'stops near me' }], here: { lat: 41.71, lon: 44.75 } } });
   assert.match(requests[0].body.messages.at(-1).content as string, /current location.*41\.71/);
   await app.inject({ method: 'POST', url: '/chat', payload: { messages: [{ role: 'user', text: 'stops near me' }] } });
-  assert.match(requests[1].body.messages.at(-1).content as string, /did not share a location/);
+  assert.match(requests[1].body.messages.at(-1).content as string, /did not share a location.*name the place/);
+  assert.ok(!requests[1].body.tools.some((t: any) => t.name === 'request_location'), 'an older app never sees the tool');
+  await app.inject({ method: 'POST', url: '/chat', payload: { messages: [{ role: 'user', text: 'stops near me' }], canShareLocation: true } });
+  assert.ok(requests[2].body.tools.some((t: any) => t.name === 'request_location'));
 });
 
 test('a hand-built route becomes a confirm_route card; every tool schema reaches Claude', async () => {

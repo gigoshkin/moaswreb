@@ -5,12 +5,13 @@ import { createTools } from '../src/tools/index.ts';
 import { StopIndex } from '../src/ttc/stops.ts';
 import { fakeSource, fakeTtc } from './fakes.ts';
 
-const setup = (withSource = true) => {
+const setup = (withSource = true, locationButton = false) => {
   const ttc = fakeTtc();
   const stops = new StopIndex(ttc);
   const tools = createTools({
     ttc, stops, plans: new PlanService(ttc, stops), geo: { search: async () => [], reverse: async () => null },
     ...(withSource ? { source: fakeSource() } : {}),
+    locationButton,
   });
   const run = (name: string, input: unknown) => {
     const t = tools.find((t) => t.name === name)!;
@@ -68,7 +69,9 @@ test('find_place reads GeoJSON coordinates as lat,lon', async () => {
 });
 
 test('proposals only produce confirm cards; chat-only tools are not on MCP', async () => {
-  const { tools, run } = setup();
+  const { tools: without } = setup();
+  assert.ok(!without.some((t) => t.name === 'request_location'), 'withheld from apps that cannot show the button');
+  const { tools, run } = setup(true, true);
   const trip = { name: 'სახლი → სამსახური', from: { label: 'სახლი', lat: 41.71, lon: 44.82 }, to: { label: 'სამსახური', lat: 41.72, lon: 44.77 }, arriveBy: '09:00' };
   assert.deepEqual((await run('propose_trip', trip)).card, { type: 'confirm_trip', trip });
   const ev = await run('propose_events', { events: [{ title: 'Math', days: [1, 3], start: '10:00', end: '11:30', place: 'Free Uni' }] });

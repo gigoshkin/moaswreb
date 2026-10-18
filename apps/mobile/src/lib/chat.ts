@@ -87,6 +87,7 @@ export async function send(text: string, attachment?: Attachment, again?: number
       messages: [...history, last],
       // Inside the server's limits (name ≤ 100, label ≤ 200, 50 trips): a long event title saved from a PDF must not break every later chat.
       trips: listTrips().slice(0, 50).map((t) => ({ name: t.name.slice(0, 100), from: ctxPlace(t.from), to: ctxPlace(t.to), arriveBy: t.arriveBy })),
+      canShareLocation: true,
       ...(typeof here === 'object' && here ? { here: { lat: here.lat, lon: here.lon } } : {}),
       ...(home ? { home: { label: home.label.slice(0, 200), lat: home.lat, lon: home.lon } } : {}),
       ...(bufferMin > 0 ? { bufferMin: Math.min(60, Math.round(bufferMin)) } : {}),

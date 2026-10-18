@@ -41,6 +41,8 @@ export interface ToolDeps {
   source?: Pick<Source, 'patternsAt'>;
   /** Used to resolve short Google Maps links (parse_maps_link). Tests inject a stub; no network in tests. */
   fetch?: typeof fetch;
+  /** The app can show the Share my location button (newer app versions). Older ones would get a dead end, so the tool is withheld. */
+  locationButton?: boolean;
 }
 
 const tool = <S extends z.ZodObject>(def: ToolDef<S>): ToolDef => def as unknown as ToolDef;
@@ -79,7 +81,9 @@ const rideLines = (patterns: PatternRef[], from: string, to: string, avoid?: Pla
 
 const uniq = (xs: string[]) => [...new Set(xs)].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
 
-export const createTools = ({ ttc, stops, plans, locale = 'en', geo, source, fetch: fetchFn }: ToolDeps): ToolDef[] => [
+export const createTools = (deps: ToolDeps): ToolDef[] => allTools(deps).filter((t) => t.name !== 'request_location' || deps.locationButton);
+
+const allTools = ({ ttc, stops, plans, locale = 'en', geo, source, fetch: fetchFn }: ToolDeps): ToolDef[] => [
   tool({
     name: 'find_stop',
     description:
