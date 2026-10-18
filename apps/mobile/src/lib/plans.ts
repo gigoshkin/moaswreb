@@ -5,15 +5,9 @@ import { leaveAtMs, tbilisiLocalToIso, type Itinerary, type JourneyStep, type Pl
 
 export const transitLegs = (it: Itinerary): PlanLeg[] => it.legs.filter((l) => l.mode !== 'WALK');
 
-/**
- * The rides of a chosen itinerary as planner steps, so a saved trip keeps that route (321, then metro, then 490)
- * and only its times follow live data. Undefined when a ride has no stop id to pin.
- */
-export function stepsOf(it: Itinerary): JourneyStep[] | undefined {
-  const legs = transitLegs(it);
-  if (!legs.length || legs.some((l) => !l.from.stopId || !l.to.stopId)) return undefined;
-  return legs.map((l) => ({ fromStops: [l.from.stopId!], toStops: [l.to.stopId!] }));
-}
+/** Steps as the server takes them: the phone's own fields (the lines offered per ride) stay on the phone. */
+export const wireSteps = (steps: JourneyStep[]): JourneyStep[] =>
+  steps.map(({ fromStops, toStops, routes }) => ({ fromStops, toStops, ...(routes?.length ? { routes } : {}) }));
 
 export const isMetro = (leg: PlanLeg) => leg.mode === 'SUBWAY';
 

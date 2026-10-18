@@ -1,6 +1,7 @@
 import type { JourneyStep, LatLon, PlanAvoid, PlanResponse } from '@transit/shared';
 import { router } from 'expo-router';
 import type { Place, SavedTrip } from './trips';
+import type { RideStep } from './ways';
 
 // State handed between screens. Route params only carry strings, so pickers
 // and previews park their data here and the next screen picks it up.
@@ -49,14 +50,14 @@ export interface RouteDraft {
   arriveBy: string;
   days: number[];
   avoid?: PlanAvoid;
-  steps?: JourneyStep[];
+  steps?: RideStep[];
 }
 /** What the builder hands back: the ends, the lines the trip never uses and, for a hand-built route, its rides. */
 export interface RouteResult {
   from: Place;
   to: Place;
   avoid?: PlanAvoid;
-  steps?: JourneyStep[];
+  steps?: RideStep[];
   /** Arrive-by changed on the route screen; absent when untouched. */
   arriveBy?: string;
 }

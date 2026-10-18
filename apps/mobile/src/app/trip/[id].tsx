@@ -5,17 +5,18 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPreview, openNewTrip } from '../../lib/handoff';
-import { firstWalkMin, isMetro, kindOf, lastWalkMin, leaveAt, placeName, stepsOf } from '../../lib/plans';
+import { firstWalkMin, isMetro, kindOf, lastWalkMin, leaveAt, placeName } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { hhmm, nextArriveBy } from '../../lib/time';
-import { saveTrip, tripDays, useTrips, withStops } from '../../lib/trips';
+import { getTrip, saveTrip, tripDays, useTrips, withStops } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
-import { slotsFor } from '../../lib/ways';
+import { slotsFor, variantSteps } from '../../lib/ways';
 import { Button } from '../../ui/Button';
 import { Busy } from '../../ui/Spinner';
 import { Icon, type IconName } from '../../ui/Icon';
 import { LeaveByBar } from '../../ui/LeaveByBar';
+import { RideLines } from '../../ui/RideLines';
 import { Ways } from '../../ui/Ways';
 import { RoutePlate } from '../../ui/RoutePlate';
 import { StaticMap } from '../../ui/StaticMap';
@@ -71,6 +72,20 @@ export default function TripDetail() {
               <Timeline it={it} destination={p?.to.label ?? trip?.to.label ?? ''} />
             </Animated.View>
           ) : null}
+          {trip?.steps?.length ? (
+            <Card>
+              <RideLines
+                steps={trip.steps}
+                planned={it ? slotsFor(it, live.itineraries) : []}
+                onChange={(steps) => {
+                  const next = { ...trip, steps };
+                  saveTrip(next);
+                  // The first stop can change with the lines; a slower answer must not undo a newer tick.
+                  withStops(next).then((t) => JSON.stringify(getTrip(t.id)?.steps) === JSON.stringify(steps) && saveTrip(t));
+                }}
+              />
+            </Card>
+          ) : null}
           {trip && (live.itineraries.length > 0 || trip.avoid) ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.gap}>
               <SectionLabel style={styles.sectionLabel}>All ways to get there</SectionLabel>
@@ -106,8 +121,8 @@ export default function TripDetail() {
               label="Save this route"
               onPress={() => {
                 const { avoid } = p.plan.query;
-                // The route that was picked is the one that gets saved, not whatever the planner prefers next time.
-                const steps = p.plan.query.steps?.length ? p.plan.query.steps : it ? stepsOf(it) : undefined;
+                // The route that was picked is the one that gets saved (with every variation of each ride ticked), not whatever the planner prefers next time.
+                const steps = p.plan.query.steps?.length ? p.plan.query.steps : it ? variantSteps(it, p.plan.itineraries) : undefined;
                 openNewTrip({ name: p.name, from: p.from, to: p.to, arriveBy: p.plan.query.arriveBy.slice(11, 16), ...(p.days?.length ? { days: p.days } : {}), ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) });
               }}
             />

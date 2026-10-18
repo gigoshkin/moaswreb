@@ -1,6 +1,6 @@
 import type { Itinerary, PlanQuery } from '@transit/shared';
 import { useMemo } from 'react';
-import { choose, isMetro, leaveAt, routeKey, transitLegs, type Choice } from './plans';
+import { choose, isMetro, leaveAt, routeKey, transitLegs, wireSteps, type Choice } from './plans';
 import { settings } from './settings';
 import { memory } from './store';
 import { hhmm } from './time';
@@ -14,7 +14,7 @@ export const tripQuery = (trip: Pick<SavedTrip, 'from' | 'to' | 'arriveBy' | 'av
   to: { lat: trip.to.lat, lon: trip.to.lon },
   arriveBy: `${date}T${trip.arriveBy}`,
   ...(hasAvoid(trip.avoid) ? { avoid: trip.avoid } : {}),
-  ...(trip.steps?.length ? { steps: trip.steps } : {}),
+  ...(trip.steps?.length ? { steps: wireSteps(trip.steps) } : {}),
 });
 
 // The first option seen for each trip and day. When a later re-plan picks a

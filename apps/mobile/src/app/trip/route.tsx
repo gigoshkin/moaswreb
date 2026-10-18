@@ -1,12 +1,12 @@
-import type { Itinerary, JourneyStep, PlanAvoid } from '@transit/shared';
+import type { Itinerary, PlanAvoid } from '@transit/shared';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { slotsFor } from '../../lib/ways';
+import { slotsFor, variantSteps, type RideStep } from '../../lib/ways';
 import { buildSteps, finishRoute, pickPlace, routeDraft, type PickKind } from '../../lib/handoff';
-import { firstWalkMin, leaveAt, stepsOf } from '../../lib/plans';
+import { firstWalkMin, leaveAt } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { daysText, hhmm, nextArriveBy } from '../../lib/time';
 import type { Place } from '../../lib/trips';
@@ -15,6 +15,7 @@ import { useRoadItinerary } from '../../lib/shapes';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
+import { RideLines } from '../../ui/RideLines';
 import { Ways } from '../../ui/Ways';
 import { Busy } from '../../ui/Spinner';
 import { LineChain } from '../../ui/LineChain';
@@ -37,11 +38,13 @@ export default function RouteBuilder() {
   const [from, setFrom] = useState<Place | null>(init.from);
   const [to, setTo] = useState<Place | null>(init.to);
   const [avoid, setAvoid] = useState<PlanAvoid | undefined>(init.avoid);
-  const [steps, setSteps] = useState<JourneyStep[] | undefined>(init.steps);
+  const [steps, setSteps] = useState<RideStep[] | undefined>(init.steps);
   const [arriveBy, setArriveBy] = useState(init.arriveBy);
   const [timeOpen, setTimeOpen] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+  // The way picked in the list, as rides with the lines ticked for each: what Done hands back as the trip's route.
+  const [pinned, setPinned] = useState<RideStep[] | null>(null);
   const [sheetH, setSheetH] = useState(230);
   const map = useRef<MapCanvasHandle>(null);
 
@@ -88,20 +91,23 @@ export default function RouteBuilder() {
     setFrom(to);
     setTo(from);
     setSteps(undefined);
+    setPinned(null);
   };
 
   const buildByHand = async () => {
     if (!from || !to) return;
-    const r = await buildSteps({ from, to, arriveBy, days: init.days, steps: steps ?? [], avoid });
-    if (r) setSteps(r.steps);
+    const r = await buildSteps({ from, to, arriveBy, days: init.days, steps: pinned ?? steps ?? [], avoid });
+    if (r) {
+      setSteps(r.steps);
+      setPinned(null);
+    }
   };
 
   const finish = () => {
     if (!from || !to) return;
     haptic('success');
-    // A way picked in the list is the route: it goes back as its own rides (every line that serves each ride still counts), not just a highlight.
-    const chosen = picked ? plan.itineraries.find((x) => x.id === picked) : undefined;
-    finishRoute({ from, to, avoid, steps: (chosen && stepsOf(chosen)) || steps, ...(arriveBy !== init.arriveBy ? { arriveBy } : {}) });
+    // A way picked in the list is the route: it goes back as its own rides with the lines ticked for each, not just a highlight.
+    finishRoute({ from, to, avoid, steps: pinned ?? steps, ...(arriveBy !== init.arriveBy ? { arriveBy } : {}) });
     router.back();
   };
 
@@ -194,17 +200,38 @@ export default function RouteBuilder() {
                   bufferMin={settings.get().bufferMin}
                   avoid={avoid}
                   loading={busy}
-                  onSelect={(x) => setPicked(x.id)}
+                  onSelect={(x) => {
+                    setPicked(x.id);
+                    // A route already pinned (hand-built, or the trip's own) stays: the list only shows its variations then.
+                    if (!steps?.length) setPinned(variantSteps(x, plan.itineraries) ?? null);
+                  }}
                   onAvoid={(a) => {
                     setPicked(null);
+                    setPinned(null);
                     setAvoid(a);
                   }}
                 />
               </ScrollView>
             )}
-            {steps?.length ? (
+            {pinned ?? steps ? (
+              <RideLines steps={pinned ?? steps ?? []} planned={pinned || !it ? [] : slotsFor(it, plan.itineraries)} onChange={pinned ? setPinned : setSteps} />
+            ) : null}
+            {pinned ? (
+              <Tap
+                onPress={() => {
+                  setPinned(null);
+                  setPicked(null);
+                }}
+                hitSlop={6}
+                accessibilityRole="button"
+              >
+                <Text variant="caption" color={color.textSecondary}>
+                  This way is kept for the trip. <Text variant="captionStrong">Let the app pick instead</Text>
+                </Text>
+              </Tap>
+            ) : steps?.length ? (
               <Text variant="caption" color={color.textSecondary}>
-                Stops picked on the map. The app still compares every line that fits each ride.
+                Stops picked on the map. Only the ticked lines are used on each ride.
               </Text>
             ) : null}
           </Animated.View>

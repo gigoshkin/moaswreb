@@ -1,9 +1,10 @@
-import type { JourneyStep, LatLon, PlanAvoid, StoredTrip } from '@transit/shared';
+import type { LatLon, PlanAvoid, StoredTrip } from '@transit/shared';
 import { fetchPlan, hasApi, syncTrips } from './api';
-import { choose, firstWalkMin, transitLegs } from './plans';
+import { choose, firstWalkMin, transitLegs, wireSteps } from './plans';
 import { settings } from './settings';
 import { persisted } from './store';
 import { nextArriveBy } from './time';
+import type { RideStep } from './ways';
 
 export interface Place extends LatLon {
   label: string;
@@ -26,8 +27,8 @@ export interface SavedTrip {
   walkMin?: number;
   /** Lines this trip never uses ("not 518", "no microbuses"). Only this trip. */
   avoid?: PlanAvoid;
-  /** A hand-built route: the rides in order. Without it the planner looks at every line that fits. */
-  steps?: JourneyStep[];
+  /** A pinned route (hand-built or a picked way): the rides in order, each with the lines ticked for it. Without it the planner looks at every line that fits. */
+  steps?: RideStep[];
 }
 
 /** True when the avoid list excludes anything. */
@@ -60,7 +61,7 @@ export const toStored = (trips: SavedTrip[]): StoredTrip[] => {
   if (!alerts) return [];
   return trips.flatMap((t) =>
     t.fromStopId && t.toStopId
-      ? [{ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, arriveBy: t.arriveBy, days: [...new Set(tripDays(t))].sort((a, b) => a - b), walkMin: Math.min(60, Math.round((t.walkMin ?? 0) + bufferMin)), ...(hasAvoid(t.avoid) ? { avoid: t.avoid } : {}), ...(t.steps?.length ? { steps: t.steps } : {}) }]
+      ? [{ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, arriveBy: t.arriveBy, days: [...new Set(tripDays(t))].sort((a, b) => a - b), walkMin: Math.min(60, Math.round((t.walkMin ?? 0) + bufferMin)), ...(hasAvoid(t.avoid) ? { avoid: t.avoid } : {}), ...(t.steps?.length ? { steps: wireSteps(t.steps) } : {}) }]
       : [],
   ).slice(0, MAX_SYNCED_TRIPS);
 };

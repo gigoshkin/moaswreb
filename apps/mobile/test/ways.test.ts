@@ -15,7 +15,8 @@ registerHooks({
     }
   },
 });
-const { groupWays, sameWay } = await import('../src/lib/ways.ts');
+const { groupWays, sameWay, variantSteps, rideChoice, toggleRideLine } = await import('../src/lib/ways.ts');
+const { wireSteps } = await import('../src/lib/plans.ts');
 
 // SYNTHETIC stops in the shape of Didi Dighomi -> Caucasus University: 321, 335 and minibus 518
 // stop a few dozen metres apart near the same metro station, then metro 1, then 490.
@@ -58,4 +59,41 @@ test('far stops, other modes, other ride counts or two differing rides stay apar
   const twoNear = it('10:51', [ride('BUS', '335', home335, metroBus), tail[0], ride('BUS', '451', P('1:451a', 41.6992, 44.8012), b490b)]);
   assert.equal(sameWay(via321, twoNear), false);
   assert.equal(groupWays([via321, far, twoNear], 0).length, 3);
+});
+
+test('a picked way becomes its rides: every variation of each ride allowed, its own stops first', () => {
+  const far = it('10:51', [ride('BUS', '330', homeFar, metroBus), ...tail]);
+  const steps = variantSteps(via335, [via321, via335, via518, far])!;
+  assert.equal(steps.length, 3, 'the rides stay: bus, metro, bus');
+  assert.deepEqual(steps[0].fromStops, ['1:home335', '1:home321']);
+  assert.deepEqual(steps[0].toStops, ['1:m-bus', '1:m-bus-518']);
+  assert.deepEqual(steps[0].routes, ['335', '321', '518'], '330 from a stop 1 km away is another way, not a variation');
+  assert.deepEqual(steps[0].lines!.map((l) => l.kind), ['bus', 'bus', 'minibus']);
+  assert.deepEqual(steps[1], { fromStops: ['1:metro_1_a'], toStops: ['1:metro_1_b'], routes: ['1'], lines: [{ label: '1', kind: 'metro' }] });
+  assert.deepEqual(steps[2].routes, ['490']);
+  // What the server gets: stops and allowed lines only.
+  assert.deepEqual(wireSteps(steps)[0], { fromStops: ['1:home335', '1:home321'], toStops: ['1:m-bus', '1:m-bus-518'], routes: ['335', '321', '518'] });
+  // A ride without a stop id can't be pinned.
+  assert.equal(variantSteps(it('10:50', [ride('BUS', '321', { ...home, stopId: null }, metroBus)]), []), undefined);
+});
+
+test('ticking lines of a ride: at least one stays, unticked ones can come back', () => {
+  const [first] = variantSteps(via321, [via321, via335, via518])!;
+  let s = toggleRideLine(first, '335');
+  assert.deepEqual(s.routes, ['321', '518']);
+  s = toggleRideLine(toggleRideLine(s, '518'), '321');
+  assert.deepEqual(s.routes, ['321'], 'the last ticked line stays');
+  assert.deepEqual(rideChoice(s).lines.map((l) => l.label), ['321', '335', '518'], 'unticked lines are still offered');
+  assert.deepEqual(toggleRideLine(s, '335').routes, ['321', '335']);
+});
+
+test('a ride saved without its line list (older trips) offers the planned lines, all ticked, and pins them once changed', () => {
+  const old = { fromStops: ['1:home321'], toStops: ['1:m-bus'] };
+  const planned = [{ label: '321', kind: 'bus' as const }, { label: '335', kind: 'bus' as const }];
+  assert.deepEqual(rideChoice(old, planned).on, ['321', '335']);
+  const s = toggleRideLine(old, '321', planned);
+  assert.deepEqual(s.routes, ['335']);
+  assert.deepEqual(s.lines, planned);
+  // Allowed lines the plan didn't return are still listed.
+  assert.deepEqual(rideChoice({ ...old, routes: ['321', '999'] }, planned).on, ['321', '999']);
 });

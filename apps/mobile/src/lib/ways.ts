@@ -1,4 +1,4 @@
-import type { Itinerary } from '@transit/shared';
+import type { Itinerary, JourneyStep } from '@transit/shared';
 import type { LineRef, Slot } from '../ui/LineChain';
 import { kindOf, leaveAt, transitLegs } from './plans';
 
@@ -92,4 +92,67 @@ export function groupWays(all: Itinerary[], bufferMin: number): Way[] {
     else groups.push([it]);
   }
   return groups.map((its) => ({ key: wayKey(its[0]), its, slots: slotsFor(its[0], its) })).sort((a, b) => best(a.its[0], b.its[0]));
+}
+
+// A picked way is kept as the trip's rides. Each ride may be done by any of
+// its variations (the lines of the way's group), and the rider ticks which
+// ones they take; the planner then looks at nothing else for that ride.
+
+/**
+ * One ride of a pinned route as the phone keeps it: the planner step plus every
+ * line that can do the ride (`lines`), so a line switched off can be switched
+ * back on. Only fromStops, toStops and routes go to the server (wireSteps).
+ */
+export interface RideStep extends JourneyStep {
+  lines?: LineRef[];
+}
+
+/** What the server takes per ride (store and /plan/journey schemas). */
+const MAX_STOPS = 8;
+const MAX_ROUTES = 20;
+
+/**
+ * The rides of `it` with every variation of each from `all` (same way, see
+ * sameWay): their boarding and alighting stops (the picked itinerary's first)
+ * and all their lines, every one allowed. Undefined when a ride has no stop id.
+ */
+export function variantSteps(it: Itinerary, all: Itinerary[]): RideStep[] | undefined {
+  const own = transitLegs(it);
+  if (!own.length || own.some((l) => !l.from.stopId || !l.to.stopId)) return undefined;
+  const rides = own.map(() => ({ fromStops: [] as string[], toStops: [] as string[], lines: [] as LineRef[], named: true }));
+  const add = (x: Itinerary) =>
+    transitLegs(x).forEach((l, i) => {
+      const r = rides[i];
+      if (l.from.stopId && !r.fromStops.includes(l.from.stopId)) r.fromStops.push(l.from.stopId);
+      if (l.to.stopId && !r.toStops.includes(l.to.stopId)) r.toStops.push(l.to.stopId);
+      const line = lineOf(l);
+      if (!r.lines.some((x) => x.label === line.label)) r.lines.push(line);
+      if (!l.route?.shortName) r.named = false;
+    });
+  add(it);
+  for (const other of all) if (other !== it && sameWay(it, other)) add(other);
+  // A ride without line numbers can't be narrowed down: it stays "any line between these stops".
+  return rides.map(({ fromStops, toStops, lines, named }) => {
+    const kept = lines.slice(0, MAX_ROUTES);
+    return { fromStops: fromStops.slice(0, MAX_STOPS), toStops: toStops.slice(0, MAX_STOPS), lines: kept, ...(named ? { routes: kept.map((l) => l.label) } : {}) };
+  });
+}
+
+/**
+ * The lines offered for a ride and the ones ticked. `planned` are the ride's
+ * lines in the current plan, for rides saved without their list (older trips).
+ * No allow-list means every line is ticked.
+ */
+export function rideChoice(step: RideStep, planned: LineRef[] = []): { lines: LineRef[]; on: string[] } {
+  const lines = [...(step.lines ?? [])];
+  for (const l of planned) if (!lines.some((x) => x.label === l.label)) lines.push(l);
+  for (const r of step.routes ?? []) if (!lines.some((x) => x.label === r)) lines.push({ label: r, kind: 'bus' });
+  return { lines, on: step.routes?.length ? lines.map((l) => l.label).filter((l) => step.routes!.includes(l)) : lines.map((l) => l.label) };
+}
+
+/** Tick or untick one line of a ride. The last ticked line can't be unticked; the result lists the allowed lines explicitly. */
+export function toggleRideLine(step: RideStep, label: string, planned: LineRef[] = []): RideStep {
+  const { lines, on } = rideChoice(step, planned);
+  const next = on.includes(label) ? (on.length > 1 ? on.filter((l) => l !== label) : on) : [...on, label];
+  return { ...step, lines, routes: lines.map((l) => l.label).filter((l) => next.includes(l)) };
 }

@@ -1,5 +1,6 @@
-import type { JourneyStep, StopHit } from '@transit/shared';
+import type { StopHit } from '@transit/shared';
 import type { LineRef } from '../ui/LineChain';
+import type { RideStep } from './ways';
 
 type Point = { lat: number; lon: number };
 
@@ -25,10 +26,10 @@ export const distM = (a: Point, b: Point) =>
 /** Walking minutes for a straight-line distance: about 1.25x for streets at 75 m a minute. */
 export const walkMinutes = (m: number) => Math.max(1, Math.round((m * 1.25) / 75));
 
-/** The planner step for a ride. A ride with some lines switched off lists only the ones left. */
-export function stepOf(r: BuiltRide): JourneyStep {
+/** The planner step for a ride. A ride with some lines switched off lists only the ones left; every line is kept for the trip screen's ticks. */
+export function stepOf(r: BuiltRide): RideStep {
   const left = r.lines.map((l) => l.label).filter((l) => !r.skipped.includes(l));
-  return { fromStops: [r.board.id], toStops: [r.off.id], ...(r.skipped.length && left.length ? { routes: left } : {}) };
+  return { fromStops: [r.board.id], toStops: [r.off.id], ...(r.skipped.length && left.length ? { routes: left } : {}), ...(r.lines.length ? { lines: r.lines } : {}) };
 }
 
 /** Put a ride at index `at` (insert), or in place of the one there (replace). The rides after it stay. */
