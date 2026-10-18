@@ -27,7 +27,7 @@ export interface TripsPayload {
 
 /** `data` on every push the server sends, so the app can open the right trip. */
 export interface AlertPushData {
-  kind: 'leave_soon' | 'plan_changed';
+  kind: 'leave_soon' | 'plan_changed' | 'line_switch';
   tripId: string;
   /** ISO time to leave home. */
   leaveAt: string;

@@ -34,10 +34,18 @@ const setup = () => {
     return m.map(() => expoUp);
   });
   const setExpo = (up: boolean) => (expoUp = up);
+  /** The 306 run runs `min` late on live data (its trip arrives that much later too). */
+  const delay306 = (min: number) => {
+    itineraries = itineraries.map((it) => {
+      if (!it.legs.some((l) => l.route?.shortName === '306')) return it;
+      const add = (iso: string) => new Date(Date.parse(iso) + min * 60_000).toISOString();
+      return { ...it, departAt: add(it.departAt), arriveAt: add(it.arriveAt), legs: it.legs.map((l) => ({ ...l, departAt: add(l.departAt), arriveAt: add(l.arriveAt), realtime: l.route?.shortName === '306' ? true : l.realtime })) };
+    });
+  };
   const shift = (min: number) => {
     itineraries = itineraries.map((it) => ({ ...it, departAt: new Date(Date.parse(it.departAt) + min * 60_000).toISOString() }));
   };
-  return { watcher, sent, store, shift, setExpo, queries };
+  return { watcher, sent, store, shift, setExpo, queries, delay306 };
 };
 
 test('silent until 10 min before leaving (08:15 bus − 5 min walk − 1 min margin = leave 08:09), then one push', async () => {
@@ -108,5 +116,55 @@ test('overlapping ticks (a pass slower than the interval) send the push once', a
   const { watcher, sent } = setup();
   const [a, b] = await Promise.all([watcher.tick(at('08:01')), watcher.tick(at('08:01'))]);
   assert.equal(a.length + b.length, 1);
+  assert.equal(sent.length, 1);
+});
+
+test('a late line with a faster alternative pushes one "switch to" alert', async () => {
+  const { watcher, sent, delay306 } = setup();
+  await watcher.tick(at('07:40')); // 306 → 347 is the plan: leave 08:09
+  delay306(4); // 306 now 08:24 and arrives 09:02; the metro still arrives 08:57 and leaves home 08:01
+  assert.equal((await watcher.tick(at('07:45'))).filter((m) => m.data.kind === 'line_switch').length, 0, 'the metro is not leaving yet');
+  const [msg] = await watcher.tick(at('08:01'));
+  assert.equal(msg.title, 'Leave now · switch to M1');
+  assert.equal(msg.body, '306 is 4 min late. M1 gets you there by 08:57.');
+  assert.equal(msg.data.kind, 'line_switch');
+  assert.equal(msg.data.tripId, 't1');
+  assert.equal((await watcher.tick(at('08:02'))).length, 0, 'once per switch');
+  assert.equal(sent.length, 2, 'plan change at 07:45, then the switch');
+});
+
+test('no switch alert for a small delay, an alternative that is not 3 min faster, or a timetable-only time', async () => {
+  const a = setup();
+  await a.watcher.tick(at('07:40'));
+  a.delay306(2);
+  assert.deepEqual((await a.watcher.tick(at('08:01'))).map((m) => m.data.kind), ['leave_soon'], '2 min late is jitter');
+
+  const b = setup();
+  await b.watcher.tick(at('07:40'));
+  b.delay306(1);
+  assert.deepEqual((await b.watcher.tick(at('08:01'))).map((m) => m.data.kind), ['leave_soon'], 'the metro is only 2 min faster than a 1 min late bus');
+
+  const c = setup();
+  await c.watcher.tick(at('07:40'));
+  c.delay306(4);
+  // Timetable data only: the shift is not a live delay.
+  const plans = (c.watcher as unknown as { plans: { plan: (q: unknown) => Promise<PlanResponse> } }).plans;
+  const plan = plans.plan.bind(plans);
+  plans.plan = async (q) => {
+    const res = await plan(q);
+    return { ...res, itineraries: res.itineraries.map((it) => ({ ...it, legs: it.legs.map((l) => ({ ...l, realtime: false })) })) } as PlanResponse;
+  };
+  assert.deepEqual((await c.watcher.tick(at('08:01'))).map((m) => m.data.kind), ['leave_soon']);
+});
+
+test('a failed switch push is retried', async () => {
+  const { watcher, sent, delay306, setExpo } = setup();
+  await watcher.tick(at('07:40'));
+  delay306(4);
+  setExpo(false);
+  assert.equal((await watcher.tick(at('08:01'))).length, 0);
+  setExpo(true);
+  const [msg] = await watcher.tick(at('08:02'));
+  assert.equal(msg.data.kind, 'line_switch');
   assert.equal(sent.length, 1);
 });

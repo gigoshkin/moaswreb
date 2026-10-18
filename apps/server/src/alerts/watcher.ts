@@ -8,10 +8,17 @@ const TBILISI_MS = 4 * 3600_000;
 const WATCH_BEFORE_MIN = 120; // start watching 2 h before the arrive-by time
 const LEAVE_SOON_MIN = 10; // "leave in 10 min"
 const CHANGE_MIN = 3; // a shift this big counts as a changed plan
+const LATE_MIN = 3; // the chosen line's next ride this much later than first seen counts as late
+const LATE_MAX_MIN = 30; // a bigger gap is another run of the line, not a delay
+const SWITCH_MIN = 3; // another line has to arrive this much earlier to be worth the alert
 
 interface TripState {
   leaveAt: number;
   sentSoon: boolean;
+  /** The first line of the chosen plan and when its ride first showed up, to measure a delay against. */
+  watch?: { line: string; departAt: number };
+  /** `306>17` pairs already pushed today. */
+  switched?: string[];
 }
 
 /** Tbilisi date `YYYY-MM-DD` and ISO weekday (1 = Monday) for a UTC instant. */
@@ -50,9 +57,41 @@ const routesOf = (it: Itinerary) =>
     .map((l) => l.route!.shortName)
     .join(' → ');
 
+const firstRide = (it: Itinerary) => it.legs.find((l) => l.route);
+
+/**
+ * The watched line's next ride is running late on live data and another line,
+ * leaving within the leave-soon window, arrives {@link SWITCH_MIN} earlier.
+ * The delay is measured against the departure first seen (TTC's own delay
+ * field is not trusted, see normalizePlan).
+ */
+export const findSwitch = (
+  its: Itinerary[],
+  watch: { line: string; departAt: number },
+  walkMin: number,
+  now: number,
+): { lateMin: number; late: Itinerary; alt: Itinerary } | null => {
+  const late = its
+    .filter((it) => firstRide(it)?.route?.shortName === watch.line && Date.parse(firstRide(it)!.departAt) >= watch.departAt - 60_000)
+    .sort((a, b) => Date.parse(firstRide(a)!.departAt) - Date.parse(firstRide(b)!.departAt))[0];
+  if (!late || !firstRide(late)!.realtime) return null;
+  const lateMin = Math.round((Date.parse(firstRide(late)!.departAt) - watch.departAt) / 60_000);
+  if (lateMin < LATE_MIN || lateMin > LATE_MAX_MIN) return null;
+  const lateArrive = Date.parse(late.arriveAt);
+  const alt = its
+    .filter((it) => {
+      const line = firstRide(it)?.route?.shortName;
+      const leave = leaveAtMs(Date.parse(it.departAt), walkMin);
+      return line && line !== watch.line && leave >= now - 60_000 && leave <= now + LEAVE_SOON_MIN * 60_000 && Date.parse(it.arriveAt) <= lateArrive - SWITCH_MIN * 60_000;
+    })
+    .sort((a, b) => Date.parse(a.arriveAt) - Date.parse(b.arriveAt))[0];
+  return alt ? { lateMin, late, alt } : null;
+};
+
 /**
  * Watches every stored trip on its days, from 2 h before the arrive-by time,
- * and pushes when it's time to leave or when the plan shifts. Runs on the
+ * and pushes when it's time to leave, when the plan shifts or when the chosen
+ * line runs late and another gets there earlier. Runs on the
  * server so alerts don't depend on the phone waking up.
  */
 export class AlertWatcher {
@@ -150,18 +189,24 @@ export class AlertWatcher {
       ...(trip.avoid ? { avoid: trip.avoid } : {}),
     };
     let best: Itinerary | null = null;
+    let its: Itinerary[] = [];
     if (trip.steps?.length) {
       // A hand-built route: exactly its rides, from the first stop to the last.
       const first = await this.stops.get(trip.steps[0].fromStops[0]);
       const last = await this.stops.get(trip.steps.at(-1)!.toStops[0]);
       if (!first || !last) return null;
       const plan = await this.plans.plan({ ...base, from: { lat: first.lat, lon: first.lon }, to: { lat: last.lat, lon: last.lon }, steps: trip.steps });
-      best = bestItinerary(plan.itineraries, arriveByMs);
+      its = plan.itineraries;
+      best = bestItinerary(its, arriveByMs);
     } else {
       // Every line between the two stops first (the stops the walk was measured to), then TTC's planner for trips that need a transfer.
       const direct = await this.plans.plan({ ...base, steps: [{ fromStops: [trip.fromStopId], toStops: [trip.toStopId] }] });
-      best = bestItinerary(direct.itineraries, arriveByMs);
-      if (!best) best = bestItinerary((await this.plans.plan(base)).itineraries, arriveByMs);
+      its = direct.itineraries;
+      best = bestItinerary(its, arriveByMs);
+      if (!best) {
+        its = (await this.plans.plan(base)).itineraries;
+        best = bestItinerary(its, arriveByMs);
+      }
     }
     if (!best) return null;
 
@@ -173,7 +218,26 @@ export class AlertWatcher {
     const routes = routesOf(best);
     let msg: PushMessage | null = null;
 
-    if (prev && Math.abs(leaveAt - prev.leaveAt) >= CHANGE_MIN * 60_000 && now < leaveAt) {
+    // Which line the plan was built on, and when its ride was first seen; kept while it is the same ride.
+    const ride = firstRide(best);
+    const dep = ride ? Date.parse(ride.departAt) : 0;
+    const w = prev?.watch;
+    const sameRun = w && w.line === ride?.route?.shortName && dep >= w.departAt - 60_000 && dep - w.departAt <= LATE_MAX_MIN * 60_000;
+    const watch = sameRun || (w && w.departAt + LATE_MAX_MIN * 60_000 > now) ? w : ride?.route ? { line: ride.route.shortName, departAt: dep } : undefined;
+    const switched = prev?.switched ?? [];
+    const sw = watch ? findSwitch(its, watch, trip.walkMin, now) : null;
+    const swKey = sw ? `${watch!.line}>${firstRide(sw.alt)!.route!.shortName}` : '';
+
+    if (sw && !switched.includes(swKey)) {
+      const altLeave = leaveAtMs(Date.parse(sw.alt.departAt), trip.walkMin);
+      const mins = Math.max(0, Math.round((altLeave - now) / 60_000));
+      msg = {
+        to,
+        title: `${mins > 0 ? `Leave in ${mins} min` : 'Leave now'} · switch to ${firstRide(sw.alt)!.route!.shortName}`,
+        body: `${watch!.line} is ${sw.lateMin} min late. ${firstRide(sw.alt)!.route!.shortName} gets you there by ${hm(Date.parse(sw.alt.arriveAt))}.`,
+        data: { kind: 'line_switch', tripId: trip.id, leaveAt: new Date(altLeave).toISOString() },
+      };
+    } else if (prev && Math.abs(leaveAt - prev.leaveAt) >= CHANGE_MIN * 60_000 && now < leaveAt) {
       msg = {
         to,
         title: 'Departure time changed',
@@ -191,10 +255,16 @@ export class AlertWatcher {
     }
     if (!msg) {
       // Nothing to send: just track the latest plan.
-      this.state.set(key, { leaveAt, sentSoon: prev?.sentSoon ?? false });
+      this.state.set(key, { leaveAt, sentSoon: prev?.sentSoon ?? false, watch, switched });
       return null;
     }
-    return { msg, key, next: { leaveAt, sentSoon: (prev?.sentSoon ?? false) || msg.data.kind === 'leave_soon' } };
+    const isSwitch = msg.data.kind === 'line_switch';
+    return {
+      msg,
+      key,
+      // The switch alert is also the "leave now" one, so no "Leave in N min" after it.
+      next: { leaveAt, sentSoon: (prev?.sentSoon ?? false) || msg.data.kind === 'leave_soon' || isSwitch, watch, switched: isSwitch ? [...switched, swKey] : switched },
+    };
   }
 
   private forgetOld(keep: string[]): void {
