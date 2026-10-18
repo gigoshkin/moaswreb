@@ -16,7 +16,7 @@ import { tbilisiLocalToIso } from './time.ts';
 
 export const transitLegs = (it: Itinerary): PlanLeg[] => it.legs.filter((l) => l.mode !== 'WALK');
 
-/** What a ride is: metro red, minibus blue, bus green. Different kinds are different ways. */
+/** What a ride is: metro red, minibus blue, bus green. Metro is a different way from a road ride; bus and minibus are one family (see `family`). */
 export type Kind = 'bus' | 'minibus' | 'metro';
 export const kindOf = (leg: Pick<PlanLeg, 'mode' | 'route'>): Kind => (leg.mode === 'SUBWAY' ? 'metro' : leg.route?.minibus ? 'minibus' : 'bus');
 
@@ -138,6 +138,9 @@ export const wayKey = (it: Itinerary): string =>
     .join('|');
 
 /** The structure of an itinerary: the kind of each ride, e.g. ['bus', 'metro']. A direct line is one ride. */
+/** Buses and minibuses are the same kind of way (a 518 minibus can stand in for a 321 bus); metro is its own. */
+export const family = (k: Kind): 'metro' | 'road' | Kind => (k === 'bus' || k === 'minibus' ? 'road' : k);
+
 export const structureOf = (it: Itinerary): Kind[] => transitLegs(it).map(kindOf);
 
 type Place = { name: string; stopId: string | null; lat: number; lon: number };
@@ -151,8 +154,8 @@ const metres = (a: Place, b: Place): number => {
 };
 
 /**
- * Same way to travel: as many rides, the same kind on every ride (bus,
- * minibus, metro), the same stops on every ride except at most one whose
+ * Same way to travel: as many rides, the same family on every ride (road
+ * (bus or minibus) or metro), the same stops on every ride except at most one whose
  * boarding and alighting stops are each within NEAR_M of the other's.
  */
 export const sameWay = (a: Itinerary, b: Itinerary): boolean => {
@@ -161,7 +164,7 @@ export const sameWay = (a: Itinerary, b: Itinerary): boolean => {
   if (x.length !== y.length) return false;
   let near = 0;
   for (let i = 0; i < x.length; i++) {
-    if (x[i].mode !== y[i].mode || kindOf(x[i]) !== kindOf(y[i])) return false;
+    if (x[i].mode !== y[i].mode || family(kindOf(x[i])) !== family(kindOf(y[i]))) return false;
     if (stopKey(x[i].from) === stopKey(y[i].from) && stopKey(x[i].to) === stopKey(y[i].to)) continue;
     if (metres(x[i].from, y[i].from) > NEAR_M || metres(x[i].to, y[i].to) > NEAR_M) return false;
     near++;
@@ -216,7 +219,7 @@ export function groupWays(all: Itinerary[], bufferMin = 0): Way[] {
 
 /** A way in words, the same in the app and for the model: "direct 302", "321|335 -> metro 1", "minibus 518 -> metro 1". */
 export const wayLabel = (slots: Slot[]): string => {
-  const ride = (s: Slot) => `${s[0]?.kind === 'metro' ? 'metro ' : s[0]?.kind === 'minibus' ? 'minibus ' : ''}${s.map((l) => l.label).join('|')}`;
+  const ride = (s: Slot) => `${s[0]?.kind === 'metro' ? 'metro ' : s.length && s.every((l) => l.kind === 'minibus') ? 'minibus ' : ''}${s.map((l) => l.label).join('|')}`;
   if (slots.length === 0) return 'walk';
   if (slots.length === 1) return `direct ${ride(slots[0])}`;
   return slots.map(ride).join(' -> ');
@@ -296,7 +299,7 @@ export function fitsWay(steps: RideStep[], it: Itinerary): boolean {
   return legs.every((l, i) => {
     const s = steps[i];
     if (!l.from.stopId || !l.to.stopId || !s.fromStops.includes(l.from.stopId) || !s.toStops.includes(l.to.stopId)) return false;
-    if (s.lines?.length && !s.lines.some((x) => x.kind === kindOf(l))) return false;
+    if (s.lines?.length && !s.lines.some((x) => family(x.kind) === family(kindOf(l)))) return false;
     return !s.routes?.length || (!!l.route?.shortName && s.routes.includes(l.route.shortName));
   });
 }
