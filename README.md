@@ -161,6 +161,8 @@ All variables, rate limits and the endpoint list are in [.env.example](.env.exam
 
 Expo Go cannot run push notifications or the lock-screen card. They need a development build of the app, made once in the cloud with EAS; after that JavaScript changes reload from Metro.
 
+Step-by-step build guide (Expo Go, Android APK, iPhone): [docs/build.md](docs/build.md).
+
 ## Build the APK
 
 This is the way to produce the downloadable Android build. Profiles are in `apps/mobile/eas.json`: `preview` is a standalone APK that needs no Metro (use it for demos), `development` is the dev client.
