@@ -42,6 +42,11 @@ export const config = {
     if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
     return process.env.GEMINI_API_KEY ? 'gemini' : null;
   })(),
+  /** Google Places (New) Text Search as the first place-search source. Empty key = off. */
+  google: {
+    placesKey: process.env.GOOGLE_PLACES_API_KEY ?? '',
+    dailyCap: int(process.env.GOOGLE_PLACES_DAILY_CAP, 500),
+  },
   dataDir: process.env.DATA_DIR ?? './data',
   ttc: {
     siteUrl: 'https://transit.ttc.com.ge/',

@@ -20,7 +20,7 @@ Facts for the privacy policy and for judges' questions. Source: the code as of 1
 - **Deletion:** the delete button (`DELETE /me`) removes everything for the device immediately. Devices that haven't checked in for 30 days are deleted automatically (daily job).
 - **Logs:** request logging is off; stops and times are never written to logs.
 - **Chat:** messages, photos and PDFs sent to the chat go to the Claude API (Anthropic) to be read, together with the user's saved trips as context. Our server doesn't store them. [?] Check Anthropic's API data-retention terms before writing the policy.
-- **Place search and the map pin:** the typed text (or the pin's coordinates) goes from our server to TTC's geocoder and to Photon (photon.komoot.io, OpenStreetMap data) to find streets and addresses. No device id or account goes with it, and our server doesn't log it. Map pictures are loaded by the phone directly from Esri's tile server, which sees the phone's IP address and the map area on screen.
+- **Place search and the map pin:** the typed text (or the pin's coordinates) goes from our server to TTC's geocoder and to Photon (photon.komoot.io, OpenStreetMap data) to find streets and addresses. When `GOOGLE_PLACES_API_KEY` is set on the server, the typed text also goes to Google Places (first source; see journey-planner.md, "Google Places search"). No device id or account goes with it, and our server doesn't log it. Map pictures are loaded by the phone directly from Esri's tile server, which sees the phone's IP address and the map area on screen.
 - **Push delivery:** goes through Expo's push service and Google Firebase (Android), which see the push token and the alert text.
 
 ## Honest limits

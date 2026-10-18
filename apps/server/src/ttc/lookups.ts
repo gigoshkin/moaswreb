@@ -1,5 +1,6 @@
 import type { Arrival, ArrivalsResponse, Locale, PlaceHit } from '@transit/shared';
 import type { TtcClient } from './client.ts';
+import { googleSearch } from './google-places.ts';
 import { photonGeo, type StreetGeo } from './photon.ts';
 import type { StopIndex } from './stops.ts';
 
@@ -29,21 +30,31 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? 
 const near = (a: PlaceHit, b: PlaceHit) => Math.abs(a.lat - b.lat) < 0.0004 && Math.abs(a.lon - b.lon) < 0.0004;
 
 /**
- * Place search: TTC's OSM geocoder (landmarks) plus Photon (streets and house
- * numbers), TTC first, duplicates within ~40 m dropped. Tbilisi only.
+ * Place search: Google Places first when a key is set, then TTC's OSM geocoder
+ * (landmarks), then Photon (streets and house numbers); duplicates within
+ * ~40 m dropped. With Google on, Photon is asked only if Google gave fewer than
+ * `limit` hits. Tbilisi only.
  */
-export async function findPlaces(ttc: TtcClient, query: string, locale: Locale, limit = 5, geo: StreetGeo = photonGeo): Promise<PlaceHit[]> {
+export async function findPlaces(
+  ttc: TtcClient,
+  query: string,
+  locale: Locale,
+  limit = 5,
+  geo: StreetGeo = photonGeo,
+  google: ((query: string, limit?: number) => Promise<PlaceHit[]>) | null = googleSearch,
+): Promise<PlaceHit[]> {
   let ttcError: unknown = null;
+  const fromGoogle = google ? await google(query, limit) : [];
   const [fromTtc, fromPhoton] = await Promise.all([
     ttc.geocode(query, locale).then(
       (res) => parseTtc(res, query),
       (err: unknown) => ((ttcError = err), [] as PlaceHit[]),
     ),
-    geo.search(query, limit),
+    google && fromGoogle.length >= limit ? Promise.resolve([] as PlaceHit[]) : geo.search(query, limit),
   ]);
-  if (ttcError && !fromPhoton.length) throw ttcError;
+  if (ttcError && !fromPhoton.length && !fromGoogle.length) throw ttcError;
   const out: PlaceHit[] = [];
-  for (const p of [...fromTtc, ...fromPhoton]) if (!out.some((o) => near(o, p))) out.push(p);
+  for (const p of [...fromGoogle, ...fromTtc, ...fromPhoton]) if (!out.some((o) => near(o, p))) out.push(p);
   return out.slice(0, limit + 3);
 }
 
