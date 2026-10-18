@@ -2,7 +2,7 @@
   "expo": {
     "name": "მოასწრებ",
     "slug": "tbilisi-transit",
-    "version": "1.0.0",
+    "version": "0.2.0",
     "owner": "gigoshkins-team",
     "extra": { "eas": { "projectId": "f84026bd-0b86-4e92-9657-94a713b14892" } },
     "orientation": "portrait",
@@ -35,7 +35,7 @@
       "expo-router",
       "expo-sqlite",
       "expo-notifications",
-      ["react-native-notify-kit", { "android": { "icons": [{ "name": "ic_leave_card", "path": "./assets/android-icon-monochrome.png", "type": "small" }] } }],
+      ["react-native-notify-kit", { "android": { "icons": [{ "name": "ic_leave_card", "path": "./assets/android-icon-monochrome.png", "type": "small" }], "foregroundService": { "types": ["dataSync"] } } }],
       "@react-native-community/datetimepicker",
       ["expo-splash-screen", { "image": "./assets/splash-icon.png", "imageWidth": 220, "backgroundColor": "#FFFFFF", "resizeMode": "contain" }],
       ["expo-image-picker", { "cameraPermission": "Take a photo to send in the chat.", "photosPermission": "Choose photos to send in the chat.", "microphonePermission": false }],

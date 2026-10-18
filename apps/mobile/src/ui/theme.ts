@@ -93,8 +93,8 @@ export const shadow = {
 export const spring = {
   snappy: { damping: 24, stiffness: 320, mass: 0.6 } satisfies WithSpringConfig,
   smooth: { damping: 27, stiffness: 180, mass: 0.9 } satisfies WithSpringConfig,
-  /** Bottom sheets: the bounce George likes. Nothing else bounces. */
-  sheet: { damping: 22, stiffness: 180, mass: 0.9 } satisfies WithSpringConfig,
+  /** Bottom sheets: critically damped (2·√(k·m) ≈ 28), so a sheet never rises past its resting place and snaps back. */
+  sheet: { damping: 28, stiffness: 220, mass: 0.9 } satisfies WithSpringConfig,
   lead: { damping: 28, stiffness: 420, mass: 0.6 } satisfies WithSpringConfig,
   trail: { damping: 26, stiffness: 170, mass: 0.8 } satisfies WithSpringConfig,
 };

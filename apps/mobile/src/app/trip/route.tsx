@@ -1,18 +1,19 @@
-import type { Itinerary, JourneyStep, PlanAvoid } from '@transit/shared';
+import type { Itinerary, PlanAvoid } from '@transit/shared';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { slotsFor } from '../../lib/ways';
+import { slotsFor, tripWays, waysFields, withBuiltWay, type RideStep } from '../../lib/ways';
 import { buildSteps, finishRoute, pickPlace, routeDraft, type PickKind } from '../../lib/handoff';
-import { firstWalkMin, leaveAt } from '../../lib/plans';
+import { firstWalkMin, leaveAt, mergeItineraries } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { daysText, hhmm, nextArriveBy } from '../../lib/time';
 import type { Place } from '../../lib/trips';
+import { useNamedPlace } from '../../lib/useNamedPlace';
 import { useNow } from '../../lib/useNow';
 import { useRoadItinerary } from '../../lib/shapes';
-import { useTripPlan } from '../../lib/useTripPlan';
+import { everyLine, useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
 import { Icon } from '../../ui/Icon';
 import { Ways } from '../../ui/Ways';
@@ -36,8 +37,12 @@ export default function RouteBuilder() {
   const [init] = useState(routeDraft);
   const [from, setFrom] = useState<Place | null>(init.from);
   const [to, setTo] = useState<Place | null>(init.to);
+  // An end still called "Dropped pin" (an older trip, or a pin placed a moment ago) gets its address.
+  useNamedPlace(from, setFrom);
+  useNamedPlace(to, setTo);
   const [avoid, setAvoid] = useState<PlanAvoid | undefined>(init.avoid);
-  const [steps, setSteps] = useState<JourneyStep[] | undefined>(init.steps);
+  // Every way ticked in the list (or built by hand): the trip plans these and nothing else. Empty: the app picks.
+  const [ways, setWays] = useState<RideStep[][]>(() => tripWays(init));
   const [arriveBy, setArriveBy] = useState(init.arriveBy);
   const [timeOpen, setTimeOpen] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
@@ -48,14 +53,20 @@ export default function RouteBuilder() {
   // Closing without Done resolves the form with null.
   useEffect(() => () => finishRoute(null), []);
 
-  const trip = useMemo(() => (from && to ? { id: 'draft', name: '', from, to, arriveBy, days: init.days, avoid, steps } : null), [from, to, arriveBy, init.days, JSON.stringify(avoid), JSON.stringify(steps)]);
+  const trip = useMemo(() => (from && to ? { id: 'draft', name: '', from, to, arriveBy, days: init.days, avoid, ...waysFields(ways) } : null), [from, to, arriveBy, init.days, JSON.stringify(avoid), JSON.stringify(ways)]);
   const date = nextArriveBy(arriveBy, init.days, now).slice(0, 10);
   const plan = useTripPlan(trip, date, now);
+  // The list offers every way for these ends, ticked or not: with ways kept, a second plan without them
+  // (every line, as when the app picks). Kept ways it didn't find, e.g. one built by hand, are listed too.
+  const anyLine = useMemo(() => (trip && ways.length ? everyLine(trip) : null), [trip, ways.length]);
+  const every = useTripPlan(anyLine, date, now);
+  const listed = useMemo(() => (ways.length ? mergeItineraries([every.itineraries, plan.itineraries]) : plan.itineraries), [ways.length, every.itineraries, plan.itineraries]);
   const best: Itinerary | null = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
-  // A way tapped in the list is shown on the map; the app still uses the best one.
-  const it = plan.itineraries.find((x) => x.id === picked) ?? best;
+  // A way tapped in the list is shown on the map; the app still uses the best kept one.
+  const it = listed.find((x) => x.id === picked) ?? best;
   const roadIt = useRoadItinerary(it);
   const busy = !plan.error && (!plan.loaded || plan.refreshing);
+  const listBusy = busy || (ways.length > 0 && !every.error && (!every.loaded || every.refreshing));
 
   const pick = async (kind: PickKind) => {
     const p = await pickPlace(kind, { near: (kind === 'from' ? to : from) ?? undefined });
@@ -87,19 +98,21 @@ export default function RouteBuilder() {
     haptic('selection');
     setFrom(to);
     setTo(from);
-    setSteps(undefined);
+    setWays([]);
   };
 
+  // The by-hand builder edits the first kept way; the others stay.
   const buildByHand = async () => {
     if (!from || !to) return;
-    const r = await buildSteps({ from, to, arriveBy, days: init.days, steps: steps ?? [], avoid });
-    if (r) setSteps(r.steps);
+    const r = await buildSteps({ from, to, arriveBy, days: init.days, steps: ways[0] ?? [], avoid });
+    if (r) setWays(withBuiltWay(ways, r.steps));
   };
 
   const finish = () => {
     if (!from || !to) return;
     haptic('success');
-    finishRoute({ from, to, avoid, steps, ...(arriveBy !== init.arriveBy ? { arriveBy } : {}) });
+    // The ticked ways are the trip's route: each goes back as its own rides with every variation allowed, not just a highlight.
+    finishRoute({ from, to, avoid, ...waysFields(ways), ...(arriveBy !== init.arriveBy ? { arriveBy } : {}) });
     router.back();
   };
 
@@ -155,7 +168,7 @@ export default function RouteBuilder() {
           <Tap onPress={buildByHand} feedback="tint" style={styles.byHand} accessibilityRole="button" accessibilityLabel="Build the route by hand, stop by stop">
             <Icon name="map" size={18} />
             <Text variant="label14" style={styles.flex}>
-              {steps?.length ? 'Change my hand-built route' : 'Build route by hand'}
+              {ways.length ? 'Change my route by hand' : 'Build route by hand'}
             </Text>
             <Icon name="chevron-right" size={18} color={color.textTertiary} />
           </Tap>
@@ -179,19 +192,21 @@ export default function RouteBuilder() {
             <Summary it={it} all={plan.itineraries} busy={busy} error={plan.error} />
             <View style={styles.links}>
               <Tap onPress={() => setShowOptions((v) => !v)} scaleTo={0.96} style={styles.pill} accessibilityRole="button">
-                <Text variant="label14">{showOptions ? 'Hide ways' : `All ways${plan.itineraries.length ? ` (${plan.itineraries.length})` : ''}`}</Text>
+                <Text variant="label14">{showOptions ? 'Hide ways' : `All ways${listed.length ? ` (${listed.length})` : ''}`}</Text>
               </Tap>
             </View>
             {showOptions && (
               <ScrollView style={styles.options} contentContainerStyle={styles.optionsContent} showsVerticalScrollIndicator={false}>
                 <Ways
-                  itineraries={plan.itineraries}
+                  itineraries={listed}
                   chosenId={best?.id}
                   selectedId={picked ?? undefined}
                   now={now}
                   bufferMin={settings.get().bufferMin}
                   avoid={avoid}
-                  loading={busy}
+                  loading={listBusy}
+                  kept={ways}
+                  onKeep={setWays}
                   onSelect={(x) => setPicked(x.id)}
                   onAvoid={(a) => {
                     setPicked(null);
@@ -200,9 +215,23 @@ export default function RouteBuilder() {
                 />
               </ScrollView>
             )}
-            {steps?.length ? (
+            {ways.length ? (
+              <Tap
+                onPress={() => {
+                  haptic('selection');
+                  setWays([]);
+                  setPicked(null);
+                }}
+                hitSlop={6}
+                accessibilityRole="button"
+              >
+                <Text variant="caption" color={color.textSecondary}>
+                  {ways.length === 1 ? 'This way is kept for the trip.' : `${ways.length} ways kept for the trip.`} <Text variant="captionStrong">Let the app pick instead</Text>
+                </Text>
+              </Tap>
+            ) : showOptions ? (
               <Text variant="caption" color={color.textSecondary}>
-                Stops picked on the map. The app still compares every line that fits each ride.
+                Tick the ways you take; the trip then uses only those.
               </Text>
             ) : null}
           </Animated.View>

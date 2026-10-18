@@ -1,5 +1,5 @@
 import type { Itinerary, JourneyStep, PlanQuery, PlanResponse } from '@transit/shared';
-import { TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from '@transit/shared';
+import { groupWays, TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from '@transit/shared';
 import { Engine } from '../journey/engine.ts';
 import { isAvoided } from '../journey/source.ts';
 import type { TtcSource } from '../journey/ttc-source.ts';
@@ -30,7 +30,7 @@ const MAX_GOOGLE_CANDIDATES = 4;
  * small cap would cut the latest-leaving options, which are what "arrive by"
  * is about; the longest trips are cut instead.
  */
-export const MAX_ITINERARIES = 7;
+export const MAX_ITINERARIES = 10;
 
 /** Tbilisi `YYYY-MM-DDTHH:mm` shifted by `min` minutes (crosses midnight correctly). */
 export const shiftLocal = (local: string, min: number): string => {
@@ -76,6 +76,8 @@ export const byArrivalThenTransfers = (a: Itinerary, b: Itinerary): number =>
  */
 export class PlanService {
   private readonly cache = new Map<string, { at: number; body: PlanResponse }>();
+  /** TTC lookups under way, so the quick answer and the full plan of one query share them. */
+  private readonly ttcRuns = new Map<string, Promise<Itinerary[]>>();
   private readonly ttc: TtcClient;
   private readonly stops: StopIndex;
   private readonly source: TtcSource | null;
@@ -147,6 +149,19 @@ export class PlanService {
     return (await Promise.all(runs.map((r) => r.catch(() => [] as Itinerary[])))).flat();
   }
 
+  /** ttcOptions, once at a time per query: GET /plan?part=ttc and the full plan of the same query ask TTC once. */
+  private sharedTtcOptions(query: PlanQuery): Promise<Itinerary[]> {
+    const key = JSON.stringify(query);
+    let run = this.ttcRuns.get(key);
+    if (!run) {
+      run = this.ttcOptions(query);
+      this.ttcRuns.set(key, run);
+      const done = () => void this.ttcRuns.delete(key);
+      run.then(done, done);
+    }
+    return run;
+  }
+
   /** TTC's planner, minus anything the trip avoids. Asked again with other preferences when that leaves little. */
   private async ttcOptions(query: PlanQuery): Promise<Itinerary[]> {
     const ask = (optimize: 'quick' | 'lessWalking' | 'fewerTransfers', at = query.arriveBy) => {
@@ -182,6 +197,31 @@ export class PlanService {
     return onePerChain(out, deadline);
   }
 
+  /**
+   * The quick part of a plan: only TTC's planner, without waiting for our own
+   * planner (which loads timetables for a new area, up to ~25 s) or Google.
+   * Marked `partial`, kept in its own cache and never as the full answer. When
+   * the full plan of this query is already in memory, that is returned instead
+   * (unmarked), since it is better and just as fast. Failures throw, like plan().
+   */
+  async planTtc(query: PlanQuery): Promise<PlanResponse> {
+    const full = this.cache.get(JSON.stringify(query));
+    if (full && Date.now() - full.at < CACHE_MS) return full.body;
+    const key = `ttc:${JSON.stringify(query)}`;
+    const hit = this.cache.get(key);
+    if (hit && Date.now() - hit.at < CACHE_MS) return hit.body;
+    const itineraries = [...(await this.sharedTtcOptions(query))].sort(byArrivalThenTransfers);
+    await this.fillStopIds(itineraries);
+    const body: PlanResponse = { query, itineraries, source: 'ttc', fetchedAt: new Date().toISOString(), partial: true };
+    this.remember(key, body);
+    return body;
+  }
+
+  private remember(key: string, body: PlanResponse): void {
+    this.cache.set(key, { at: Date.now(), body });
+    if (this.cache.size > 500) this.cache.delete(this.cache.keys().next().value!);
+  }
+
   async plan(query: PlanQuery): Promise<PlanResponse> {
     const key = JSON.stringify(query);
     const hit = this.cache.get(key);
@@ -190,7 +230,7 @@ export class PlanService {
     const own = this.ownOptions(query);
     const google = this.googleOptions(query).catch(() => [] as Itinerary[]);
     // A hand-built route is exactly what was asked for: TTC's planner has nothing to add.
-    const ttc = query.steps?.length ? Promise.resolve<Itinerary[] | null>([]) : this.ttcOptions(query).catch(() => null as Itinerary[] | null);
+    const ttc = query.steps?.length ? Promise.resolve<Itinerary[] | null>([]) : this.sharedTtcOptions(query).catch(() => null as Itinerary[] | null);
     let ownDone: Itinerary[] = [];
     let googleDone: Itinerary[] = [];
     let ownError: unknown = null;
@@ -213,25 +253,26 @@ export class PlanService {
     await this.fillStopIds(itineraries);
     const body: PlanResponse = { query, itineraries, source: 'ttc', fetchedAt: new Date().toISOString() };
     // An answer made without our planner (it was still loading) is not kept for the full minute.
-    if (ownDone.length || !this.engine) {
-      this.cache.set(key, { at: Date.now(), body });
-      if (this.cache.size > 500) this.cache.delete(this.cache.keys().next().value!);
-    }
+    if (ownDone.length || !this.engine) this.remember(key, body);
     return body;
   }
 }
 
 /**
  * Google-suggested chains (timed by our planner) merged into the list: one
- * itinerary per line chain, the latest-leaving one still on time; then the
- * MAX_ITINERARIES on-time, shortest ones, earliest arrival first.
+ * itinerary per line chain, the latest-leaving one still on time; then at most
+ * MAX_ITINERARIES, one per different way first (see `groupWays`), then the
+ * on-time, shortest ones; earliest arrival first.
  */
 export const withGoogle = (base: Itinerary[], google: Itinerary[], query: Pick<PlanQuery, 'arriveBy'>, now = Date.now()): Itinerary[] => {
   const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '') || Infinity;
   const fits = (it: Itinerary) => Date.parse(it.arriveAt) <= deadline;
   const all = onePerChain([...base, ...google], deadline, now);
-  const kept = all.length > MAX_ITINERARIES
-    ? [...all].sort((a, b) => Number(fits(b)) - Number(fits(a)) || a.durationSec - b.durationSec).slice(0, MAX_ITINERARIES)
-    : all;
-  return kept.sort(byArrivalThenTransfers);
+  if (all.length <= MAX_ITINERARIES) return all.sort(byArrivalThenTransfers);
+  // Every different way keeps its best option before any way gets a second one: a slower metro way must not be cut
+  // just because several buses of one way are shorter. Then the rest, on-time and shortest first.
+  const order = (a: Itinerary, b: Itinerary) => Number(fits(b)) - Number(fits(a)) || a.durationSec - b.durationSec;
+  const leads = groupWays(all).map((w) => [...w.its].sort(order)[0]).sort(order);
+  const rest = all.filter((it) => !leads.includes(it)).sort(order);
+  return [...leads, ...rest].slice(0, MAX_ITINERARIES).sort(byArrivalThenTransfers);
 };

@@ -5,13 +5,13 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPreview, openNewTrip } from '../../lib/handoff';
-import { firstWalkMin, isMetro, kindOf, lastWalkMin, leaveAt, placeName, stepsOf } from '../../lib/plans';
+import { firstWalkMin, isMetro, kindOf, lastWalkMin, leaveAt, mergeItineraries, placeName } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { hhmm, nextArriveBy } from '../../lib/time';
-import { saveTrip, tripDays, useTrips, withStops } from '../../lib/trips';
+import { getTrip, saveTrip, tripDays, useTrips, withStops } from '../../lib/trips';
 import { useNow } from '../../lib/useNow';
-import { useTripPlan } from '../../lib/useTripPlan';
-import { slotsFor } from '../../lib/ways';
+import { everyLine, useTripPlan } from '../../lib/useTripPlan';
+import { slotsFor, tripWays, variantSteps, waysFields, type RideStep } from '../../lib/ways';
 import { Button } from '../../ui/Button';
 import { Busy } from '../../ui/Spinner';
 import { Icon, type IconName } from '../../ui/Icon';
@@ -19,6 +19,7 @@ import { LeaveByBar } from '../../ui/LeaveByBar';
 import { Ways } from '../../ui/Ways';
 import { RoutePlate } from '../../ui/RoutePlate';
 import { StaticMap } from '../../ui/StaticMap';
+import { SuggestionCard } from '../../ui/Suggestion';
 import { Text } from '../../ui/Text';
 import { Card, RouteSummary, SectionLabel, TopBar } from '../../ui/kit';
 import { color, gutter } from '../../ui/theme';
@@ -31,10 +32,16 @@ export default function TripDetail() {
   const trips = useTrips();
   const trip = preview ? null : (trips.find((t) => t.id === id) ?? null);
   const date = dateParam ?? (trip ? nextArriveBy(trip.arriveBy, tripDays(trip), now).slice(0, 10) : '');
-  const live = useTripPlan(trip, date, now, { refreshMs: 60_000 });
+  // Follows the kept ways only; another way is suggested apart from them, and only when they all missed.
+  const live = useTripPlan(trip, date, now, { refreshMs: 60_000, suggest: true });
   // A hook, so it lives here and not inside the conditional JSX below: the number of hooks must not change between renders.
   const bufferMin = settings.use().bufferMin;
   const p = preview ? getPreview(id) : undefined;
+  // A trip that keeps ways lists every way for its ends, ticked or not: a second plan over every line.
+  const kept = trip ? tripWays(trip) : [];
+  const anyLine = useMemo(() => (trip && kept.length ? everyLine(trip) : null), [trip, kept.length]);
+  const every = useTripPlan(anyLine, date, now);
+  const listed = useMemo(() => (kept.length ? mergeItineraries([every.itineraries, live.itineraries]) : live.itineraries), [kept.length, every.itineraries, live.itineraries]);
 
   const it: Itinerary | null = useMemo(() => {
     if (p) return p.plan.itineraries.find((x) => x.id === p.itineraryId) ?? null;
@@ -67,20 +74,35 @@ export default function TripDetail() {
           {it ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.gap}>
               <Departure it={it} all={live.itineraries} now={now} />
+              {trip && live.suggestion ? <SuggestionCard trip={trip} date={date} s={live.suggestion} /> : null}
               <SectionLabel style={styles.sectionLabel}>Route details</SectionLabel>
               <Timeline it={it} destination={p?.to.label ?? trip?.to.label ?? ''} />
             </Animated.View>
+          ) : trip && live.suggestion ? (
+            <SuggestionCard trip={trip} date={date} s={live.suggestion} />
           ) : null}
-          {trip && (live.itineraries.length > 0 || trip.avoid) ? (
+          {trip && (listed.length > 0 || trip.avoid) ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.gap}>
               <SectionLabel style={styles.sectionLabel}>All ways to get there</SectionLabel>
               <Ways
-                itineraries={live.itineraries}
+                itineraries={listed}
                 chosenId={live.choice.kind === 'none' ? undefined : live.choice.it.id}
                 now={now}
                 bufferMin={bufferMin}
                 avoid={trip.avoid}
-                loading={!live.error && (!live.loaded || live.refreshing)}
+                loading={!live.error && (!live.loaded || live.refreshing || (kept.length > 0 && !every.loaded))}
+                // A trip with kept ways ticks them here: the trip uses the ticked ways and nothing else.
+                kept={kept}
+                onKeep={
+                  kept.length
+                    ? (ways: RideStep[][]) => {
+                        const next = { ...trip, ...waysFields(ways) };
+                        saveTrip(next);
+                        // The first stop can change with the ways; a slower answer must not undo a newer tick.
+                        withStops(next).then((t) => JSON.stringify(tripWays(getTrip(t.id) ?? {})) === JSON.stringify(ways) && saveTrip(t));
+                      }
+                    : undefined
+                }
                 onAvoid={(avoid) => {
                   // The first stop and the walk can change with the avoid list: save now, refresh the server's copy after.
                   const next = { ...trip, avoid };
@@ -106,9 +128,9 @@ export default function TripDetail() {
               label="Save this route"
               onPress={() => {
                 const { avoid } = p.plan.query;
-                // The route that was picked is the one that gets saved, not whatever the planner prefers next time.
-                const steps = p.plan.query.steps?.length ? p.plan.query.steps : it ? stepsOf(it) : undefined;
-                openNewTrip({ name: p.name, from: p.from, to: p.to, arriveBy: p.plan.query.arriveBy.slice(11, 16), ...(p.days?.length ? { days: p.days } : {}), ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) });
+                // The way on screen is the one the trip keeps (with every variation of each ride), not whatever the planner prefers next time.
+                const steps = p.plan.query.steps?.length ? p.plan.query.steps : it ? variantSteps(it, p.plan.itineraries) : undefined;
+                openNewTrip({ name: p.name, from: p.from, to: p.to, arriveBy: p.plan.query.arriveBy.slice(11, 16), ...(p.days?.length ? { days: p.days } : {}), ...(avoid ? { avoid } : {}), ...waysFields(steps?.length ? [steps] : []) });
               }}
             />
           ) : (

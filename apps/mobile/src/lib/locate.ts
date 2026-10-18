@@ -32,3 +32,17 @@ async function find(): Promise<Here> {
     return 'error';
   }
 }
+
+/** The phone's position for the assistant: never asks. null when location is off or not allowed yet. */
+export async function quietHere(): Promise<{ lat: number; lon: number } | null> {
+  try {
+    const perm = await Location.getForegroundPermissionsAsync();
+    if (!perm.granted) return null;
+    // A recent fix, else a new one for at most 4 s: a message must not wait on the GPS.
+    const fresh = Promise.race([Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), new Promise<null>((r) => setTimeout(() => r(null), 4000))]);
+    const pos = (await Location.getLastKnownPositionAsync({ maxAge: 5 * 60_000 }).catch(() => null)) ?? (await fresh);
+    return pos ? { lat: pos.coords.latitude, lon: pos.coords.longitude } : null;
+  } catch {
+    return null;
+  }
+}

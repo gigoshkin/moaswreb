@@ -16,6 +16,8 @@ import type {
 } from '@transit/shared';
 import { readCache, writeRecent } from './cache';
 import { deviceId } from './device';
+import { wireSteps } from './plans';
+import { progressivePlan } from './progressive';
 
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? '';
 // Ships inside the app, so it's not a secret; the server's rate limits do the real work.
@@ -27,6 +29,8 @@ const TIMEOUT_MS = 15_000;
 const CHAT_TIMEOUT_MS = 90_000; // the assistant may call several tools
 // The server's own planner may load timetables for a new area (up to ~25 s) before it answers.
 const PLAN_TIMEOUT_MS = 40_000;
+// The quick part (TTC's planner alone) is a single lookup.
+const PLAN_QUICK_TIMEOUT_MS = 20_000;
 
 /** Server error with its machine-readable code (`rate_limited`, `upstream`, `unknown_stop`, …). */
 export class ApiRequestError extends Error {
@@ -86,28 +90,46 @@ const planKey = (q: PlanQuery) => `plan:${JSON.stringify(q)}`;
 /** Last plan for this query from the device cache, for instant start. */
 export const cachedPlan = (q: PlanQuery): PlanResponse | null => readCache<PlanResponse>(planKey(q));
 
-/** Itineraries arriving by `q.arriveBy` (Tbilisi `YYYY-MM-DDTHH:mm`). Cached on the phone (last 30 queries). */
-export async function fetchPlan(q: PlanQuery): Promise<PlanResponse> {
-  // A hand-built route goes as a body; the planner's own search is a plain GET.
-  const body = q.steps?.length
-    ? await request<PlanResponse>('/plan/journey', {
+const planUrl = (q: PlanQuery, part?: 'ttc') =>
+  `/plan?${qs({
+    from: `${q.from.lat},${q.from.lon}`,
+    to: `${q.to.lat},${q.to.lon}`,
+    arriveBy: q.arriveBy,
+    modes: q.modes?.join(','),
+    optimize: q.optimize,
+    locale: q.locale,
+    avoid: q.avoid?.routes?.length ? q.avoid.routes.join(',') : undefined,
+    avoidMinibus: q.avoid?.minibus ? 'true' : undefined,
+    part,
+  })}`;
+
+/** The full plan: a hand-built route goes as a body; the planner's own search is a plain GET. */
+const requestPlan = (q: PlanQuery): Promise<PlanResponse> =>
+  q.steps?.length
+    ? request<PlanResponse>('/plan/journey', {
         method: 'POST',
         timeoutMs: PLAN_TIMEOUT_MS,
-        body: { from: q.from, to: q.to, arriveBy: q.arriveBy, steps: q.steps, avoid: q.avoid, locale: q.locale },
+        body: { from: q.from, to: q.to, arriveBy: q.arriveBy, steps: wireSteps(q.steps), avoid: q.avoid, locale: q.locale },
       })
-    : await request<PlanResponse>(
-        `/plan?${qs({
-          from: `${q.from.lat},${q.from.lon}`,
-          to: `${q.to.lat},${q.to.lon}`,
-          arriveBy: q.arriveBy,
-          modes: q.modes?.join(','),
-          optimize: q.optimize,
-          locale: q.locale,
-          avoid: q.avoid?.routes?.length ? q.avoid.routes.join(',') : undefined,
-          avoidMinibus: q.avoid?.minibus ? 'true' : undefined,
-        })}`,
-        { timeoutMs: PLAN_TIMEOUT_MS },
-      );
+    : request<PlanResponse>(planUrl(q), { timeoutMs: PLAN_TIMEOUT_MS });
+
+/**
+ * Itineraries arriving by `q.arriveBy` (Tbilisi `YYYY-MM-DDTHH:mm`). The full
+ * plan is cached on the phone (last 30 queries).
+ *
+ * With `onPartial`, a search of the planner's own (no hand-built steps) also
+ * asks for TTC's planner alone (`part=ttc`) in parallel; that quick answer is
+ * handed to `onPartial` if it comes before the full plan, and is never cached.
+ * A quick request that fails changes nothing. A server that predates `part`
+ * answers it in full (no `partial` flag): that answer is the result, as soon as
+ * it is in. The promise settles with the full plan only; if the full request
+ * fails, the quick answer (if any) has been delivered before it rejects.
+ */
+export async function fetchPlan(q: PlanQuery, { onPartial }: { onPartial?: (plan: PlanResponse) => void } = {}): Promise<PlanResponse> {
+  const body =
+    !onPartial || q.steps?.length
+      ? await requestPlan(q)
+      : await progressivePlan(() => request<PlanResponse>(planUrl(q, 'ttc'), { timeoutMs: PLAN_QUICK_TIMEOUT_MS }), () => requestPlan(q), onPartial);
   writeRecent('plans', planKey(q), body);
   return body;
 }

@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, Image, StyleSheet, TextInput, View, type TextInputInstance } from 'react-native';
-import Animated, { FadeIn, FadeInDown, LayoutAnimationConfig, LinearTransition, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeOut, LayoutAnimationConfig, LinearTransition, useAnimatedKeyboard, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { chatBusy, chatStore, send, type Attachment, type ChatItem } from '../../lib/chat';
 import { AttachSheet } from '../../ui/AttachSheet';
@@ -146,15 +146,38 @@ function Message({ item, onEdit }: { item: ChatItem; onEdit: (prefill: string) =
   );
 }
 
-/** While the server works: a quiet line, no spinner. */
+const THINKING = ['Reading your message…', 'Checking live buses…', 'Comparing every line…', 'Working out when to leave…', 'Almost there…'];
+
+/** While the server works: bouncing dots and a line that changes every few seconds, so a slow answer still feels alive. */
 function Thinking() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((n) => Math.min(n + 1, THINKING.length - 1)), 3000);
+    return () => clearInterval(t);
+  }, []);
   return (
-    <Animated.View entering={FadeIn.delay(300).duration(300)} style={styles.thinking}>
-      <Text variant="body15" color={color.textSecondary}>
-        Working on it…
-      </Text>
+    <Animated.View entering={FadeIn.delay(200).duration(300)} style={styles.thinking}>
+      <View style={styles.dots}>
+        {[0, 1, 2].map((k) => (
+          <Dot key={k} delay={k * 160} />
+        ))}
+      </View>
+      <Animated.View key={i} entering={FadeIn.duration(350)} exiting={FadeOut.duration(150)}>
+        <Text variant="body15" color={color.textSecondary}>
+          {THINKING[i]}
+        </Text>
+      </Animated.View>
     </Animated.View>
   );
+}
+
+function Dot({ delay }: { delay: number }) {
+  const v = useSharedValue(0);
+  useEffect(() => {
+    v.value = withDelay(delay, withRepeat(withSequence(withTiming(1, { duration: 360, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 360, easing: Easing.in(Easing.quad) }), withTiming(0, { duration: 320 })), -1));
+  }, [v, delay]);
+  const style = useAnimatedStyle(() => ({ opacity: 0.3 + 0.7 * v.value, transform: [{ translateY: -5 * v.value }] }));
+  return <Animated.View style={[styles.dot, style]} />;
 }
 
 const styles = StyleSheet.create({
@@ -170,7 +193,9 @@ const styles = StyleSheet.create({
   sentImage: { width: 132, height: 96, borderRadius: radius.md, backgroundColor: color.surfaceMuted },
   sentFile: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 240, backgroundColor: color.surface, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10, ...shadow.soft },
   assistant: { gap: 12 },
-  thinking: { paddingVertical: 4 },
+  thinking: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  dots: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 18 },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: color.ink },
   inputArea: { backgroundColor: color.bg, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12 },
   composer: { backgroundColor: color.surface, borderRadius: 22, borderWidth: 1, borderColor: color.border, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, gap: 4, ...shadow.soft },
   attachment: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.surfaceMuted, borderRadius: radius.md, padding: 8 },

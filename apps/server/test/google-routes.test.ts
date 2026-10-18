@@ -179,7 +179,8 @@ test('merge: one per chain (latest on-time leave, a catchable late one over one 
   const mk = (line: string, dep: string, arr: string): Itinerary => ({
     id: `${line}${dep}`, departAt: `2026-10-19T${dep}:00.000Z`, arriveAt: `2026-10-19T${arr}:00.000Z`,
     durationSec: (Date.parse(`2026-10-19T${arr}:00Z`) - Date.parse(`2026-10-19T${dep}:00Z`)) / 1000, walkSec: 0, walkM: 0, transfers: 0,
-    legs: [{ mode: 'BUS', route: { shortName: line, longName: null, color: null } } as Itinerary['legs'][number]],
+    // Each line has its own stops, so the merge sees different ways (groupWays reads the legs' stops).
+    legs: [{ mode: 'BUS', route: { shortName: line, longName: null, color: null }, from: { name: `A${line}`, lat: 41.0 + Number(line) * 0.005, lon: 44.8, stopId: `s${line}a` }, to: { name: `B${line}`, lat: 41.0 + Number(line) * 0.005, lon: 44.9, stopId: `s${line}b` } } as unknown as Itinerary['legs'][number]],
   });
   const ttc = mk('539', '03:38', '04:42');
   const google = mk('539', '03:50', '04:55');
@@ -194,4 +195,25 @@ test('merge: one per chain (latest on-time leave, a catchable late one over one 
   const out = withGoogle(many, [], { arriveBy: '2026-10-19T09:00' }, 0);
   assert.equal(out.length, MAX_ITINERARIES);
   assert.ok(!out.some((it) => it.legs[0].route!.shortName === '100' || it.legs[0].route!.shortName === '101'));
+});
+
+test('merge: a slower different way is kept over extra options of the same way', async () => {
+  const { withGoogle, MAX_ITINERARIES } = await import('../src/plan/service.ts');
+  const stop = (id: string, lat: number, lon: number) => ({ name: id, lat, lon, stopId: id });
+  const leg = (mode: string, line: string, from: ReturnType<typeof stop>, to: ReturnType<typeof stop>) =>
+    ({ mode, route: { shortName: line, longName: null, color: null }, from, to }) as unknown as Itinerary['legs'][number];
+  const it = (id: string, dep: string, arr: string, legs: Itinerary['legs']): Itinerary => ({
+    id, departAt: `2026-10-19T${dep}:00.000Z`, arriveAt: `2026-10-19T${arr}:00.000Z`,
+    durationSec: (Date.parse(`2026-10-19T${arr}:00Z`) - Date.parse(`2026-10-19T${dep}:00Z`)) / 1000, walkSec: 0, walkM: 0, transfers: legs.length - 1, legs,
+  });
+  const a = stop('a', 41.79, 44.74);
+  const b = stop('b', 41.72, 44.70);
+  const m1 = stop('m1', 41.75, 44.80);
+  const m2 = stop('m2', 41.74, 44.71);
+  // Many buses of one direct way (same stops), all shorter than the metro way.
+  const direct = Array.from({ length: MAX_ITINERARIES + 3 }, (_, i) => it(`d${i}`, `03:${String(10 + i).padStart(2, '0')}`, '04:40', [leg('BUS', String(300 + i), a, b)]));
+  const viaMetro = it('m', '03:00', '04:50', [leg('BUS', '321', a, m1), leg('SUBWAY', '1', m1, m2)]);
+  const out = withGoogle(direct, [viaMetro], { arriveBy: '2026-10-19T09:00' }, 0);
+  assert.equal(out.length, MAX_ITINERARIES);
+  assert.ok(out.includes(viaMetro), 'the metro way survives the cap');
 });

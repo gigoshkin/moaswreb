@@ -22,26 +22,30 @@ const worldY = (lat: number, z: number) => normY(lat) * TILE * 2 ** z;
 interface Props {
   /** A planned route; or, before there is one, just where it starts and ends. */
   itinerary?: Itinerary | null;
+  /** More routes drawn the same way (the other kept ways of a trip). */
+  also?: Itinerary[];
   endpoints?: { from: LatLon; to: LatLon } | null;
   height: number;
   /** Colour the map fades into at the bottom. */
   fadeTo?: string;
 }
 
-export function StaticMap({ itinerary, endpoints, height, fadeTo = color.bg }: Props) {
+export function StaticMap({ itinerary, also, endpoints, height, fadeTo = color.bg }: Props) {
   const [width, setWidth] = useState(0);
 
   const legs = useMemo(
     () =>
       itinerary
-        ? itinerary.legs.map((l) => ({
-            walk: l.mode === 'WALK',
-            points: l.polyline ? decodePolyline(l.polyline) : [l.from, l.to],
-          }))
+        ? [itinerary, ...(also ?? [])].flatMap((x) =>
+            x.legs.map((l) => ({
+              walk: l.mode === 'WALK',
+              points: l.polyline ? decodePolyline(l.polyline) : [l.from, l.to],
+            })),
+          )
         : endpoints
           ? [{ walk: true, points: [endpoints.from, endpoints.to] }]
           : [],
-    [itinerary, endpoints],
+    [itinerary, also, endpoints],
   );
 
   const view = useMemo(() => {

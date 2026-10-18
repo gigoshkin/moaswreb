@@ -1,9 +1,10 @@
-import type { JourneyStep, LatLon, PlanAvoid, StoredTrip } from '@transit/shared';
+import type { LatLon, PlanAvoid, StoredTrip } from '@transit/shared';
 import { fetchPlan, hasApi, syncTrips } from './api';
-import { choose, firstWalkMin, transitLegs } from './plans';
+import { choose, firstWalkMin, transitLegs, wireSteps } from './plans';
 import { settings } from './settings';
 import { persisted } from './store';
 import { nextArriveBy } from './time';
+import { defaultKept, tripWays, waysFields, type RideStep } from './ways';
 
 export interface Place extends LatLon {
   label: string;
@@ -26,8 +27,10 @@ export interface SavedTrip {
   walkMin?: number;
   /** Lines this trip never uses ("not 518", "no microbuses"). Only this trip. */
   avoid?: PlanAvoid;
-  /** A hand-built route: the rides in order. Without it the planner looks at every line that fits. */
-  steps?: JourneyStep[];
+  /** A pinned route (hand-built or a picked way): the rides in order, each with the lines allowed on it. Without it the planner looks at every line that fits. With `ways`, the first of them (what the server's alerts plan with). */
+  steps?: RideStep[];
+  /** Every way ticked for the trip when there are several (see tripWays); the app plans each and uses nothing else. Phone only. */
+  ways?: RideStep[][];
 }
 
 /** True when the avoid list excludes anything. */
@@ -60,7 +63,7 @@ export const toStored = (trips: SavedTrip[]): StoredTrip[] => {
   if (!alerts) return [];
   return trips.flatMap((t) =>
     t.fromStopId && t.toStopId
-      ? [{ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, arriveBy: t.arriveBy, days: [...new Set(tripDays(t))].sort((a, b) => a - b), walkMin: Math.min(60, Math.round((t.walkMin ?? 0) + bufferMin)), ...(hasAvoid(t.avoid) ? { avoid: t.avoid } : {}), ...(t.steps?.length ? { steps: t.steps } : {}) }]
+      ? [{ id: t.id, fromStopId: t.fromStopId, toStopId: t.toStopId, arriveBy: t.arriveBy, days: [...new Set(tripDays(t))].sort((a, b) => a - b), walkMin: Math.min(60, Math.round((t.walkMin ?? 0) + bufferMin)), ...(hasAvoid(t.avoid) ? { avoid: t.avoid } : {}), ...(t.steps?.length ? { steps: wireSteps(t.steps) } : {}) }]
       : [],
   ).slice(0, MAX_SYNCED_TRIPS);
 };
@@ -90,9 +93,11 @@ export const newTripId = () => `t${Date.now().toString(36)}${Math.random().toStr
 /**
  * Stop ids and walk for the server, from a plan of the trip's next
  * occurrence. Without them the trip still works on the phone but gets no
- * pushes, so a failed plan doesn't block saving.
+ * pushes, so a failed plan doesn't block saving. With `keepBest`, a trip that
+ * keeps no way yet keeps the best way of that plan (defaultKept), so a trip
+ * saved from chat follows one route, not whatever the planner finds next time.
  */
-export async function withStops(trip: SavedTrip): Promise<SavedTrip> {
+export async function withStops(trip: SavedTrip, opts: { keepBest?: boolean } = {}): Promise<SavedTrip> {
   if (!hasApi) return trip;
   try {
     const plan = await fetchPlan({ from: trip.from, to: trip.to, arriveBy: nextArriveBy(trip.arriveBy, tripDays(trip)), ...(hasAvoid(trip.avoid) ? { avoid: trip.avoid } : {}), ...(trip.steps?.length ? { steps: trip.steps } : {}) });
@@ -100,7 +105,8 @@ export async function withStops(trip: SavedTrip): Promise<SavedTrip> {
     const it = c.kind === 'none' ? plan.itineraries[0] : c.it;
     const legs = it ? transitLegs(it) : [];
     if (!it || !legs.length) return trip;
-    return { ...trip, fromStopId: legs[0].from.stopId ?? undefined, toStopId: legs.at(-1)!.to.stopId ?? undefined, walkMin: firstWalkMin(it) };
+    const kept = opts.keepBest && !tripWays(trip).length ? defaultKept(plan.itineraries, plan.query.arriveBy, Date.now(), settings.get().bufferMin) : [];
+    return { ...trip, ...(kept.length ? waysFields(kept) : {}), fromStopId: legs[0].from.stopId ?? undefined, toStopId: legs.at(-1)!.to.stopId ?? undefined, walkMin: firstWalkMin(it) };
   } catch {
     return trip;
   }

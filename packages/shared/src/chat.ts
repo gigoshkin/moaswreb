@@ -4,6 +4,7 @@
 // stored on the phone; the server keeps no user data.
 
 import type { JourneyStep, LatLon, PlanAvoid, PlanResponse } from './plan.ts';
+import type { RideStep } from './ways.ts';
 
 export interface ChatAttachment {
   kind: 'image' | 'pdf';
@@ -33,6 +34,10 @@ export interface ChatRequest {
   trips?: TripContext[];
   /** The user's home (Settings), so "from home" needs no question. For this request only. */
   home?: LatLon & { label: string };
+  /** Where the phone is right now, when the user allowed location. For this request only. */
+  here?: LatLon;
+  /** The app can show the Share my location button (the request_location card). Absent in older app versions. */
+  canShareLocation?: boolean;
   /** Extra minutes the user wants on top of the walk (Settings). */
   bufferMin?: number;
   locale?: 'ka' | 'en';
@@ -66,6 +71,14 @@ export interface ProposedTrip {
   arriveBy: string;
   /** ISO weekdays, 1 = Monday; missing = Mon–Fri. */
   days?: number[];
+  /**
+   * The ways ticked on the card (see packages/shared/src/ways.ts): the trip keeps
+   * these and nothing else. Added later: older apps ignore it, and a newer app
+   * without it (older server) plans the trip and ticks the best way itself.
+   */
+  ways?: RideStep[][];
+  /** The plan the ways came from, so the card lists every way with its ticks. */
+  plan?: PlanResponse;
 }
 
 /** What the assistant knows about a planned trip beyond coordinates: names the user would recognise, and when it repeats. */
@@ -108,13 +121,23 @@ export interface ProposedRoute extends ProposedTrip {
   rides?: ProposedRide[];
 }
 
+/** One way of a plan card as plan_trip described it to the model: "direct 302", "321|335 -> metro 1". */
+export interface PlanWay {
+  label: string;
+  /** Itinerary ids of this way, best first. */
+  ids: string[];
+}
+
 export type ActionCard =
-  | { type: 'plan'; plan: PlanResponse; trip?: PlanTripMeta }
+  /** `ways`: the plan's itineraries grouped by structure (groupWays), in the order the model was told ("way 1", "way 2"). Added later; the app groups the same way itself. */
+  | { type: 'plan'; plan: PlanResponse; trip?: PlanTripMeta; ways?: PlanWay[] }
   | { type: 'arrivals'; stop: { id: string; name: string }; arrivals: Arrival[] }
   | { type: 'stops'; stops: StopHit[] }
   | { type: 'confirm_trip'; trip: ProposedTrip }
   | { type: 'confirm_events'; events: ProposedEvent[] }
-  | { type: 'confirm_route'; route: ProposedRoute };
+  | { type: 'confirm_route'; route: ProposedRoute }
+  /** A button that asks the phone for its position and then repeats the question with it. */
+  | { type: 'request_location' };
 
 export interface ChatResponse {
   /** One short sentence; the cards carry the content. */

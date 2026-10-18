@@ -1,15 +1,20 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Keyboard, ScrollView, StyleSheet, TextInput, View, type ScrollViewInstance } from 'react-native';
+import Animated, { FadeIn, FadeOut, useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { buildRoute, buildSteps, takeDraft } from '../../lib/handoff';
+import { keptRows } from '../../lib/keptRows';
+import { nameOfPlace } from '../../lib/nameOfPlace';
 import { tripTourSeen } from '../../lib/onboarding';
+import { DROPPED_PIN } from '../../lib/placeNames';
+import { revealDelta } from '../../lib/reveal';
 import { firstWalkMin, leaveAt, placeName, transitLegs } from '../../lib/plans';
-import { chainOf } from '../../lib/ways';
+import { chainOf, tripWays, waysFields, wayLabel, withBuiltWay } from '../../lib/ways';
 import { settings } from '../../lib/settings';
 import { DAY_SHORT, hhmm, nextArriveBy } from '../../lib/time';
 import { DEFAULT_DAYS, getTrip, newTripId, removeTrip, saveTrip, withStops, type Place, type SavedTrip } from '../../lib/trips';
+import { useNamedPlace } from '../../lib/useNamedPlace';
 import { useNow } from '../../lib/useNow';
 import { useTripPlan } from '../../lib/useTripPlan';
 import { Button } from '../../ui/Button';
@@ -35,22 +40,27 @@ export default function EditTrip() {
     const draft = takeDraft();
     const home = settings.get().home;
     return {
-      name: existing?.name ?? draft?.name,
+      // A trip saved with the old placeholder name takes its destination's name again.
+      name: (existing?.name === DROPPED_PIN ? undefined : existing?.name) ?? draft?.name,
       from: existing?.from ?? draft?.from ?? (home ? { ...home, label: 'Home' } : null),
       to: existing?.to ?? draft?.to ?? null,
       arriveBy: existing?.arriveBy ?? draft?.arriveBy ?? '09:00',
       days: existing?.days ?? draft?.days ?? DEFAULT_DAYS,
       avoid: existing?.avoid ?? draft?.avoid,
-      steps: existing?.steps ?? draft?.steps,
+      ways: tripWays(existing ?? draft ?? {}),
     };
   });
   const [from, setFrom] = useState<Place | null>(init.from);
   const [to, setTo] = useState<Place | null>(init.to);
+  // An end still called "Dropped pin" (a pin from before names were looked up) gets its address.
+  useNamedPlace(from, setFrom);
+  useNamedPlace(to, setTo);
   const [name, setName] = useState(init.name ?? '');
   const [arriveBy, setArriveBy] = useState(init.arriveBy);
   const [days, setDays] = useState<number[]>(init.days);
   const [avoid, setAvoid] = useState(init.avoid);
-  const [steps, setSteps] = useState(init.steps);
+  // The ways kept for the trip (ticked in the route builder, or built by hand); empty: the app picks.
+  const [ways, setWays] = useState(init.ways);
   const [iosPicker, setIosPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   // First open of a NEW trip only; the flag is set when the tour ends (or is skipped).
@@ -65,32 +75,42 @@ export default function EditTrip() {
 
   // Preview of the next occurrence, also the source of the stop ids on save.
   const draftTrip: SavedTrip | null = useMemo(
-    () => (from && to ? { id: existing?.id ?? 'draft', name: '', from, to, arriveBy, days, avoid, steps } : null),
-    [from, to, arriveBy, days.join(), JSON.stringify(avoid), JSON.stringify(steps)],
+    () => (from && to ? { id: existing?.id ?? 'draft', name: '', from, to, arriveBy, days, avoid, ...waysFields(ways) } : null),
+    [from, to, arriveBy, days.join(), JSON.stringify(avoid), JSON.stringify(ways)],
   );
   const date = nextArriveBy(arriveBy, days, now).slice(0, 10);
-  const { choice } = useTripPlan(draftTrip, date, now);
+  const { choice, itineraries } = useTripPlan(draftTrip, date, now);
   const it = choice.kind === 'none' ? null : choice.it;
   const legs = it ? transitLegs(it) : [];
+  const bufferMin = settings.use().bufferMin;
+
+  // The ways the trip keeps, one row each (chain, and leave / arrive times once planned).
+  const rows = useMemo(() => keptRows(ways, itineraries, `${date}T${arriveBy}`, now, bufferMin), [JSON.stringify(ways), itineraries, date, arriveBy, now, bufferMin]);
+  // The map draws what the trip will use: every kept way's pick, else the best option (the soonest one when none is catchable).
+  const drawn = useMemo(() => {
+    const picked = ways.length ? rows.flatMap((r) => (r.it ? [r.it] : [])) : [it ?? itineraries[0]].filter((x) => !!x);
+    return picked.filter((x, i) => picked.findIndex((y) => y.id === x.id) === i);
+  }, [ways.length, rows, it, itineraries]);
 
   const openBuilder = async () => {
-    const r = await buildRoute({ from, to, arriveBy, days, avoid, steps });
+    const r = await buildRoute({ from, to, arriveBy, days, avoid, ...waysFields(ways) });
     if (r) {
       setFrom(r.from);
       setTo(r.to);
       setAvoid(r.avoid);
-      setSteps(r.steps); // a new start or end keeps a hand-built route; only the walks change
+      setWays(tripWays(r)); // a new start or end keeps the kept ways; only the walks change
       if (r.arriveBy) setArriveBy(r.arriveBy); // changed on the route screen
     }
   };
 
   // Straight into the manual builder. Without ends it starts from scratch and takes them from the first and last stop.
   const buildByHand = async () => {
-    const r = await buildSteps({ from, to, arriveBy, days, steps: steps ?? [], avoid });
+    const r = await buildSteps({ from, to, arriveBy, days, steps: ways[0] ?? [], avoid });
     if (!r) return;
     setFrom(r.from);
     setTo(r.to);
-    setSteps(r.steps);
+    // The builder edits the first kept way; the others stay.
+    setWays(withBuiltWay(ways, r.steps));
   };
 
   const changeTime = () => {
@@ -102,7 +122,9 @@ export default function EditTrip() {
   const save = async () => {
     if (!from || !to || saving) return;
     setSaving(true);
-    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || to.label, from, to, arriveBy, days, ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) };
+    // Names still being looked up for a pin are waited for a moment, so the trip is not saved as "Dropped pin".
+    const [namedFrom, namedTo] = await Promise.all([nameOfPlace(from), nameOfPlace(to)]);
+    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || namedTo.label, from: namedFrom, to: namedTo, arriveBy, days, ...(avoid ? { avoid } : {}), ...waysFields(ways) };
     const first = legs[0];
     const trip =
       it && first
@@ -122,7 +144,25 @@ export default function EditTrip() {
     router.dismissAll();
   };
 
-  const bufferMin = settings.use().bufferMin;
+  // The keyboard rides over the screen: the form gets room below the Name field and scrolls it above the keyboard.
+  const keyboard = useAnimatedKeyboard();
+  const lift = useAnimatedStyle(() => ({ height: keyboard.height.value }));
+  const scroll = useRef<ScrollViewInstance>(null);
+  const scrollY = useRef(0);
+  const nameBox = useRef<ViewRef>(null);
+  const nameFocused = useRef(false);
+  const reveal = (keyboardTop: number) =>
+    nameBox.current?.measureInWindow((_x, y, _w, h) => {
+      const d = revealDelta(y + h, keyboardTop);
+      if (d > 0) scroll.current?.scrollTo({ y: scrollY.current + d, animated: true });
+    });
+  useEffect(() => {
+    // After the keyboard is up, so the room under the form has grown to the keyboard's height.
+    const sub = Keyboard.addListener('keyboardDidShow', (e) => {
+      if (nameFocused.current) setTimeout(() => reveal(e.endCoordinates.screenY), 80);
+    });
+    return () => sub.remove();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View style={styles.screen}>
@@ -139,7 +179,15 @@ export default function EditTrip() {
           ) : undefined
         }
       />
-      <ScrollView scrollEnabled={!tour} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scroll}
+        scrollEnabled={!tour}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={16}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}
+      >
         <View ref={arriveRef} collapsable={false}>
         <Card style={styles.arriveCard}>
           <View style={styles.arriveRow}>
@@ -183,7 +231,7 @@ export default function EditTrip() {
         <View ref={routeRef} collapsable={false}>
         {from && to ? (
           <Tap onPress={openBuilder} scaleTo={0.99} style={styles.routeMap} accessibilityRole="button" accessibilityLabel={`Route from ${from.label} to ${to.label}. Change`}>
-            <StaticMap itinerary={it} endpoints={{ from, to }} height={150} fadeTo={color.surface} />
+            <StaticMap itinerary={drawn[0] ?? null} also={drawn.slice(1)} endpoints={{ from, to }} height={150} fadeTo={color.surface} />
             <View style={styles.routeText}>
               <View style={styles.routeLines}>
                 <Text variant="label16" numberOfLines={1}>
@@ -192,7 +240,23 @@ export default function EditTrip() {
                 <Text variant="label16" color={color.textSecondary} numberOfLines={1}>
                   to {to.label}
                 </Text>
-                {it ? (
+                {ways.length ? (
+                  <View style={styles.kept}>
+                    {rows.map((r) => (
+                      <View key={r.key} style={styles.keptRow} accessible accessibilityLabel={`${wayLabel(r.slots)}${r.it && r.leave !== null ? `, leave ${hhmm(r.leave)}, arrive ${hhmm(r.it.arriveAt)}` : ''}`}>
+                        <LineChain slots={r.slots} size="sm" />
+                        {r.it && r.leave !== null ? (
+                          <Animated.View entering={FadeIn.duration(200)} style={styles.keptTime}>
+                            <Text variant="caption" color={color.textSecondary} numberOfLines={1}>
+                              {hhmm(r.leave)} → {hhmm(r.it.arriveAt)}
+                              {r.late ? ' · late' : ''}
+                            </Text>
+                          </Animated.View>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                ) : it ? (
                   <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)} style={styles.preview}>
                     <Text variant="body13" color={color.textSecondary}>
                       Leave around {hhmm(leaveAt(it, bufferMin))}
@@ -217,16 +281,17 @@ export default function EditTrip() {
             feedback="tint"
             style={styles.byHand}
             accessibilityRole="button"
-            accessibilityLabel={steps?.length ? 'Change my hand-built route' : 'Build route by hand, stop by stop'}
+            accessibilityLabel={ways.length ? 'Change my route by hand' : 'Build route by hand, stop by stop'}
           >
             <Icon name="map" size={18} />
             <Text variant="label14" style={styles.byHandText}>
-              {steps?.length ? 'Change my hand-built route' : 'Build route by hand'}
+              {ways.length ? 'Change my route by hand' : 'Build route by hand'}
             </Text>
             <Icon name="chevron-right" size={18} color={color.textTertiary} />
           </Tap>
         </View>
 
+        <View ref={nameBox} collapsable={false}>
         <Card style={styles.nameCard}>
           <Text variant="caption" color={color.textSecondary}>
             Name
@@ -239,15 +304,24 @@ export default function EditTrip() {
             style={styles.nameInput}
             maxLength={40}
             returnKeyType="done"
+            onFocus={() => {
+              nameFocused.current = true;
+              // Keyboard already up (tapping from another field): no new event, so scroll now.
+              const open = Keyboard.metrics();
+              if (open) setTimeout(() => reveal(open.screenY), 80);
+            }}
+            onBlur={() => (nameFocused.current = false)}
             maxFontSizeMultiplier={1.15}
           />
         </Card>
+        </View>
 
         <View style={styles.spacer} />
 
         <View style={styles.bottom}>
           <Button label={saving ? 'Saving…' : 'Save'} onPress={save} disabled={!from || !to || saving} haptic="none" />
         </View>
+        <Animated.View style={lift} />
       </ScrollView>
       {tour && (
         <CoachTour
@@ -308,5 +382,8 @@ const styles = StyleSheet.create({
   routeLines: { flex: 1, gap: 2 },
   spacer: { flex: 1, minHeight: 12 },
   bottom: { gap: 8 },
+  kept: { gap: 6, paddingTop: 6 },
+  keptRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  keptTime: { flexShrink: 1 },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 6 },
 });

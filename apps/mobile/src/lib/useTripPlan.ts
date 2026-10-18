@@ -1,12 +1,13 @@
 import type { Itinerary, PlanQuery } from '@transit/shared';
 import { useMemo } from 'react';
-import { choose, isMetro, leaveAt, routeKey, transitLegs, type Choice } from './plans';
+import { choose, isMetro, leaveAt, routeKey, suggestOther, transitLegs, wireSteps, type Choice, type Suggestion } from './plans';
 import { settings } from './settings';
 import { memory } from './store';
 import { hhmm } from './time';
 import { TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from '@transit/shared';
-import { hasAvoid, type SavedTrip } from './trips';
-import { usePlan } from './usePlan';
+import { hasAvoid, saveTrip, type SavedTrip } from './trips';
+import { usePlans } from './usePlan';
+import { fitsWay, tripWays, variantSteps, waysFields } from './ways';
 
 /** The plan query for a trip on a date (`YYYY-MM-DD`). Only coordinates, so cache keys stay stable. */
 export const tripQuery = (trip: Pick<SavedTrip, 'from' | 'to' | 'arriveBy' | 'avoid' | 'steps'>, date: string): PlanQuery => ({
@@ -14,22 +15,45 @@ export const tripQuery = (trip: Pick<SavedTrip, 'from' | 'to' | 'arriveBy' | 'av
   to: { lat: trip.to.lat, lon: trip.to.lon },
   arriveBy: `${date}T${trip.arriveBy}`,
   ...(hasAvoid(trip.avoid) ? { avoid: trip.avoid } : {}),
-  ...(trip.steps?.length ? { steps: trip.steps } : {}),
+  ...(trip.steps?.length ? { steps: wireSteps(trip.steps) } : {}),
 });
+
+/**
+ * One query per kept way (the app plans each on its own and merges them), or
+ * the trip's own query when it keeps none. Each is the query a single pinned
+ * way always had, so cached plans stay valid.
+ */
+export const tripQueries = (trip: Pick<SavedTrip, 'from' | 'to' | 'arriveBy' | 'avoid' | 'steps' | 'ways'>, date: string): PlanQuery[] => {
+  const ways = tripWays(trip);
+  return ways.length ? ways.map((steps) => tripQuery({ ...trip, steps }, date)) : [tripQuery(trip, date)];
+};
+
+/** The same trip over every line (its kept ways set aside): the list of every way, and the source of suggestions. */
+export const everyLine = <T extends Pick<SavedTrip, 'steps' | 'ways'>>(trip: T): T => ({ ...trip, steps: undefined, ways: undefined });
 
 // The first option seen for each trip and day. When a later re-plan picks a
 // different bus or moves the leave time by 3+ min, Today says what changed.
 const firstSeen = memory<Record<string, { routes: string; leaveAt: number; label: string }>>({});
+
+// Suggestions the rider waved away, per trip and day.
+const dismissed = memory<Record<string, true>>({});
 
 export interface TripPlan {
   choice: Choice;
   /** One line when the plan moved since it was first shown today, e.g. "Switch to 17 — leave at 08:16". */
   change: string | null;
   refreshing: boolean;
+  /** True while only the quick part of the plan is in (the full plan follows; `refreshing` is true too). */
+  partial: boolean;
   error: string | null;
   loaded: boolean;
   itineraries: Itinerary[];
+  /** A way outside the kept ones, only when every kept way missed and it is faster (opts.suggest; see suggestOther). */
+  suggestion: TripSuggestion | null;
 }
+
+/** A suggested way and the all-lines plan it came from (its variations, for keeping it). */
+export type TripSuggestion = Suggestion & { all: Itinerary[] };
 
 export const rideLabel = (it: Itinerary) => {
   const first = transitLegs(it)[0];
@@ -37,42 +61,60 @@ export const rideLabel = (it: Itinerary) => {
   return `${isMetro(first) ? 'Metro' : 'Bus'} ${first.route?.shortName ?? ''}`.trim();
 };
 
-export function useTripPlan(trip: SavedTrip | null, date: string, now: number, opts: { refreshMs?: number; trackChanges?: boolean } = {}): TripPlan {
-  const query = useMemo(() => (trip ? tripQuery(trip, date) : null), [trip?.from.lat, trip?.from.lon, trip?.to.lat, trip?.to.lon, trip?.arriveBy, date, JSON.stringify(trip?.avoid), JSON.stringify(trip?.steps)]);
-  const main = usePlan(query, { refreshMs: opts.refreshMs });
+export function useTripPlan(trip: SavedTrip | null, date: string, now: number, opts: { refreshMs?: number; trackChanges?: boolean; suggest?: boolean } = {}): TripPlan {
+  const queries = useMemo(() => (trip ? tripQueries(trip, date) : null), [trip?.from.lat, trip?.from.lon, trip?.to.lat, trip?.to.lon, trip?.arriveBy, date, JSON.stringify(trip?.avoid), JSON.stringify(trip?.steps), JSON.stringify(trip?.ways)]);
+  const query = queries?.[0] ?? null;
+  const main = usePlans(queries, { refreshMs: opts.refreshMs });
   const bufferMin = settings.use().bufferMin;
   const mainChoice = useMemo(() => (query && main.plan ? choose(main.plan.itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [main.plan, query, now, bufferMin]);
 
   // Once the last bus that arrives in time has gone, "arrive by" plans come back empty. Ask again with a
   // later deadline (rounded to 15 min, so the query stays stable) to still show the soonest arrival, marked late.
-  const lateQuery = useMemo(() => {
-    if (!query || !main.plan || mainChoice.kind !== 'none') return null;
+  // Every kept way is asked again, and only those: a trip with ways never falls back to other lines.
+  const lateQueries = useMemo(() => {
+    // Not on the quick part alone: the full plan may well still have a ride that arrives in time.
+    if (!queries || !query || !main.plan || main.partial || mainChoice.kind !== 'none') return null;
     const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '');
     // Long enough to include a ride leaving now: the trip's own duration (from the plans just received) plus a margin.
     const longest = Math.max(0, ...main.plan.itineraries.map((i) => i.durationSec)) * 1000;
     const later = Math.ceil((now + Math.max(60 * 60_000, longest + 30 * 60_000)) / (15 * 60_000)) * 15 * 60_000;
     if (!(deadline < later)) return null;
-    return { ...query, arriveBy: new Date(later + TBILISI_UTC_OFFSET_MIN * 60_000).toISOString().slice(0, 16) };
-  }, [query, main.plan, mainChoice.kind, Math.floor(now / (15 * 60_000))]);
-  const retry = usePlan(lateQuery, { refreshMs: opts.refreshMs });
-  const second = lateQuery && retry.plan ? { ...retry, error: null } : main;
+    const arriveBy = new Date(later + TBILISI_UTC_OFFSET_MIN * 60_000).toISOString().slice(0, 16);
+    return queries.map((q) => ({ ...q, arriveBy }));
+  }, [queries, query, main.plan, main.partial, mainChoice.kind, Math.floor(now / (15 * 60_000))]);
+  const retry = usePlans(lateQueries, { refreshMs: opts.refreshMs });
+  const second = lateQueries && retry.plan ? { ...retry, error: null } : main;
   const secondChoice = useMemo(() => (query && second.plan ? choose(second.plan.itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [second.plan, query, now, bufferMin]);
 
-  // A pinned route (hand-built, or the one picked in chat) that gives nothing, not even a late one, must not end in "No route
-  // found": plan the trip without the pinned rides, so the fastest way still shows (marked late when it is).
-  const looseQuery = useMemo(() => {
-    if (!query?.steps?.length || !second.plan || secondChoice.kind !== 'none') return null;
-    const { steps: _pinned, ...loose } = lateQuery ?? query;
-    return loose as PlanQuery;
-  }, [query, lateQuery, second.plan, secondChoice.kind]);
-  const loose = usePlan(looseQuery, { refreshMs: opts.refreshMs });
-
-  const { plan, refreshing, error } = looseQuery && loose.plan ? { ...loose, error: null } : second;
+  // A pinned route never falls back to a different one: it may be late, but it stays the route the user picked.
+  const { plan, refreshing, partial, error } = second;
   const itineraries = plan?.itineraries ?? [];
   const choice = useMemo(() => (query ? choose(itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [itineraries, query, now, bufferMin]);
 
+  // Another way, offered beside the kept one (never in its place), only when every kept way missed: no kept ride
+  // arrives by the arrive-by time any more. Only then is the all-lines plan asked for, at the trip's own arrive-by and,
+  // when the kept ways needed the later look, at that later time too (to find a way that is late but sooner).
+  const kept = trip ? tripWays(trip) : [];
+  const keepsWays = kept.length > 0;
+  const waved = dismissed.use();
+  const missed = !!opts.suggest && keepsWays && plan !== null && !partial && choice.kind !== 'onTime' && !(trip && waved[`${trip.id}|${date}`]);
+  const otherQueries = useMemo(() => {
+    if (!missed || !trip || !query) return null;
+    const anyLine = tripQuery(everyLine(trip), date);
+    return lateQueries ? [anyLine, { ...anyLine, arriveBy: lateQueries[0].arriveBy }] : [anyLine];
+  }, [missed, query, lateQueries]); // eslint-disable-line react-hooks/exhaustive-deps
+  const others = usePlans(otherQueries, { refreshMs: opts.refreshMs });
+  const suggestion = useMemo(() => {
+    if (!otherQueries || !others.plan || !query) return null;
+    const all = others.plan.itineraries;
+    const other = choose(all.filter((it) => !kept.some((k) => fitsWay(k, it))), query.arriveBy, now, bufferMin);
+    const s = suggestOther({ keepsWays, kept: choice, other });
+    return s ? { ...s, all } : null;
+  }, [otherQueries, others.plan, query, now, bufferMin, choice]); // eslint-disable-line react-hooks/exhaustive-deps
+
   let change: string | null = null;
-  if (opts.trackChanges && trip && choice.kind !== 'none') {
+  // Not on the quick part: the full plan may pick another ride, which is not a change in the plan.
+  if (opts.trackChanges && trip && choice.kind !== 'none' && !partial) {
     const key = `${trip.id}|${date}`;
     const seen = firstSeen.get()[key];
     const current = { routes: routeKey(choice.it), leaveAt: leaveAt(choice.it, bufferMin), label: rideLabel(choice.it) };
@@ -90,5 +132,15 @@ export function useTripPlan(trip: SavedTrip | null, date: string, now: number, o
     }
   }
 
-  return { choice, change, refreshing, error, loaded: plan !== null, itineraries };
+  return { choice, change, refreshing, partial, error, loaded: plan !== null, itineraries, suggestion: missed ? suggestion : null };
+}
+
+/** Wave a suggestion away: it doesn't come back for that trip that day. */
+export const dismissSuggestion = (tripId: string, date: string) => dismissed.set({ ...dismissed.get(), [`${tripId}|${date}`]: true });
+
+/** Keep the suggested way: tick it into the trip's ways, with every variation of it in the plan it came from. */
+export function keepSuggestion(trip: SavedTrip, s: TripSuggestion): void {
+  const steps = variantSteps(s.it, s.all);
+  if (!steps) return;
+  saveTrip({ ...trip, ...waysFields([...tripWays(trip), steps]) });
 }

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { kindOf, leaveAt, transitLegs } from '../lib/plans';
-import { chainOf, groupWays, type Way } from '../lib/ways';
+import { chainOf, groupWays, isTicked, toggleWay, type RideStep, type Way } from '../lib/ways';
 import { hhmm } from '../lib/time';
 import { Icon } from './Icon';
 import { LineChain } from './LineChain';
@@ -19,6 +19,10 @@ import { color, radius } from './theme';
 // you there), an arrow means you change. Tap a way to open it, see each option
 // and show it on the map. Excluding a line is done once, for the route on top
 // of the list; the avoid list belongs to this trip only.
+// With `onKeep` the list is a checklist: every ticked row is a way the trip
+// keeps (with all its variations), and the trip uses those and nothing else.
+// Tapping a row ticks or unticks it and shows it on the map; at least one
+// stays ticked.
 
 interface Props {
   itineraries: Itinerary[];
@@ -33,6 +37,10 @@ interface Props {
   loading?: boolean;
   onSelect?: (it: Itinerary) => void;
   onAvoid: (avoid: PlanAvoid | undefined) => void;
+  /** The ways the trip keeps (ticked rows); empty when the app picks. */
+  kept?: RideStep[][];
+  /** Turns on the checkboxes: called with the new set of kept ways. */
+  onKeep?: (ways: RideStep[][]) => void;
 }
 
 const tidy = (names: string[]): PlanAvoid | undefined => {
@@ -43,7 +51,7 @@ const tidy = (names: string[]): PlanAvoid | undefined => {
 /** Lines of an itinerary that can be avoided (metro can't). */
 const avoidable = (it: Itinerary) => transitLegs(it).filter((l) => l.mode !== 'SUBWAY');
 
-export function Ways({ itineraries, chosenId, selectedId, now, bufferMin, avoid, loading, onSelect, onAvoid }: Props) {
+export function Ways({ itineraries, chosenId, selectedId, now, bufferMin, avoid, loading, onSelect, onAvoid, kept = [], onKeep }: Props) {
   const [open, setOpen] = useState<string | null>(null);
   const skipped = avoid?.routes ?? [];
   const ways = groupWays(itineraries, bufferMin);
@@ -82,7 +90,19 @@ export function Ways({ itineraries, chosenId, selectedId, now, bufferMin, avoid,
         )
       ) : (
         ways.map((w) => (
-          <WayCard key={w.key} way={w} open={open === w.key} activeId={activeId} chosenId={chosenId} now={now} bufferMin={bufferMin} onToggle={() => setOpen(open === w.key ? null : w.key)} onSelect={onSelect} />
+          <WayCard
+            key={w.key}
+            way={w}
+            open={open === w.key}
+            activeId={activeId}
+            chosenId={chosenId}
+            now={now}
+            bufferMin={bufferMin}
+            onToggle={() => setOpen(open === w.key ? null : w.key)}
+            onSelect={onSelect}
+            ticked={onKeep ? isTicked(w, kept) : undefined}
+            onTick={onKeep ? () => onKeep(toggleWay(kept, w, itineraries)) : undefined}
+          />
         ))
       )}
       {chosen && avoidable(chosen).length > 0 && (
@@ -102,25 +122,48 @@ export function Ways({ itineraries, chosenId, selectedId, now, bufferMin, avoid,
   );
 }
 
-function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSelect }: { way: Way; open: boolean; activeId?: string; chosenId?: string; now: number; bufferMin: number; onToggle: () => void; onSelect?: (it: Itinerary) => void }) {
+interface CardProps {
+  way: Way;
+  open: boolean;
+  activeId?: string;
+  chosenId?: string;
+  now: number;
+  bufferMin: number;
+  onToggle: () => void;
+  onSelect?: (it: Itinerary) => void;
+  /** Checklist mode: whether the trip keeps this way, and the tap that ticks or unticks it. */
+  ticked?: boolean;
+  onTick?: () => void;
+}
+
+function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSelect, ticked, onTick }: CardProps) {
   const best = way.its[0];
   const leave = leaveAt(best, bufferMin);
   const gone = leave < now - 60_000;
   const current = way.its.some((it) => it.id === activeId);
   const min = Math.max(1, Math.round(best.durationSec / 60));
+  const many = way.its.length > 1;
+  const chevron = (
+    <View style={{ transform: [{ rotate: open ? '-90deg' : '90deg' }] }}>
+      <Icon name="chevron-right" size={18} color={color.textTertiary} />
+    </View>
+  );
   return (
     <Card style={[styles.card, current && styles.current, gone && styles.gone]}>
       <Tap
         onPress={() => {
           haptic('selection');
-          onToggle();
+          // A checklist row ticks; its variations open from the chevron instead.
+          if (onTick) onTick();
+          else onToggle();
           onSelect?.(best);
         }}
         scaleTo={0.99}
         style={styles.head}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
+        accessibilityRole={onTick ? 'checkbox' : 'button'}
+        accessibilityState={onTick ? { checked: !!ticked } : { expanded: open }}
       >
+        {onTick && <TickBox on={!!ticked} />}
         <View style={styles.headMain}>
           <LineChain slots={way.slots} />
           <Text variant="caption" color={color.textSecondary}>
@@ -130,14 +173,17 @@ function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSe
         </View>
         <View style={styles.headSide}>
           <Text variant="label16">{gone ? 'Gone' : hhmm(leave)}</Text>
-          {way.its.length > 1 && (
-            <View style={{ transform: [{ rotate: open ? '-90deg' : '90deg' }] }}>
-              <Icon name="chevron-right" size={18} color={color.textTertiary} />
-            </View>
-          )}
+          {many &&
+            (onTick ? (
+              <Tap onPress={onToggle} hitSlop={10} scaleTo={0.9} accessibilityRole="button" accessibilityLabel="Show each line of this way" accessibilityState={{ expanded: open }}>
+                {chevron}
+              </Tap>
+            ) : (
+              chevron
+            ))}
         </View>
       </Tap>
-      {open && way.its.length > 1 && (
+      {open && many && (
         <Animated.View entering={FadeIn.duration(160)} style={styles.detail}>
           {way.its.map((it) => (
             <Tap key={it.id} onPress={() => onSelect?.(it)} feedback="tint" style={[styles.opt, it.id === activeId && styles.optOn]} accessibilityRole="button">
@@ -153,6 +199,11 @@ function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSe
   );
 }
 
+/** The tick of a way row; the same box on every list of ways (trip screens, route builder, chat cards). */
+export function TickBox({ on }: { on: boolean }) {
+  return <View style={[styles.box, on && styles.boxOn]}>{on && <Icon name="check" size={14} color={color.onInk} />}</View>;
+}
+
 const styles = StyleSheet.create({
   wrap: { gap: 8 },
   flex: { flex: 1 },
@@ -164,6 +215,8 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
   headMain: { flex: 1, gap: 6 },
   headSide: { alignItems: 'flex-end', gap: 4 },
+  box: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: color.border, alignItems: 'center', justifyContent: 'center' },
+  boxOn: { borderColor: color.ink, backgroundColor: color.ink },
   detail: { gap: 4, paddingHorizontal: 8, paddingBottom: 12 },
   opt: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 6, borderRadius: radius.sm },
   optOn: { backgroundColor: color.surfaceMuted },

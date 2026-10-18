@@ -5,12 +5,13 @@ import { createTools } from '../src/tools/index.ts';
 import { StopIndex } from '../src/ttc/stops.ts';
 import { fakeSource, fakeTtc } from './fakes.ts';
 
-const setup = (withSource = true) => {
+const setup = (withSource = true, locationButton = false) => {
   const ttc = fakeTtc();
   const stops = new StopIndex(ttc);
   const tools = createTools({
     ttc, stops, plans: new PlanService(ttc, stops), geo: { search: async () => [], reverse: async () => null },
     ...(withSource ? { source: fakeSource() } : {}),
+    locationButton,
   });
   const run = (name: string, input: unknown) => {
     const t = tools.find((t) => t.name === name)!;
@@ -68,15 +69,26 @@ test('find_place reads GeoJSON coordinates as lat,lon', async () => {
 });
 
 test('proposals only produce confirm cards; chat-only tools are not on MCP', async () => {
-  const { tools, run } = setup();
+  const { tools: without } = setup();
+  assert.ok(!without.some((t) => t.name === 'request_location'), 'withheld from apps that cannot show the button');
+  const { tools, run } = setup(true, true);
   const trip = { name: 'სახლი → სამსახური', from: { label: 'სახლი', lat: 41.71, lon: 44.82 }, to: { label: 'სამსახური', lat: 41.72, lon: 44.77 }, arriveBy: '09:00' };
-  assert.deepEqual((await run('propose_trip', trip)).card, { type: 'confirm_trip', trip });
+  const proposed = await run('propose_trip', trip);
+  assert.equal(proposed.card?.type, 'confirm_trip');
+  if (proposed.card?.type !== 'confirm_trip') return;
+  const { ways, plan, ...rest } = proposed.card.trip;
+  assert.deepEqual(rest, trip);
+  // The card ticks the best way of the trip's plan (never just From/To) and carries the plan for its rows.
+  assert.equal(ways?.length, 1);
+  assert.ok(plan && plan.itineraries.length > 0);
+  assert.match(proposed.text, /way 1: .*\[ticked\]/);
   const ev = await run('propose_events', { events: [{ title: 'Math', days: [1, 3], start: '10:00', end: '11:30', place: 'Free Uni' }] });
   assert.equal(ev.card?.type, 'confirm_events');
   const dup = await run('propose_events', { events: [{ title: 'Math', days: [3, 1, 3], start: '10:00', end: null, place: null }] });
   assert.deepEqual(dup.card?.type === 'confirm_events' && dup.card.events[0].days, [1, 3], 'repeated days would make /me/trips reject every trip');
   assert.deepEqual(tools.filter((t) => t.mcp).map((t) => t.name), ['find_stop', 'find_place', 'next_arrivals', 'plan_trip', 'stops_near', 'lines_at_stop']);
-  assert.deepEqual(tools.filter((t) => !t.mcp).map((t) => t.name), ['parse_maps_link', 'propose_trip', 'propose_route', 'propose_events']);
+  assert.deepEqual(tools.filter((t) => !t.mcp).map((t) => t.name), ['parse_maps_link', 'request_location', 'propose_trip', 'propose_route', 'propose_events']);
+  assert.deepEqual((await run('request_location', {})).card, { type: 'request_location' });
 });
 
 test('plan_trip passes avoid / modes to the planner and drops avoided lines', async () => {
@@ -118,6 +130,7 @@ test('propose_route checks rides against TTC lines and the avoid list; card only
   assert.deepEqual(ok.card.route.avoid, { minibus: true });
   assert.deepEqual(ok.card.route.rides, [{ from: 'Free University', to: 'Station Square', routes: ['306'] }]);
   assert.deepEqual(ok.card.route.steps, [{ fromStops: ['1:1405'], toStops: ['1:3000'] }]);
+  assert.deepEqual(ok.card.route.ways, [ok.card.route.steps], 'the hand-built route is the way the trip keeps');
   // Only the avoided minibus fits: refused, no card.
   const bad = await run('propose_route', { ...base, avoid: { minibus: true }, steps: [{ fromStops: ['1:1405'], toStops: ['1:3000'], routes: ['518'] }] });
   assert.equal(bad.card, undefined);
@@ -125,5 +138,10 @@ test('propose_route checks rides against TTC lines and the avoid list; card only
   assert.match((await run('propose_route', { ...base, steps: [{ fromStops: ['1:9999'], toStops: ['1:3000'] }] })).text, /unknown stop 1:9999/);
   // Avoid only, no steps.
   const avoidOnly = await run('propose_route', { ...base, avoid: { routes: ['518'] } });
-  assert.deepEqual(avoidOnly.card, { type: 'confirm_route', route: { ...base, avoid: { routes: ['518'] } } });
+  assert.equal(avoidOnly.card?.type, 'confirm_route');
+  if (avoidOnly.card?.type !== 'confirm_route') return;
+  const { ways, plan, ...route } = avoidOnly.card.route;
+  assert.deepEqual(route, { ...base, avoid: { routes: ['518'] } });
+  assert.equal(ways?.length, 1, 'avoid only: the best way is ticked');
+  assert.deepEqual(plan?.query.avoid, { routes: ['518'] });
 });

@@ -1,18 +1,12 @@
 import { StyleSheet, View } from 'react-native';
-import type { Kind } from '../lib/plans';
+import type { Slot } from '@transit/shared';
 import { Icon } from './Icon';
 import { RoutePlate } from './RoutePlate';
 import { Text } from './Text';
 import { color } from './theme';
 
-/** One line of a ride. */
-export interface LineRef {
-  label: string;
-  kind: Kind;
-}
-
-/** One ride of a trip: the lines that can do it. More than one means "any of these" (same stops). */
-export type Slot = LineRef[];
+/** One line of a ride, and one ride (the lines that can do it): the shared route model's types. */
+export type { LineRef, Slot } from '@transit/shared';
 
 interface Props {
   slots: Slot[];
