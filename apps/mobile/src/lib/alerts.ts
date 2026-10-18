@@ -5,7 +5,9 @@ import { Platform } from 'react-native';
 import { hasApi, registerPushToken, syncTrips } from './api';
 import { t } from './strings';
 import { isExpoGo } from './kv';
-import { cancelLeaveCard, startLeaveCard } from './leaveCard';
+import { ask } from '../ui/Dialog';
+import { cancelLeaveCard, exactAlarmsAllowed, openExactAlarmSettings, startLeaveCard } from './leaveCard';
+import { persisted } from './store';
 import { hhmm } from './time';
 import { listTrips, toStored } from './trips';
 
@@ -18,6 +20,21 @@ const Notifications: typeof NotificationsModule | null = isExpoGo ? null : requi
 Notifications?.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
 });
+
+const exactAlarmsAsked = persisted<boolean>('alerts:exact-alarms-asked', false);
+
+/** Android 12+: the leave card appears on time only with "Alarms & reminders" allowed. Explained once, right after notifications. */
+async function askExactAlarms() {
+  if (exactAlarmsAsked.get() || (await exactAlarmsAllowed()) !== false) return;
+  exactAlarmsAsked.set(true);
+  const ok = await ask({
+    title: 'Allow exact alarms?',
+    message: 'Android needs "Alarms & reminders" so the leave card and alerts show at the right minute, not minutes late.',
+    confirm: 'Open settings',
+    cancel: 'Not now',
+  });
+  if (ok) openExactAlarmSettings();
+}
 
 /**
  * Ask for notification permission, create the channel and send the push token
@@ -35,6 +52,7 @@ export async function setUpAlerts(): Promise<'ok' | 'denied' | 'no-server' | 'si
   if (!granted) return 'denied';
   // The Android countdown card (dev build only; does nothing elsewhere).
   startLeaveCard().catch(() => {});
+  await askExactAlarms().catch(() => {});
   if (!hasApi) return 'no-server';
   // A failed sync must not block the token: the next trip change or app start syncs again.
   await syncTrips(toStored(listTrips())).catch(() => {});
