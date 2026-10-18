@@ -326,6 +326,19 @@ export function bestWay(ways: Way[], arriveByLocal: string, now: number, bufferM
 }
 
 /**
+ * The ways a chat card starts with ticked: the card's own (the server ticked
+ * them), else a hand-built route's rides, else the plan's (its hand-built steps,
+ * or the best way). Empty only when there is no plan yet.
+ */
+export function cardKept(card: { ways?: RideStep[][]; steps?: RideStep[]; plan?: PlanResponse | null }, now: number, bufferMin = 0): RideStep[][] {
+  if (card.ways?.length) return card.ways;
+  if (card.steps?.length) return [card.steps];
+  if (!card.plan) return [];
+  if (card.plan.query.steps?.length) return [card.plan.query.steps];
+  return defaultKept(card.plan.itineraries, card.plan.query.arriveBy, now, bufferMin);
+}
+
+/**
  * The ways to keep when a plan is saved and nothing is ticked yet: the ways
  * `names` name (see namesWay), else the best way alone, so a saved trip always
  * keeps a way and never falls back to "any route".

@@ -11,6 +11,6 @@ export { STOP_ID_PATTERN } from './stops.ts';
 export { leaveAtMs, leaveMarginMin } from './leave.ts';
 export type { Choice, Kind, LineRef, RideStep, Slot, Way } from './ways.ts';
 export {
-  NEAR_M, bestWay, chainOf, choose, defaultKept, firstWalkMin, fitsWay, groupWays, isTicked, kindOf, leaveAt, mergeItineraries, mergePlans,
+  NEAR_M, bestWay, cardKept, chainOf, choose, defaultKept, firstWalkMin, fitsWay, groupWays, isTicked, kindOf, leaveAt, mergeItineraries, mergePlans,
   namesWay, sameWay, slotsFor, structureOf, toggleWay, transitLegs, tripWays, variantSteps, wayKey, wayLabel, waysFields, wireSteps,
 } from './ways.ts';

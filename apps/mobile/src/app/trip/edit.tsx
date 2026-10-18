@@ -105,7 +105,7 @@ export default function EditTrip() {
   const save = async () => {
     if (!from || !to || saving) return;
     setSaving(true);
-    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || to.label, from, to, arriveBy, days, ...(avoid ? { avoid } : {}), ...(ways.length > 1 ? { ways } : {}), ...(ways.length ? { steps: ways[0] } : {}) };
+    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || to.label, from, to, arriveBy, days, ...(avoid ? { avoid } : {}), ...waysFields(ways) };
     const first = legs[0];
     const trip =
       it && first

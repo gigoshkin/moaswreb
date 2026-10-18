@@ -1,15 +1,15 @@
 import type { ActionCard, Itinerary, LatLon, PlanAvoid, PlanResponse, PlanTripMeta, ProposedEvent, ProposedRoute, ProposedTrip } from '@transit/shared';
 import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { fetchPlan, searchPlaces } from '../lib/api';
+import { fetchPlan, hasApi, searchPlaces } from '../lib/api';
 import { markCard, replaceCard, say } from '../lib/chat';
 import { openNewTrip, openPreview, pickPlace } from '../lib/handoff';
 import { choose, placeName } from '../lib/plans';
-import { chainOf } from '../lib/ways';
+import { bestWay, cardKept, groupWays, isTicked, toggleWay, wayLabel, waysFields, type RideStep, type Way } from '../lib/ways';
 import { settings, updateSettings } from '../lib/settings';
-import { daysText, hhmm, relativeDay } from '../lib/time';
+import { daysText, hhmm, nextArriveBy, relativeDay } from '../lib/time';
 import { DEFAULT_DAYS, newTripId, saveTrip, withStops, type Place } from '../lib/trips';
 import { Button } from './Button';
 import { Icon, type IconName } from './Icon';
@@ -17,7 +17,9 @@ import { LineChain } from './LineChain';
 import { RoutePlate } from './RoutePlate';
 import { Sheet } from './Sheet';
 import { Tap, haptic } from './Tap';
+import { Busy } from './Spinner';
 import { Text } from './Text';
+import { TickBox } from './Ways';
 import { color, font, radius, shadow } from './theme';
 
 // Action cards under an assistant reply (Figma "Chat / plan", "Chat /
@@ -116,9 +118,15 @@ function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanR
   const [picked, setPicked] = useState<Date | null>(null);
   const arriveBy = plan.query.arriveBy;
   const date = arriveBy.slice(0, 10);
-  const best = choose(plan.itineraries, arriveBy, Date.now());
-  const bestId = best.kind === 'none' ? null : best.it.id;
-  const rows = [...plan.itineraries].sort((a, b) => (a.id === bestId ? -1 : b.id === bestId ? 1 : Date.parse(a.departAt) - Date.parse(b.departAt))).slice(0, 3);
+  const bufferMin = settings.use().bufferMin;
+  // The ways the trip will keep, ticked on the rows. Nothing ticked yet: the best way is ticked (defaultKept),
+  // so Save always keeps a way and never saves a bare From/To that could later show any route.
+  // A hand-built plan keeps its own rides (cardKept).
+  const [kept, setKept] = useState<RideStep[][]>(() => cardKept({ plan }, Date.now(), bufferMin));
+  // A plan for another time may find rows the first one didn't: tick the best of them when none is ticked.
+  useEffect(() => {
+    if (!kept.length) setKept(cardKept({ plan }, Date.now(), bufferMin));
+  }, [plan]); // eslint-disable-line react-hooks/exhaustive-deps
   const first = plan.itineraries[0];
   const from = labelFor(plan.query.from, meta?.from ?? first?.legs[0]?.from.name, 'Start');
   const to = labelFor(plan.query.to, meta?.to ?? first?.legs.at(-1)?.to.name, 'Destination');
@@ -158,19 +166,25 @@ function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanR
           <Button
             label="Save"
             style={styles.flex}
+            disabled={!kept.length}
             onPress={() => {
               markCard(itemId, index, 'Opened in New trip');
-              const { avoid, steps } = plan.query;
-              openNewTrip({ name: tripName, from, to, arriveBy: arriveBy.slice(11, 16), ...(meta?.days?.length ? { days: meta.days } : {}), ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) });
+              const { avoid } = plan.query;
+              // Exactly the ticked ways, as every other screen saves them (waysFields).
+              openNewTrip({ name: tripName, from, to, arriveBy: arriveBy.slice(11, 16), ...(meta?.days?.length ? { days: meta.days } : {}), ...(avoid ? { avoid } : {}), ...waysFields(kept) });
             }}
           />
         </Actions>
       }
     >
-      {rows.map((it, i) => (
-        <PlanRow key={it.id} it={it} best={it.id === bestId} border={i < rows.length - 1} onPress={() => openPreview({ plan, itineraryId: it.id, name: tripName, from, to, ...(meta?.days?.length ? { days: meta.days } : {}) })} />
-      ))}
-      {!rows.length && (
+      <WayRows
+        its={plan.itineraries}
+        arriveBy={arriveBy}
+        kept={kept}
+        onKeep={setKept}
+        onOpen={(it) => openPreview({ plan, itineraryId: it.id, name: tripName, from, to, ...(meta?.days?.length ? { days: meta.days } : {}) })}
+      />
+      {!plan.itineraries.length && (
         <Text variant="body15" color={color.textSecondary}>
           No route found for that time.
         </Text>
@@ -201,21 +215,97 @@ function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanR
   );
 }
 
-function PlanRow({ it, best, border, onPress }: { it: Itinerary; best: boolean; border: boolean; onPress: () => void }) {
+/** Rows shown on a chat card; the assistant numbers the ways in the same order ("way 1", "way 2"). */
+const MAX_WAY_ROWS = 6;
+
+/**
+ * The ways of a plan as tick rows: the same grouping, ticks and labels as the
+ * trip screens and the assistant (groupWays, isTicked, toggleWay, wayLabel). The
+ * box ticks a way; the rest of the row opens its best option, or ticks when
+ * there is nothing to open.
+ */
+function WayRows({ its, arriveBy, kept, onKeep, onOpen }: { its: Itinerary[]; arriveBy: string; kept: RideStep[][]; onKeep: (ways: RideStep[][]) => void; onOpen?: (it: Itinerary) => void }) {
+  const bufferMin = settings.use().bufferMin;
+  const now = Date.now();
+  // Grouped without the buffer, as the server does, so the rows are in the order the assistant numbered them.
+  const ways = groupWays(its).slice(0, MAX_WAY_ROWS);
+  const best = bestWay(ways, arriveBy, now, bufferMin);
   return (
-    <Tap onPress={onPress} scaleTo={0.98} style={[styles.planRow, border && styles.rowBorder]} accessibilityRole="button">
-      <View style={styles.planTime}>
-        <Text variant="title26" color={best ? color.text : color.textSecondary}>
-          {hhmm(it.departAt)}
-        </Text>
-        <Text variant="caption" color={color.textSecondary}>
-          {Math.round(it.durationSec / 60)} min
-        </Text>
-      </View>
-      <View style={styles.plates}>
-        <LineChain slots={chainOf(it)} size="sm" />
-      </View>
-    </Tap>
+    <>
+      {ways.map((w, i) => {
+        const c = choose(w.its, arriveBy, now, bufferMin);
+        const it = c.kind === 'none' ? w.its[0] : c.it;
+        const tick = () => {
+          haptic('selection');
+          onKeep(toggleWay(kept, w, its));
+        };
+        return <PlanRow key={w.key} way={w} it={it} best={w === best} ticked={isTicked(w, kept)} border={i < ways.length - 1} onTick={tick} onPress={onOpen ? () => onOpen(it) : tick} />;
+      })}
+    </>
+  );
+}
+
+function PlanRow({ way, it, best, ticked, border, onTick, onPress }: { way: Way; it: Itinerary; best: boolean; ticked: boolean; border: boolean; onTick: () => void; onPress: () => void }) {
+  return (
+    <View style={[styles.planRow, border && styles.rowBorder]}>
+      <Tap onPress={onTick} hitSlop={10} scaleTo={0.9} accessibilityRole="checkbox" accessibilityState={{ checked: ticked }} accessibilityLabel={`Keep ${wayLabel(way.slots)}`}>
+        <TickBox on={ticked} />
+      </Tap>
+      <Tap onPress={onPress} scaleTo={0.98} style={styles.planRowMain} accessibilityRole="button">
+        <View style={styles.planTime}>
+          <Text variant="title26" color={best ? color.text : color.textSecondary}>
+            {hhmm(it.departAt)}
+          </Text>
+          <Text variant="caption" color={color.textSecondary}>
+            {Math.round(it.durationSec / 60)} min
+          </Text>
+        </View>
+        <View style={styles.plates}>
+          <LineChain slots={way.slots} size="sm" />
+        </View>
+      </Tap>
+    </View>
+  );
+}
+
+/**
+ * The ways of a proposed trip and the ones ticked: from the card (the server
+ * planned it and ticked the named or the best way), or, from an older server,
+ * planned here with the best way ticked. A hand-built route keeps its rides.
+ */
+function useProposalWays(trip: ProposedTrip & { avoid?: PlanAvoid; steps?: RideStep[] }) {
+  const days = trip.days?.length ? trip.days : DEFAULT_DAYS;
+  const bufferMin = settings.use().bufferMin;
+  const [plan, setPlan] = useState<PlanResponse | null>(trip.plan ?? null);
+  const [kept, setKept] = useState<RideStep[][]>(() => cardKept(trip, Date.now(), bufferMin));
+  useEffect(() => {
+    if (plan || !hasApi) return;
+    let live = true;
+    fetchPlan({ from: trip.from, to: trip.to, arriveBy: nextArriveBy(trip.arriveBy, days), ...(trip.avoid ? { avoid: trip.avoid } : {}), ...(trip.steps?.length ? { steps: trip.steps } : {}) })
+      .then((p) => {
+        if (!live) return;
+        setPlan(p);
+        setKept((k) => (k.length ? k : cardKept({ plan: p }, Date.now(), bufferMin)));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return { plan, kept, setKept, days };
+}
+
+/** The ways of a proposal with their ticks, or a line while they are planned. */
+function ProposedWays({ plan, kept, onKeep }: { plan: PlanResponse | null; kept: RideStep[][]; onKeep: (ways: RideStep[][]) => void }) {
+  if (!plan) return hasApi ? <Busy label="Finding the ways…" /> : null;
+  if (!plan.itineraries.length) return null;
+  return (
+    <View style={styles.rowBorderTop}>
+      <Text variant="caption" color={color.textSecondary} style={styles.waysHint}>
+        Tick the ways you take
+      </Text>
+      <WayRows its={plan.itineraries} arriveBy={plan.query.arriveBy} kept={kept} onKeep={onKeep} />
+    </View>
   );
 }
 
@@ -241,7 +331,8 @@ function EventsCard({ events, itemId, index, done, onEdit }: CardProps & { event
           unresolved.push(e);
           continue;
         }
-        const trip = await withStops({ id: newTripId(), name: e.title, from: start, to: { lat: hit.lat, lon: hit.lon, label: hit.name }, arriveBy: e.start, days: e.days.length ? e.days : DEFAULT_DAYS });
+        // Keeps the best way of its plan, like every trip saved from chat.
+        const trip = await withStops({ id: newTripId(), name: e.title, from: start, to: { lat: hit.lat, lon: hit.lon, label: hit.name }, arriveBy: e.start, days: e.days.length ? e.days : DEFAULT_DAYS }, { keepBest: true });
         saveTrip(trip);
         saved++;
       }
@@ -295,21 +386,23 @@ function EventsCard({ events, itemId, index, done, onEdit }: CardProps & { event
 
 function TripCard({ trip, itemId, index, done }: CardProps & { trip: ProposedTrip }) {
   const [busy, setBusy] = useState(false);
-  const draft = { name: trip.name, from: trip.from, to: trip.to, arriveBy: trip.arriveBy, days: trip.days?.length ? trip.days : DEFAULT_DAYS };
+  const { plan, kept, setKept, days } = useProposalWays(trip);
+  const draft = { name: trip.name, from: trip.from, to: trip.to, arriveBy: trip.arriveBy, days };
   return (
     <Shell
       title={trip.name}
       icon="pin"
       actions={
         <Actions done={done}>
-          <Button label="Edit" kind="secondary" style={styles.flex} haptic="none" onPress={() => openNewTrip(draft)} />
+          <Button label="Edit" kind="secondary" style={styles.flex} haptic="none" onPress={() => openNewTrip({ ...draft, ...waysFields(kept) })} />
           <Button
             label={busy ? 'Saving…' : 'Save'}
             style={styles.flex}
             disabled={busy}
             onPress={async () => {
               setBusy(true);
-              saveTrip(await withStops({ id: newTripId(), ...draft }));
+              // The ticked ways; when none could be planned yet, the best way of the plan made while saving.
+              saveTrip(await withStops({ id: newTripId(), ...draft, ...(kept.length ? waysFields(kept) : {}) }, { keepBest: true }));
               setBusy(false);
               haptic('success');
               markCard(itemId, index, 'Added to your week');
@@ -343,6 +436,7 @@ function TripCard({ trip, itemId, index, done }: CardProps & { trip: ProposedTri
           {daysText(draft.days)}
         </Text>
       </View>
+      <ProposedWays plan={plan} kept={kept} onKeep={setKept} />
     </Shell>
   );
 }
@@ -351,7 +445,7 @@ const avoidText = (a: PlanAvoid) => [...(a.routes ?? []), ...(a.minibus ? ['mini
 
 /** A trip with an avoid list or a hand-built route. Opens New trip prefilled; the user checks it there and saves. */
 function RouteCard({ route, itemId, index, done, onEdit }: CardProps & { route: ProposedRoute }) {
-  const days = route.days?.length ? route.days : DEFAULT_DAYS;
+  const { plan, kept, setKept, days } = useProposalWays(route);
   const open = () => {
     markCard(itemId, index, 'Opened in New trip');
     openNewTrip({
@@ -361,7 +455,8 @@ function RouteCard({ route, itemId, index, done, onEdit }: CardProps & { route: 
       arriveBy: route.arriveBy,
       days,
       ...(route.avoid ? { avoid: route.avoid } : {}),
-      ...(route.steps?.length ? { steps: route.steps } : {}),
+      // The ticked ways (a hand-built route is its own way); the New trip form keeps them.
+      ...waysFields(kept),
     });
   };
   const rows: Array<[string, ReactNode]> = [
@@ -401,6 +496,8 @@ function RouteCard({ route, itemId, index, done, onEdit }: CardProps & { route: 
           </Text>
         </View>
       ))}
+      {/* A hand-built route is the way itself; with an avoid list only, the ways to tick. */}
+      {!route.steps?.length && <ProposedWays plan={plan} kept={kept} onKeep={setKept} />}
     </Shell>
   );
 }
@@ -415,6 +512,8 @@ const styles = StyleSheet.create({
   rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: 'rgba(28,26,26,0.08)' },
   rowBorderTop: { borderTopWidth: StyleSheet.hairlineWidth * 2, borderTopColor: 'rgba(28,26,26,0.08)' },
   planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  planRowMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  waysHint: { paddingTop: 12 },
   planTime: { width: 88 },
   // minWidth 0 lets the plates shrink instead of running over the minutes.
   plates: { flex: 1, minWidth: 0, flexDirection: 'row', gap: 4 },

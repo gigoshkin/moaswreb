@@ -123,9 +123,9 @@ export default function TripDetail() {
               label="Save this route"
               onPress={() => {
                 const { avoid } = p.plan.query;
-                // The route that was picked is the one that gets saved (with every variation of each ride ticked), not whatever the planner prefers next time.
+                // The way on screen is the one the trip keeps (with every variation of each ride), not whatever the planner prefers next time.
                 const steps = p.plan.query.steps?.length ? p.plan.query.steps : it ? variantSteps(it, p.plan.itineraries) : undefined;
-                openNewTrip({ name: p.name, from: p.from, to: p.to, arriveBy: p.plan.query.arriveBy.slice(11, 16), ...(p.days?.length ? { days: p.days } : {}), ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) });
+                openNewTrip({ name: p.name, from: p.from, to: p.to, arriveBy: p.plan.query.arriveBy.slice(11, 16), ...(p.days?.length ? { days: p.days } : {}), ...(avoid ? { avoid } : {}), ...waysFields(steps?.length ? [steps] : []) });
               }}
             />
           ) : (

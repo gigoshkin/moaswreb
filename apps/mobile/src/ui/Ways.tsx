@@ -163,11 +163,7 @@ function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSe
         accessibilityRole={onTick ? 'checkbox' : 'button'}
         accessibilityState={onTick ? { checked: !!ticked } : { expanded: open }}
       >
-        {onTick && (
-          <View style={[styles.box, ticked && styles.boxOn]}>
-            {ticked && <Icon name="check" size={14} color={color.onInk} />}
-          </View>
-        )}
+        {onTick && <TickBox on={!!ticked} />}
         <View style={styles.headMain}>
           <LineChain slots={way.slots} />
           <Text variant="caption" color={color.textSecondary}>
@@ -201,6 +197,11 @@ function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSe
       )}
     </Card>
   );
+}
+
+/** The tick of a way row; the same box on every list of ways (trip screens, route builder, chat cards). */
+export function TickBox({ on }: { on: boolean }) {
+  return <View style={[styles.box, on && styles.boxOn]}>{on && <Icon name="check" size={14} color={color.onInk} />}</View>;
 }
 
 const styles = StyleSheet.create({

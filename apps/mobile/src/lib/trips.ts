@@ -4,7 +4,7 @@ import { choose, firstWalkMin, transitLegs, wireSteps } from './plans';
 import { settings } from './settings';
 import { persisted } from './store';
 import { nextArriveBy } from './time';
-import type { RideStep } from './ways';
+import { defaultKept, tripWays, waysFields, type RideStep } from './ways';
 
 export interface Place extends LatLon {
   label: string;
@@ -93,9 +93,11 @@ export const newTripId = () => `t${Date.now().toString(36)}${Math.random().toStr
 /**
  * Stop ids and walk for the server, from a plan of the trip's next
  * occurrence. Without them the trip still works on the phone but gets no
- * pushes, so a failed plan doesn't block saving.
+ * pushes, so a failed plan doesn't block saving. With `keepBest`, a trip that
+ * keeps no way yet keeps the best way of that plan (defaultKept), so a trip
+ * saved from chat follows one route, not whatever the planner finds next time.
  */
-export async function withStops(trip: SavedTrip): Promise<SavedTrip> {
+export async function withStops(trip: SavedTrip, opts: { keepBest?: boolean } = {}): Promise<SavedTrip> {
   if (!hasApi) return trip;
   try {
     const plan = await fetchPlan({ from: trip.from, to: trip.to, arriveBy: nextArriveBy(trip.arriveBy, tripDays(trip)), ...(hasAvoid(trip.avoid) ? { avoid: trip.avoid } : {}), ...(trip.steps?.length ? { steps: trip.steps } : {}) });
@@ -103,7 +105,8 @@ export async function withStops(trip: SavedTrip): Promise<SavedTrip> {
     const it = c.kind === 'none' ? plan.itineraries[0] : c.it;
     const legs = it ? transitLegs(it) : [];
     if (!it || !legs.length) return trip;
-    return { ...trip, fromStopId: legs[0].from.stopId ?? undefined, toStopId: legs.at(-1)!.to.stopId ?? undefined, walkMin: firstWalkMin(it) };
+    const kept = opts.keepBest && !tripWays(trip).length ? defaultKept(plan.itineraries, plan.query.arriveBy, Date.now(), settings.get().bufferMin) : [];
+    return { ...trip, ...(kept.length ? waysFields(kept) : {}), fromStopId: legs[0].from.stopId ?? undefined, toStopId: legs.at(-1)!.to.stopId ?? undefined, walkMin: firstWalkMin(it) };
   } catch {
     return trip;
   }

@@ -142,3 +142,29 @@ test('another way only when every kept way missed, and only when it is faster', 
   assert.equal(suggestOther({ keepsWays: true, kept: late, other: choose([sooner302], deadline, now) })?.onTime, false);
   assert.equal(suggestOther({ keepsWays: true, kept: late, other: { kind: 'none' } }), null);
 });
+
+test('chat cards save exactly the ticked ways, through the same fields as every screen', () => {
+  const { cardKept, waysFields, tripWays, toggleWay } = shared;
+  const now = Date.parse('2026-10-19T03:30:00Z');
+  const plan = { query: { from: home, to: s302b, arriveBy: '2026-10-19T09:00' }, itineraries: all, source: 'ttc' as const, fetchedAt: '' };
+  const direct = variantSteps(direct302, all)!;
+  // The server ticked the direct 302: the card starts with exactly that.
+  assert.deepEqual(cardKept({ ways: [direct], plan }, now), [direct]);
+  // A hand-built route is its own way.
+  const built = [{ fromStops: ['1:home'], toStops: ['1:m-bus'], routes: ['321'] }];
+  assert.deepEqual(cardKept({ steps: built, plan }, now), [built]);
+  assert.deepEqual(cardKept({ plan: { ...plan, query: { ...plan.query, steps: built } } }, now), [built]);
+  // Nothing ticked (an older server): the best way only, never an empty, unpinned trip.
+  const dflt = cardKept({ plan }, now);
+  assert.equal(dflt.length, 1);
+  assert.ok(isTicked(bestWay(groupWays(all), '2026-10-19T09:00', now)!, dflt));
+  assert.deepEqual(cardKept({}, now), [], 'no plan yet: nothing to tick');
+  // Ticking a second row on the card and saving: both ways, the first as steps (what alerts plan with).
+  const rows = groupWays(all);
+  const other = rows.find((w) => !isTicked(w, dflt))!;
+  const two = toggleWay(dflt, other, all);
+  const saved = waysFields(two);
+  assert.equal(saved.steps, two[0]);
+  assert.deepEqual(tripWays(saved), two);
+  assert.ok(rows.every((w) => isTicked(w, tripWays(saved))));
+});
