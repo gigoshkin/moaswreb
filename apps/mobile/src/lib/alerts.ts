@@ -79,6 +79,19 @@ export function onAlertTap(open: (tripId: string) => void): () => void {
   return () => sub.remove();
 }
 
+/** Developer menu: a notification right now, like a leave alert; tapping it opens the first saved trip. */
+export async function sendTestNotification(): Promise<string> {
+  if (!Notifications) return 'Notifications need a standalone build (not Expo Go).';
+  const { granted } = await Notifications.requestPermissionsAsync();
+  if (!granted) return 'Notification permission is off for this app.';
+  const trip = listTrips()[0];
+  await Notifications.scheduleNotificationAsync({
+    content: { title: t.leaveNow, body: `${trip?.name ?? 'Test trip'} · test`, data: trip ? { tripId: trip.id } : {} },
+    trigger: null,
+  });
+  return 'Sent. Pull down the shade or check the lock screen.';
+}
+
 /** Alerts switched off in Settings: no local backups either (the server gets no trips, see toStored). */
 export async function cancelBackups(): Promise<void> {
   await Notifications?.cancelAllScheduledNotificationsAsync().catch(() => {});

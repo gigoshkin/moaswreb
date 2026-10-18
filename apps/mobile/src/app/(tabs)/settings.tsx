@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { cancelBackups, setUpAlerts } from '../../lib/alerts';
+import { cancelBackups, sendTestNotification, setUpAlerts } from '../../lib/alerts';
 import { deleteMyData, hasApi } from '../../lib/api';
 import { isExpoGo } from '../../lib/kv';
 import { exactAlarmsAllowed, leaveCardAvailable, openExactAlarmSettings, testLeaveCard } from '../../lib/leaveCard';
@@ -10,10 +10,11 @@ import { clearChat } from '../../lib/chat';
 import { pickPlace } from '../../lib/handoff';
 import { alertsOffered, replayIntro } from '../../lib/onboarding';
 import { bufferText, settings, updateSettings } from '../../lib/settings';
-import { clearTrips, listTrips, syncNow } from '../../lib/trips';
+import { todayLocal } from '../../lib/time';
+import { clearTrips, listTrips, newTripId, saveTrip, syncNow, withStops, type SavedTrip } from '../../lib/trips';
 import { ask, notify } from '../../ui/Dialog';
 import { Icon } from '../../ui/Icon';
-import { haptic } from '../../ui/Tap';
+import { Tap, haptic } from '../../ui/Tap';
 import { Button } from '../../ui/Button';
 import { Sheet } from '../../ui/Sheet';
 import { Text } from '../../ui/Text';
@@ -26,6 +27,13 @@ import { color, gutter } from '../../ui/theme';
 const build = Constants.expoConfig?.extra?.build as { branch?: string; commit?: string; dirty?: boolean } | undefined;
 const versionText = [Constants.expoConfig?.version, build?.commit ? `${build.branch ? `${build.branch} ` : ''}${build.commit}${build.dirty ? '+' : ''}` : ''].filter(Boolean).join(' · ');
 
+/** Arrive-by for the seeded trip: about two hours from now (Tbilisi time, 15-minute steps), else 09:00 when that is past midnight. */
+const seedArriveBy = (): string => {
+  const slot = 15 * 60_000;
+  const local = new Date(Math.ceil((Date.now() + 2 * 3600_000) / slot) * slot + 4 * 3600_000);
+  return local.toISOString().slice(0, 10) === todayLocal() ? local.toISOString().slice(11, 16) : '09:00';
+};
+
 const apiHost = (() => {
   try {
     return new URL(process.env.EXPO_PUBLIC_API_URL ?? '').host || 'not set';
@@ -37,10 +45,10 @@ const apiHost = (() => {
 export default function Settings() {
   const s = settings.use();
 
-  // Hidden developer menu: tap the Version row 7 times.
+  // Hidden developer menu: tap the bus icon in the corner (or the Version row) 7 times.
   const [dev, setDev] = useState(false);
   const taps = useRef({ n: 0, at: 0 });
-  const tapVersion = () => {
+  const tapSecret = () => {
     const now = Date.now();
     taps.current = { n: now - taps.current.at > 2000 ? 1 : taps.current.n + 1, at: now };
     if (taps.current.n >= 7) {
@@ -99,9 +107,26 @@ export default function Settings() {
     } else notify('Test leave card', msg);
   };
 
+  // A ready-made trip (every day) so Today has something to count down to.
+  const seedRoute = async () => {
+    const base: SavedTrip = { id: newTripId(), name: 'Example: Didi Dighomi to Rustaveli', from: { label: 'Didi Dighomi III microdistrict', lat: 41.7910541, lon: 44.7380951 }, to: { label: 'Rustaveli Ave, Freedom Square', lat: 41.6934, lon: 44.8015 }, arriveBy: seedArriveBy(), days: [1, 2, 3, 4, 5, 6, 7] };
+    // Stop lookup can be slow: save without it after 3 s.
+    saveTrip(await Promise.race([withStops(base), new Promise<SavedTrip>((r) => setTimeout(() => r(base), 3000))]));
+    haptic('success');
+    setDev(false);
+    router.navigate('/');
+  };
+
   return (
     <View style={styles.screen}>
-      <ScreenTitle title="Settings" right={<Icon name="bus-deco" size={24} color={color.textTertiary} />} />
+      <ScreenTitle
+        title="Settings"
+        right={
+          <Tap onPress={tapSecret} haptic="none" scaleTo={1} hitSlop={12} accessibilityLabel="Settings">
+            <Icon name="bus-deco" size={24} color={color.textTertiary} />
+          </Tap>
+        }
+      />
       <ScrollView contentContainerStyle={styles.content}>
         <Group>
           <GroupRow label="Home" value={s.home?.label ?? 'Set'} onPress={setHome} />
@@ -120,7 +145,7 @@ export default function Settings() {
           </Group>
         )}
         <Group>
-          <GroupRow label="Version" value={versionText} onPress={tapVersion} right={<View />} last />
+          <GroupRow label="Version" value={versionText} onPress={tapSecret} right={<View />} last />
         </Group>
         <Group>
           <GroupRow label="Delete my data" icon="alert" onPress={deleteAll} right={<View />} last />
@@ -148,6 +173,8 @@ export default function Settings() {
           ))}
         </View>
         <View style={styles.devActions}>
+          <Button label="Send test notification" kind="secondary" onPress={async () => notify('Test notification', await sendTestNotification().catch((e: Error) => `Failed: ${e.message}`))} />
+          <Button label="Seed test route" kind="secondary" onPress={seedRoute} />
           <Button label="Test leave card in 1 min" kind="secondary" onPress={testCard} />
           <Button label="Replay intro and tips" kind="secondary" onPress={() => { setDev(false); replayIntro(); setTimeout(() => router.replace('/welcome'), 0); }} />
           <Button label="Clear saved trips" kind="secondary" onPress={async () => { if (await ask({ title: 'Clear all trips on this phone?', confirm: 'Clear', destructive: true })) { clearTrips(); syncNow(); } }} />
