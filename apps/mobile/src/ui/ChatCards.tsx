@@ -204,15 +204,17 @@ function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanR
 function PlanRow({ it, best, border, onPress }: { it: Itinerary; best: boolean; border: boolean; onPress: () => void }) {
   return (
     <Tap onPress={onPress} scaleTo={0.98} style={[styles.planRow, border && styles.rowBorder]} accessibilityRole="button">
-      <Text variant="title26" color={best ? color.text : color.textSecondary} style={styles.planTime}>
-        {hhmm(it.departAt)}
-      </Text>
+      <View style={styles.planTime}>
+        <Text variant="title26" color={best ? color.text : color.textSecondary}>
+          {hhmm(it.departAt)}
+        </Text>
+        <Text variant="caption" color={color.textSecondary}>
+          {Math.round(it.durationSec / 60)} min
+        </Text>
+      </View>
       <View style={styles.plates}>
         <LineChain slots={chainOf(it)} size="sm" />
       </View>
-      <Text variant="caption" color={color.textSecondary} style={styles.planMin}>
-        {Math.round(it.durationSec / 60)} min
-      </Text>
     </Tap>
   );
 }
@@ -413,10 +415,9 @@ const styles = StyleSheet.create({
   rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: 'rgba(28,26,26,0.08)' },
   rowBorderTop: { borderTopWidth: StyleSheet.hairlineWidth * 2, borderTopColor: 'rgba(28,26,26,0.08)' },
   planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  planTime: { width: 76 },
+  planTime: { width: 88 },
   // minWidth 0 lets the plates shrink instead of running over the minutes.
   plates: { flex: 1, minWidth: 0, flexDirection: 'row', gap: 4 },
-  planMin: { minWidth: 44, textAlign: 'right' },
   eventRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12 },
   when: { width: 76, paddingTop: 3 },
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: -2 },
