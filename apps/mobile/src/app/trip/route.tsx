@@ -94,7 +94,7 @@ export default function RouteBuilder() {
   const buildByHand = async () => {
     if (!from || !to) return;
     const r = await buildSteps({ from, to, arriveBy, days: init.days, steps: steps ?? [], avoid });
-    if (r) setSteps(r);
+    if (r) setSteps(r.steps);
   };
 
   const finish = () => {

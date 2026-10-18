@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { buildRoute, buildSteps, pickPlace, takeDraft, type PickKind } from '../../lib/handoff';
+import { buildRoute, buildSteps, takeDraft } from '../../lib/handoff';
 import { tripTourSeen } from '../../lib/onboarding';
 import { firstWalkMin, leaveAt, placeName, transitLegs } from '../../lib/plans';
 import { chainOf } from '../../lib/ways';
@@ -86,23 +86,13 @@ export default function EditTrip() {
     }
   };
 
-  // Straight into the manual builder; asks for any missing end first.
+  // Straight into the manual builder. Without ends it starts from scratch and takes them from the first and last stop.
   const buildByHand = async () => {
-    let f = from;
-    let t = to;
-    for (const kind of ['from', 'to'] as PickKind[]) {
-      if ((kind === 'from' ? f : t)) continue;
-      const p = await pickPlace(kind, { near: (kind === 'from' ? t : f) ?? undefined });
-      if (!p) return; // cancelled: stop quietly
-      if (kind === 'from') f = p;
-      else t = p;
-    }
-    if (!f || !t) return;
-    const r = await buildSteps({ from: f, to: t, arriveBy, days, steps: steps ?? [], avoid });
-    setFrom(f);
-    setTo(t);
-    if (r) setSteps(r);
-    else if (f !== from || t !== to) setSteps(undefined); // new ends: any old hand-built route no longer fits
+    const r = await buildSteps({ from, to, arriveBy, days, steps: steps ?? [], avoid });
+    if (!r) return;
+    setFrom(r.from);
+    setTo(r.to);
+    setSteps(r.steps);
   };
 
   const changeTime = () => {

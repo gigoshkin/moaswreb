@@ -10,6 +10,7 @@ import { finishSteps, stepsDraft } from '../../lib/handoff';
 import { FAR_WALK_M, UNDO_DEPTH, distM, gapBefore, place, removeAt, stepOf, toggleLine, walkMinutes, type BuiltRide } from '../../lib/chain';
 import { kindOf, leaveAt, type Kind } from '../../lib/plans';
 import { settings } from '../../lib/settings';
+import type { Place } from '../../lib/trips';
 import { distanceLabel } from '../../lib/stops';
 import { hhmm, nextArriveBy } from '../../lib/time';
 import { decodePolyline } from '../../lib/mapMath';
@@ -82,8 +83,10 @@ export default function BuildRoute() {
 
   useEffect(() => () => finishSteps(null), []);
 
-  const from = init?.from ?? { ...TBILISI, label: 'Start' };
-  const to = init?.to ?? { ...TBILISI, label: 'End' };
+  // Built from scratch (no ends yet): the ends are the first boarding stop and the last stop.
+  const home = settings.get().home;
+  const from: Place = init?.from ?? (rides.length ? { ...rides[0].board, label: rides[0].board.name } : { ...(home ?? TBILISI), label: 'Start' });
+  const to: Place = init?.to ?? (rides.length ? { ...rides.at(-1)!.off, label: rides.at(-1)!.off.name } : { ...TBILISI, label: 'End' });
   const steps = useMemo(() => (rides.length ? rides.map(stepOf) : seed), [rides, seed]);
   // The preview plans only the rides built so far, from the first boarding stop to the last stop: the walk home
   // and the walk to the destination are not part of it, and a metro-only ride would otherwise fail on a long walk.
@@ -209,7 +212,7 @@ export default function BuildRoute() {
   };
 
   const roadIt = useRoadItinerary(it);
-  const planned = useMemo(() => overlay(from, to, roadIt), [roadIt]);
+  const planned = useMemo(() => overlay(from, to, roadIt), [roadIt, from.lat, from.lon, to.lat, to.lon]);
   const shapes = useRideShapes(rides.map((r) => ({ route: r.lines.find((l) => !r.skipped.includes(l.label))?.label ?? '', from: r.board.id, to: r.off.id })));
   // Rides already built, in their colours but faded, so you can see where the next one joins.
   const built: MapRoute[] = useMemo(
@@ -295,7 +298,7 @@ export default function BuildRoute() {
 
   const done = () => {
     haptic('success');
-    finishSteps(steps.length ? steps : null);
+    finishSteps(steps.length ? { steps, from, to } : null);
     router.back();
   };
 
@@ -325,7 +328,7 @@ export default function BuildRoute() {
       >
         <View style={styles.header}>
           <Text variant="label16" numberOfLines={1} style={styles.flex}>
-            {from.label} → {to.label}
+            {init?.from || init?.to || rides.length ? `${from.label} → ${to.label}` : 'Build your route'}
           </Text>
           {history.length > 0 && (
             <Tap onPress={undo} hitSlop={8} haptic="none" style={styles.undo} accessibilityRole="button" accessibilityLabel="Undo the last change">
