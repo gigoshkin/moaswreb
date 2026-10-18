@@ -6,6 +6,7 @@ import type { TtcSource } from '../journey/ttc-source.ts';
 import type { TtcClient } from '../ttc/client.ts';
 import type { StopIndex } from '../ttc/stops.ts';
 import { normalizePlan } from './normalize.ts';
+import { resolveCandidate, type GoogleRoutes } from './google-routes.ts';
 
 const CACHE_MS = 60_000;
 /** Longest we make a caller wait for our own planner (its first run for a new area loads timetables). */
@@ -22,6 +23,14 @@ const NEAR_LIMIT = 14;
  * So it is asked once more this much earlier and the answers are merged.
  */
 export const TTC_EARLIER_MIN = 15;
+/** Google line chains timed per request (each costs TTC lookups and walking times). */
+const MAX_GOOGLE_CANDIDATES = 4;
+/**
+ * Itineraries returned at most. Not 3-5: the list is sorted by arrival, so a
+ * small cap would cut the latest-leaving options, which are what "arrive by"
+ * is about; the longest trips are cut instead.
+ */
+export const MAX_ITINERARIES = 7;
 
 /** Tbilisi `YYYY-MM-DDTHH:mm` shifted by `min` minutes (crosses midnight correctly). */
 export const shiftLocal = (local: string, min: number): string => {
@@ -36,16 +45,19 @@ export const lineChain = (it: Itinerary): string =>
 
 /**
  * One itinerary per distinct line chain: the latest-leaving one that still
- * arrives by `deadline`, or the earliest arrival when none does.
+ * arrives by `deadline` (and, given `now`, can still be caught), or the
+ * earliest arrival when none does.
  */
-export const onePerChain = (its: Itinerary[], deadline: number): Itinerary[] => {
+export const onePerChain = (its: Itinerary[], deadline: number, now = -Infinity): Itinerary[] => {
   const best = new Map<string, Itinerary>();
+  // 2: on time and catchable, 1: catchable but late, 0: already gone.
+  const tier = (it: Itinerary) => (Date.parse(it.departAt) < now ? 0 : Date.parse(it.arriveAt) <= deadline ? 2 : 1);
   for (const it of its) {
     const k = lineChain(it);
     const cur = best.get(k);
     if (!cur) { best.set(k, it); continue; }
-    const fits = Date.parse(it.arriveAt) <= deadline, curFits = Date.parse(cur.arriveAt) <= deadline;
-    const better = fits !== curFits ? fits : fits ? it.departAt > cur.departAt : it.arriveAt < cur.arriveAt;
+    const t = tier(it), curT = tier(cur);
+    const better = t !== curT ? t > curT : t === 2 ? it.departAt > cur.departAt : it.arriveAt < cur.arriveAt;
     if (better) best.set(k, it);
   }
   return [...best.values()];
@@ -68,11 +80,13 @@ export class PlanService {
   private readonly stops: StopIndex;
   private readonly source: TtcSource | null;
   private readonly engine: Engine | null;
+  private readonly google: GoogleRoutes | null;
 
-  constructor(ttc: TtcClient, stops: StopIndex, source: TtcSource | null = null) {
+  constructor(ttc: TtcClient, stops: StopIndex, source: TtcSource | null = null, google: GoogleRoutes | null = null) {
     this.ttc = ttc;
     this.stops = stops;
     this.source = source;
+    this.google = google;
     this.engine = source ? new Engine(source) : null;
   }
 
@@ -109,6 +123,28 @@ export class PlanService {
       steps = [{ fromStops: fromStops.map((s) => s.id), toStops: toStops.map((s) => s.id) }];
     }
     return this.engine.solve({ from: query.from, to: query.to, steps, avoid: query.avoid, deadline, now: Date.now(), modes: query.modes });
+  }
+
+  /**
+   * Google's line chains, timed by our planner from TTC data. Google only says
+   * which lines to ride and roughly where; a chain whose rides don't match TTC
+   * stops and lines is left out. Nothing when Google is off or fails.
+   */
+  private async googleOptions(query: PlanQuery): Promise<Itinerary[]> {
+    if (!this.google || !this.engine || !this.source || query.steps?.length) return [];
+    const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '');
+    if (!Number.isFinite(deadline)) return [];
+    const candidates = await this.google(query.from, query.to, deadline);
+    if (!candidates?.length) return [];
+    const engine = this.engine;
+    const source = this.source;
+    const now = Date.now();
+    const runs = candidates.slice(0, MAX_GOOGLE_CANDIDATES).map(async (c) => {
+      const steps = await resolveCandidate(c, source);
+      if (!steps) return [];
+      return engine.solve({ from: query.from, to: query.to, steps, avoid: query.avoid, deadline, now, modes: query.modes });
+    });
+    return (await Promise.all(runs.map((r) => r.catch(() => [] as Itinerary[])))).flat();
   }
 
   /** TTC's planner, minus anything the trip avoids. Asked again with other preferences when that leaves little. */
@@ -152,13 +188,18 @@ export class PlanService {
     if (hit && Date.now() - hit.at < CACHE_MS) return hit.body;
 
     const own = this.ownOptions(query);
+    const google = this.googleOptions(query).catch(() => [] as Itinerary[]);
     // A hand-built route is exactly what was asked for: TTC's planner has nothing to add.
     const ttc = query.steps?.length ? Promise.resolve<Itinerary[] | null>([]) : this.ttcOptions(query).catch(() => null as Itinerary[] | null);
     let ownDone: Itinerary[] = [];
+    let googleDone: Itinerary[] = [];
     let ownError: unknown = null;
     const budget = new Promise<void>((resolve) => setTimeout(resolve, ENGINE_BUDGET_MS).unref());
     await Promise.race([
-      own.then((r) => void (ownDone = r), (e: unknown) => void (ownError = e)),
+      Promise.all([
+        own.then((r) => void (ownDone = r), (e: unknown) => void (ownError = e)),
+        google.then((r) => void (googleDone = r)),
+      ]),
       budget,
     ]);
     const theirs = await ttc;
@@ -167,7 +208,8 @@ export class PlanService {
     // Where our planner found a line, its numbers win over TTC's for the same lines.
     const key2 = (it: Itinerary) => it.legs.filter((l) => l.route).map((l) => l.route!.shortName).join('>');
     const ours = new Set(ownDone.map(key2));
-    const itineraries = [...ownDone, ...(theirs ?? []).filter((it) => !ours.has(key2(it)))].sort(byArrivalThenTransfers);
+    const merged = [...ownDone, ...(theirs ?? []).filter((it) => !ours.has(key2(it)))];
+    const itineraries = googleDone.length ? withGoogle(merged, googleDone, query) : merged.sort(byArrivalThenTransfers);
     await this.fillStopIds(itineraries);
     const body: PlanResponse = { query, itineraries, source: 'ttc', fetchedAt: new Date().toISOString() };
     // An answer made without our planner (it was still loading) is not kept for the full minute.
@@ -178,3 +220,18 @@ export class PlanService {
     return body;
   }
 }
+
+/**
+ * Google-suggested chains (timed by our planner) merged into the list: one
+ * itinerary per line chain, the latest-leaving one still on time; then the
+ * MAX_ITINERARIES on-time, shortest ones, earliest arrival first.
+ */
+export const withGoogle = (base: Itinerary[], google: Itinerary[], query: Pick<PlanQuery, 'arriveBy'>, now = Date.now()): Itinerary[] => {
+  const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '') || Infinity;
+  const fits = (it: Itinerary) => Date.parse(it.arriveAt) <= deadline;
+  const all = onePerChain([...base, ...google], deadline, now);
+  const kept = all.length > MAX_ITINERARIES
+    ? [...all].sort((a, b) => Number(fits(b)) - Number(fits(a)) || a.durationSec - b.durationSec).slice(0, MAX_ITINERARIES)
+    : all;
+  return kept.sort(byArrivalThenTransfers);
+};

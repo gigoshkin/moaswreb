@@ -48,6 +48,9 @@ export const config = {
   google: {
     placesKey: process.env.GOOGLE_PLACES_API_KEY ?? '',
     dailyCap: int(process.env.GOOGLE_PLACES_DAILY_CAP, 500),
+    /** Google Routes (transit) proposes line chains for the planner; TTC times them. Empty key = off. */
+    routesKey: process.env.GOOGLE_ROUTES_API_KEY ?? '',
+    routesDailyCap: int(process.env.GOOGLE_ROUTES_DAILY_CAP, 300),
   },
   dataDir: process.env.DATA_DIR ?? './data',
   ttc: {

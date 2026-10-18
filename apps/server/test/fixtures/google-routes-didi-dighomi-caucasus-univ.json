@@ -1,0 +1,1282 @@
+{
+ "routes": [
+  {
+   "legs": [
+    {
+     "steps": [
+      {
+       "staticDuration": "73s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7909812,
+         "longitude": 44.738410599999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "99s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "75s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "54s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.790770599999995,
+         "longitude": 44.7370117
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "2484s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7907668,
+         "longitude": 44.7369987
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T10:24:24Z",
+         "departureStop": {
+          "name": "Marko Polo Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.7907668,
+            "longitude": 44.7369987
+           }
+          }
+         },
+         "departureTime": "2026-10-19T09:43:00Z"
+        },
+        "headsign": "სადგურის მოედანი",
+        "transitLine": {
+         "name": "სადგურის მოედანი - დიდი დიღმის IV მ/რ",
+         "color": "#0033b4",
+         "nameShort": "539",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 42
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "628s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.707844099999996,
+         "longitude": 44.8111209
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Dodo Chichinadze Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.707844099999996,
+            "longitude": 44.8111209
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T10:40:28Z",
+         "departureStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "departureTime": "2026-10-19T10:30:00Z"
+        },
+        "headsign": "Mnatobi St.",
+        "transitLine": {
+         "name": "სადგურის მოედანი - მნათობის ქ.",
+         "color": "#0033b4",
+         "nameShort": "490",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 5
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "18s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7078475,
+         "longitude": 44.811211199999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "61s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7069458,
+         "longitude": 44.811271
+        }
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "duration": "3829s"
+  },
+  {
+   "legs": [
+    {
+     "steps": [
+      {
+       "staticDuration": "73s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7909812,
+         "longitude": 44.738410599999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "99s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "75s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "54s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.790770599999995,
+         "longitude": 44.7370117
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "2484s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7907668,
+         "longitude": 44.7369987
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T10:04:24Z",
+         "departureStop": {
+          "name": "Marko Polo Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.7907668,
+            "longitude": 44.7369987
+           }
+          }
+         },
+         "departureTime": "2026-10-19T09:23:00Z"
+        },
+        "headsign": "სადგურის მოედანი",
+        "transitLine": {
+         "name": "სადგურის მოედანი - დიდი დიღმის IV მ/რ",
+         "color": "#0033b4",
+         "nameShort": "539",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 42
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "628s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.707844099999996,
+         "longitude": 44.8111209
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Dodo Chichinadze Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.707844099999996,
+            "longitude": 44.8111209
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T10:20:28Z",
+         "departureStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "departureTime": "2026-10-19T10:10:00Z"
+        },
+        "headsign": "Mnatobi St.",
+        "transitLine": {
+         "name": "სადგურის მოედანი - მნათობის ქ.",
+         "color": "#0033b4",
+         "nameShort": "490",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 5
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "18s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7078475,
+         "longitude": 44.811211199999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "61s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7069458,
+         "longitude": 44.811271
+        }
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "duration": "3829s"
+  },
+  {
+   "legs": [
+    {
+     "steps": [
+      {
+       "staticDuration": "73s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7909812,
+         "longitude": 44.738410599999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "99s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "75s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "54s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.790770599999995,
+         "longitude": 44.7370117
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "2484s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7907668,
+         "longitude": 44.7369987
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T09:44:24Z",
+         "departureStop": {
+          "name": "Marko Polo Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.7907668,
+            "longitude": 44.7369987
+           }
+          }
+         },
+         "departureTime": "2026-10-19T09:03:00Z"
+        },
+        "headsign": "სადგურის მოედანი",
+        "transitLine": {
+         "name": "სადგურის მოედანი - დიდი დიღმის IV მ/რ",
+         "color": "#0033b4",
+         "nameShort": "539",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 42
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "628s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.707844099999996,
+         "longitude": 44.8111209
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Dodo Chichinadze Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.707844099999996,
+            "longitude": 44.8111209
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T10:00:28Z",
+         "departureStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "departureTime": "2026-10-19T09:50:00Z"
+        },
+        "headsign": "Mnatobi St.",
+        "transitLine": {
+         "name": "სადგურის მოედანი - მნათობის ქ.",
+         "color": "#0033b4",
+         "nameShort": "490",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 5
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "18s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7078475,
+         "longitude": 44.811211199999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "61s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7069458,
+         "longitude": 44.811271
+        }
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "duration": "3829s"
+  },
+  {
+   "legs": [
+    {
+     "steps": [
+      {
+       "staticDuration": "73s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7909812,
+         "longitude": 44.738410599999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "99s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "75s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "54s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.790770599999995,
+         "longitude": 44.7370117
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "2484s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7907668,
+         "longitude": 44.7369987
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T09:24:24Z",
+         "departureStop": {
+          "name": "Marko Polo Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.7907668,
+            "longitude": 44.7369987
+           }
+          }
+         },
+         "departureTime": "2026-10-19T08:43:00Z"
+        },
+        "headsign": "სადგურის მოედანი",
+        "transitLine": {
+         "name": "სადგურის მოედანი - დიდი დიღმის IV მ/რ",
+         "color": "#0033b4",
+         "nameShort": "539",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 42
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "628s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.707844099999996,
+         "longitude": 44.8111209
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Dodo Chichinadze Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.707844099999996,
+            "longitude": 44.8111209
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T09:40:28Z",
+         "departureStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "departureTime": "2026-10-19T09:30:00Z"
+        },
+        "headsign": "Mnatobi St.",
+        "transitLine": {
+         "name": "სადგურის მოედანი - მნათობის ქ.",
+         "color": "#0033b4",
+         "nameShort": "490",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 5
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "18s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7078475,
+         "longitude": 44.811211199999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "61s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7069458,
+         "longitude": 44.811271
+        }
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "duration": "3829s"
+  },
+  {
+   "legs": [
+    {
+     "steps": [
+      {
+       "staticDuration": "73s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7909812,
+         "longitude": 44.738410599999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "99s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "75s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "54s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.790770599999995,
+         "longitude": 44.7370117
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "2484s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7907668,
+         "longitude": 44.7369987
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T09:04:24Z",
+         "departureStop": {
+          "name": "Marko Polo Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.7907668,
+            "longitude": 44.7369987
+           }
+          }
+         },
+         "departureTime": "2026-10-19T08:23:00Z"
+        },
+        "headsign": "სადგურის მოედანი",
+        "transitLine": {
+         "name": "სადგურის მოედანი - დიდი დიღმის IV მ/რ",
+         "color": "#0033b4",
+         "nameShort": "539",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 42
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "628s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.707844099999996,
+         "longitude": 44.8111209
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Dodo Chichinadze Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.707844099999996,
+            "longitude": 44.8111209
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T09:20:28Z",
+         "departureStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "departureTime": "2026-10-19T09:10:00Z"
+        },
+        "headsign": "Mnatobi St.",
+        "transitLine": {
+         "name": "სადგურის მოედანი - მნათობის ქ.",
+         "color": "#0033b4",
+         "nameShort": "490",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 5
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "18s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7078475,
+         "longitude": 44.811211199999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "61s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7069458,
+         "longitude": 44.811271
+        }
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "duration": "3829s"
+  },
+  {
+   "legs": [
+    {
+     "steps": [
+      {
+       "staticDuration": "73s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7909812,
+         "longitude": 44.738410599999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "99s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902889,
+         "longitude": 44.7390858
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "75s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7906404,
+         "longitude": 44.738151699999996
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "54s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7902607,
+         "longitude": 44.73727530000001
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.790770599999995,
+         "longitude": 44.7370117
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "2484s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7907668,
+         "longitude": 44.7369987
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T08:44:24Z",
+         "departureStop": {
+          "name": "Marko Polo Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.7907668,
+            "longitude": 44.7369987
+           }
+          }
+         },
+         "departureTime": "2026-10-19T08:03:00Z"
+        },
+        "headsign": "სადგურის მოედანი",
+        "transitLine": {
+         "name": "სადგურის მოედანი - დიდი დიღმის IV მ/რ",
+         "color": "#0033b4",
+         "nameShort": "539",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 42
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "628s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7223842,
+         "longitude": 44.796946
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.707844099999996,
+         "longitude": 44.8111209
+        }
+       },
+       "transitDetails": {
+        "stopDetails": {
+         "arrivalStop": {
+          "name": "Dodo Chichinadze Street",
+          "location": {
+           "latLng": {
+            "latitude": 41.707844099999996,
+            "longitude": 44.8111209
+           }
+          }
+         },
+         "arrivalTime": "2026-10-19T09:00:28Z",
+         "departureStop": {
+          "name": "სადგურის მოედანი (მიკროავტობუსები)",
+          "location": {
+           "latLng": {
+            "latitude": 41.7223842,
+            "longitude": 44.796946
+           }
+          }
+         },
+         "departureTime": "2026-10-19T08:50:00Z"
+        },
+        "headsign": "Mnatobi St.",
+        "transitLine": {
+         "name": "სადგურის მოედანი - მნათობის ქ.",
+         "color": "#0033b4",
+         "nameShort": "490",
+         "textColor": "#ffffff",
+         "vehicle": {
+          "name": {
+           "text": "Bus"
+          },
+          "type": "BUS"
+         }
+        },
+        "stopCount": 5
+       },
+       "travelMode": "TRANSIT"
+      },
+      {
+       "staticDuration": "18s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7078475,
+         "longitude": 44.811211199999995
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "travelMode": "WALK"
+      },
+      {
+       "staticDuration": "61s",
+       "startLocation": {
+        "latLng": {
+         "latitude": 41.7076448,
+         "longitude": 44.8112248
+        }
+       },
+       "endLocation": {
+        "latLng": {
+         "latitude": 41.7069458,
+         "longitude": 44.811271
+        }
+       },
+       "travelMode": "WALK"
+      }
+     ]
+    }
+   ],
+   "duration": "3829s"
+  }
+ ]
+}
