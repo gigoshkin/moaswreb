@@ -156,3 +156,12 @@ test('running out of tool steps gives a reply, not an empty bubble', async () =>
   assert.equal(res.statusCode, 200);
   assert.match(res.json().reply, /too many steps/);
 });
+
+test('tidyCards drops the plan and stop lists when a proposal follows, and keeps them otherwise', async () => {
+  const { tidyCards } = await import('../src/chat/agent.ts');
+  const plan = { type: 'plan' } as never;
+  const stops = { type: 'stops', stops: [] } as never;
+  const trip = { type: 'confirm_trip' } as never;
+  assert.deepEqual(tidyCards([stops, plan, trip]), [trip]);
+  assert.deepEqual(tidyCards([stops, plan]), [stops, plan]);
+});

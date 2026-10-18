@@ -29,6 +29,13 @@ Safety (these rules always win):
 /** Tool round trips per message. A hand-built route (bus stop, lines, two metro stations, then the proposal) needs a dozen. */
 export const MAX_STEPS = 16;
 
+/**
+ * A proposal card already lists the ways, so the plan card and the stop lists the model looked at on the way
+ * would only repeat it (two boxes with the same routes, then stacks of stop lists).
+ */
+export const tidyCards = (cards: ActionCard[]): ActionCard[] =>
+  cards.some((c) => c.type === 'confirm_trip' || c.type === 'confirm_route') ? cards.filter((c) => c.type !== 'plan' && c.type !== 'stops') : cards;
+
 /** Reply when the model ran out of tool steps; shared with the Gemini path. */
 export const TOO_MANY_STEPS = 'That took too many steps. Try asking in a simpler way.';
 
@@ -123,5 +130,5 @@ export async function runChat(req: ChatRequest, deps: ChatDeps): Promise<ChatRes
   // Out of tool steps (max_iterations) or no text at all: never an empty bubble. Same line as the Gemini path.
   // No cards then: they would only be the lookups made on the way (stacked stop lists), not an answer.
   if (!reply && final.stop_reason === 'tool_use') return { reply: TOO_MANY_STEPS, cards: [] };
-  return { reply, cards };
+  return { reply, cards: tidyCards(cards) };
 }

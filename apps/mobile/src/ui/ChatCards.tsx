@@ -265,7 +265,7 @@ function PlanRow({ way, it, best, ticked, border, onTick, onPress }: { way: Way;
           </Text>
         </View>
         <View style={styles.plates}>
-          <LineChain slots={way.slots} size="sm" />
+          <LineChain slots={way.slots} size="xs" />
         </View>
       </Tap>
     </View>
@@ -559,7 +559,7 @@ function RouteCard({ route, itemId, index, done, onEdit }: CardProps & { route: 
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: color.surface, borderRadius: radius.lg, padding: 20, ...shadow.card },
+  card: { backgroundColor: color.surface, borderRadius: radius.lg, paddingVertical: 18, paddingHorizontal: 14, ...shadow.card },
   title: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bold: { fontFamily: font.bold },
   body: { marginTop: 8 },
