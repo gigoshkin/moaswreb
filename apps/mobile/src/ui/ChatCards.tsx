@@ -139,8 +139,9 @@ function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanR
     setBusy(true);
     const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     try {
-      const next = await fetchPlan({ ...plan.query, arriveBy: `${date}T${time}` });
-      replaceCard(itemId, index, { type: 'plan', plan: next, ...(meta ? { trip: meta } : {}) });
+      // The quick part shows as soon as it is in; the full plan then replaces it (rows are keyed by way, so ticks stay).
+      const show = (p: PlanResponse) => replaceCard(itemId, index, { type: 'plan', plan: p, ...(meta ? { trip: meta } : {}) });
+      show(await fetchPlan({ ...plan.query, arriveBy: `${date}T${time}` }, { onPartial: show }));
     } catch {
       say("Couldn't plan for that time. Try again.");
     } finally {
@@ -281,25 +282,35 @@ function useProposalWays(trip: ProposedTrip & { avoid?: PlanAvoid; steps?: RideS
   const bufferMin = settings.use().bufferMin;
   const [plan, setPlan] = useState<PlanResponse | null>(trip.plan ?? null);
   const [kept, setKept] = useState<RideStep[][]>(() => cardKept(trip, Date.now(), bufferMin));
+  // True while only the quick part is listed and the full plan is still coming.
+  const [more, setMore] = useState(false);
   useEffect(() => {
     if (plan || !hasApi) return;
     let live = true;
-    fetchPlan({ from: trip.from, to: trip.to, arriveBy: nextArriveBy(trip.arriveBy, days), ...(trip.avoid ? { avoid: trip.avoid } : {}), ...(trip.steps?.length ? { steps: trip.steps } : {}) })
+    // The quick part lists the ways at once, unticked; the best way is ticked when the full plan is in.
+    fetchPlan({ from: trip.from, to: trip.to, arriveBy: nextArriveBy(trip.arriveBy, days), ...(trip.avoid ? { avoid: trip.avoid } : {}), ...(trip.steps?.length ? { steps: trip.steps } : {}) }, {
+      onPartial: (p) => {
+        if (!live) return;
+        setPlan(p);
+        setMore(true);
+      },
+    })
       .then((p) => {
         if (!live) return;
         setPlan(p);
+        setMore(false);
         setKept((k) => (k.length ? k : cardKept({ plan: p }, Date.now(), bufferMin)));
       })
-      .catch(() => {});
+      .catch(() => live && setMore(false));
     return () => {
       live = false;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  return { plan, kept, setKept, days };
+  return { plan, more, kept, setKept, days };
 }
 
 /** The ways of a proposal with their ticks, or a line while they are planned. */
-function ProposedWays({ plan, kept, onKeep }: { plan: PlanResponse | null; kept: RideStep[][]; onKeep: (ways: RideStep[][]) => void }) {
+function ProposedWays({ plan, more, kept, onKeep }: { plan: PlanResponse | null; more: boolean; kept: RideStep[][]; onKeep: (ways: RideStep[][]) => void }) {
   if (!plan) return hasApi ? <Busy label="Finding the ways…" /> : null;
   if (!plan.itineraries.length) return null;
   return (
@@ -308,6 +319,7 @@ function ProposedWays({ plan, kept, onKeep }: { plan: PlanResponse | null; kept:
         Tick the ways you take
       </Text>
       <WayRows its={plan.itineraries} arriveBy={plan.query.arriveBy} kept={kept} onKeep={onKeep} />
+      {more && <Busy label="Checking every line…" />}
     </View>
   );
 }
@@ -430,7 +442,7 @@ function LocationCard({ itemId, index, done }: CardProps) {
 
 function TripCard({ trip, itemId, index, done }: CardProps & { trip: ProposedTrip }) {
   const [busy, setBusy] = useState(false);
-  const { plan, kept, setKept, days } = useProposalWays(trip);
+  const { plan, more, kept, setKept, days } = useProposalWays(trip);
   const draft = { name: trip.name, from: trip.from, to: trip.to, arriveBy: trip.arriveBy, days };
   return (
     <Shell
@@ -480,7 +492,7 @@ function TripCard({ trip, itemId, index, done }: CardProps & { trip: ProposedTri
           {daysText(draft.days)}
         </Text>
       </View>
-      <ProposedWays plan={plan} kept={kept} onKeep={setKept} />
+      <ProposedWays plan={plan} more={more} kept={kept} onKeep={setKept} />
     </Shell>
   );
 }
@@ -489,7 +501,7 @@ const avoidText = (a: PlanAvoid) => [...(a.routes ?? []), ...(a.minibus ? ['mini
 
 /** A trip with an avoid list or a hand-built route. Opens New trip prefilled; the user checks it there and saves. */
 function RouteCard({ route, itemId, index, done, onEdit }: CardProps & { route: ProposedRoute }) {
-  const { plan, kept, setKept, days } = useProposalWays(route);
+  const { plan, more, kept, setKept, days } = useProposalWays(route);
   const open = () => {
     markCard(itemId, index, 'Opened in New trip');
     openNewTrip({
@@ -541,7 +553,7 @@ function RouteCard({ route, itemId, index, done, onEdit }: CardProps & { route: 
         </View>
       ))}
       {/* A hand-built route is the way itself; with an avoid list only, the ways to tick. */}
-      {!route.steps?.length && <ProposedWays plan={plan} kept={kept} onKeep={setKept} />}
+      {!route.steps?.length && <ProposedWays plan={plan} more={more} kept={kept} onKeep={setKept} />}
     </Shell>
   );
 }
