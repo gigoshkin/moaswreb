@@ -114,3 +114,14 @@ test('findPlaces: Google failing (empty) falls back to TTC and Photon', async ()
   const out = await findPlaces(ttc, 'x place', 'en', 5, geo, async () => []);
   assert.deepEqual(out.map((p) => p.name), ['Photon place']);
 });
+
+test('Google: abbreviations and the TTC spelling are spelled out before the search', async () => {
+  const { tidyQuery } = await import('../src/ttc/google-places.ts');
+  assert.equal(tidyQuery('7B Archil Mef St'), '7B Archil Mefe Street');
+  assert.equal(tidyQuery('Archil Mepe st.'), 'Archil Mefe Street');
+  assert.equal(tidyQuery('Rustaveli Ave'), 'Rustaveli Avenue');
+  assert.equal(tidyQuery('Vake Park'), 'Vake Park');
+  const s = scripted();
+  await make(s)('7B Archil Mef St');
+  assert.equal(JSON.parse(String(s.calls[0].init.body)).textQuery, '7B Archil Mefe Street');
+});

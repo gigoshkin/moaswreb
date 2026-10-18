@@ -34,6 +34,19 @@ const toHit = (p: GooglePlace): PlaceHit | null => {
   return { name, address: address === name ? null : address, lat, lon, kind: str(p.types?.[0]) };
 };
 
+/**
+ * Google's text search matches whole words, not typed prefixes like the Maps search box does, so "7B Archil Mef St"
+ * finds nothing. Spell out the usual abbreviations and use Google's English spelling of the commonest street word
+ * (TTC writes "Mepe", people type "Mef").
+ */
+export const tidyQuery = (q: string): string =>
+  q
+    .replace(/\b(st|str)\b\.?/gi, 'Street')
+    .replace(/\bave?\b\.?/gi, 'Avenue')
+    .replace(/\b(mef|mepe)\b/gi, 'Mefe')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 /** Tbilisi calendar day (UTC+4, no DST) as YYYY-MM-DD. */
 const tbilisiDay = (now = Date.now()): string => new Date(now + 4 * 3_600_000).toISOString().slice(0, 10);
 
@@ -62,7 +75,7 @@ export function createGoogleSearch(opts: GooglePlacesOptions): (query: string, l
         signal: AbortSignal.timeout(TIMEOUT_MS),
         headers: { 'content-type': 'application/json', 'X-Goog-Api-Key': opts.key, 'X-Goog-FieldMask': FIELD_MASK },
         body: JSON.stringify({
-          textQuery: query,
+          textQuery: tidyQuery(query),
           languageCode: 'en',
           regionCode: 'GE',
           locationRestriction: { rectangle: { low: { latitude: 41.55, longitude: 44.6 }, high: { latitude: 41.9, longitude: 45.1 } } },
