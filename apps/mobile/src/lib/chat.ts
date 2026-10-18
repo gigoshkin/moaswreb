@@ -1,6 +1,7 @@
 import type { ActionCard, ChatAttachment, ChatMessage } from '@transit/shared';
 import { hasApi, sendChat } from './api';
 import { memory, persisted } from './store';
+import { settings } from './settings';
 import { listTrips } from './trips';
 
 /** One line in the chat. Attachments keep only a preview; their bytes are sent once and dropped. */
@@ -64,9 +65,12 @@ export async function send(text: string, attachment?: Attachment): Promise<void>
     attachments: attachment ? [{ kind: attachment.kind, mediaType: attachment.mediaType, data: attachment.data }] : undefined,
   };
   try {
+    const { home, bufferMin } = settings.get();
     const res = await sendChat({
       messages: [...history, last],
       trips: listTrips().map((t) => ({ name: t.name, from: t.from, to: t.to, arriveBy: t.arriveBy })),
+      ...(home ? { home: { label: home.label.slice(0, 200), lat: home.lat, lon: home.lon } } : {}),
+      ...(bufferMin > 0 ? { bufferMin: Math.min(60, Math.round(bufferMin)) } : {}),
       locale: 'en',
     });
     chatStore.set([...chatStore.get(), { id: id(), role: 'assistant', text: res.reply, cards: res.cards }]);

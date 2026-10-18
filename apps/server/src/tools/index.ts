@@ -1,7 +1,8 @@
-import type { ActionCard, Locale } from '@transit/shared';
+import type { ActionCard, JourneyStep, Locale, PlanAvoid, ProposedRide } from '@transit/shared';
 import { STOP_ID_PATTERN, tbilisiLocalToIso } from '@transit/shared';
 import * as z from 'zod/v4';
 import { insideTbilisi } from '../geo.ts';
+import { isAvoided, type PatternRef, type Source } from '../journey/source.ts';
 import type { PlanService } from '../plan/service.ts';
 import type { TtcClient } from '../ttc/client.ts';
 import { arrivalsAt, findPlaces } from '../ttc/lookups.ts';
@@ -35,6 +36,8 @@ export interface ToolDeps {
   locale?: Locale;
   /** Street search; defaults to Photon. Tests pass a stub. */
   geo?: StreetGeo;
+  /** Line patterns per stop (journey/ttc-source.ts) for lines_at_stop and checking hand-built routes. Without it those say "unavailable". */
+  source?: Pick<Source, 'patternsAt'>;
 }
 
 const tool = <S extends z.ZodObject>(def: ToolDef<S>): ToolDef => def as unknown as ToolDef;
@@ -44,8 +47,35 @@ const latLon = z
   .refine((p) => insideTbilisi(p.lat, p.lon), 'must be inside Tbilisi (lat ≈ 41.7, lon ≈ 44.8)');
 const place = z.object({ label: z.string(), lat: z.number(), lon: z.number() });
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:mm');
+const stopId = z.string().regex(new RegExp(STOP_ID_PATTERN), 'TTC stop id like "1:1405" or "1:metro_1_11"');
+const routeName = z.string().min(1).max(12);
+const avoidSchema = z
+  .object({
+    routes: z.array(routeName).max(20).optional().describe('Route numbers never to use, e.g. ["518"]'),
+    minibus: z.boolean().optional().describe('true = no minibus (marshrutka) lines'),
+  })
+  .describe('Lines to leave out, e.g. "never bus 518", "no minibuses"');
+const stepSchema = z.object({
+  fromStops: z.array(stopId).min(1).max(8).describe('Board at one of these stops'),
+  toStops: z.array(stopId).min(1).max(8).describe('Get off at one of these stops'),
+  routes: z.array(routeName).max(20).optional().describe('Allowed lines for this ride; empty = any line serving both stops'),
+});
+const stepsSchema = z.array(stepSchema).min(1).max(6).describe('A hand-built route: the rides in order (use lines_at_stop to find stops and lines)');
+const modeSchema = z.enum(['BUS', 'SUBWAY', 'GONDOLA']);
 
-export const createTools = ({ ttc, stops, plans, locale = 'en', geo }: ToolDeps): ToolDef[] => [
+const cleanAvoid = (a?: PlanAvoid): PlanAvoid | undefined =>
+  a && (a.routes?.length || a.minibus) ? { ...(a.routes?.length ? { routes: [...new Set(a.routes)].sort() } : {}), ...(a.minibus ? { minibus: true } : {}) } : undefined;
+
+/** Patterns at `from` that later reach `to`, minus avoided lines. */
+const rideLines = (patterns: PatternRef[], from: string, to: string, avoid?: PlanAvoid): PatternRef[] =>
+  patterns.filter((p) => {
+    const i = p.stops.findIndex((s) => s.id === from);
+    return i >= 0 && p.stops.slice(i + 1).some((s) => s.id === to) && !isAvoided(p, avoid);
+  });
+
+const uniq = (xs: string[]) => [...new Set(xs)].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+
+export const createTools = ({ ttc, stops, plans, locale = 'en', geo, source }: ToolDeps): ToolDef[] => [
   tool({
     name: 'find_stop',
     description:
@@ -94,26 +124,90 @@ export const createTools = ({ ttc, stops, plans, locale = 'en', geo }: ToolDeps)
   tool({
     name: 'plan_trip',
     description:
-      'Plan a public transport trip in Tbilisi that arrives by a given time (TTC trip planner). Returns itineraries with routes, departure and arrival times.',
+      'Plan a public transport trip in Tbilisi that arrives by a given time (our planner plus TTC\'s). Optional: avoid lines ("never 518", "no minibuses"), limit modes (e.g. metro only), prefer fewer transfers or less walking, or give a hand-built route (steps: the rides in order, e.g. bus to a metro station, then metro). Returns itineraries with routes, boarding stops, departure and arrival times.',
     schema: z.object({
       from: latLon,
       to: latLon,
       arriveBy: z.string().describe('Tbilisi local time, YYYY-MM-DDTHH:mm'),
+      avoid: avoidSchema.optional(),
+      modes: z.array(modeSchema).min(1).optional().describe('Only these modes; default all'),
+      optimize: z.enum(['quick', 'lessWalking', 'fewerTransfers']).optional(),
+      steps: stepsSchema.optional(),
     }),
     mcp: true,
-    run: async ({ from, to, arriveBy }) => {
+    run: async ({ from, to, arriveBy, avoid, modes, optimize, steps }) => {
       if (!tbilisiLocalToIso(arriveBy)) return { text: 'arriveBy must be YYYY-MM-DDTHH:mm (Tbilisi time).' };
-      const plan = await plans.plan({ from, to, arriveBy, locale });
+      const a = cleanAvoid(avoid);
+      const plan = await plans.plan({
+        from, to, arriveBy, locale,
+        ...(a ? { avoid: a } : {}),
+        ...(modes?.length ? { modes } : {}),
+        ...(optimize ? { optimize } : {}),
+        ...(steps?.length ? { steps } : {}),
+      });
       const hm = (iso: string) => new Date(Date.parse(iso) + 4 * 3600_000).toISOString().slice(11, 16);
       const text = plan.itineraries.length
         ? plan.itineraries
             .map((it) => {
-              const rides = it.legs.filter((l) => l.route).map((l) => `${l.mode} ${l.route!.shortName}`).join(' + ');
-              return `leave ${hm(it.departAt)}, arrive ${hm(it.arriveAt)} (Tbilisi), ${Math.round(it.durationSec / 60)} min: ${rides || 'walk'}`;
+              const legs = it.legs.filter((l) => l.route);
+              const rides = legs.map((l) => `${l.mode} ${l.route!.shortName}`).join(' + ');
+              const board = legs.map((l) => `${l.route!.shortName} at ${l.from.name}${l.from.stopId ? ` (${l.from.stopId})` : ''}`).join(', ');
+              return `leave ${hm(it.departAt)}, arrive ${hm(it.arriveAt)} (Tbilisi), ${Math.round(it.durationSec / 60)} min: ${rides || 'walk'}${board ? ` | board ${board}` : ''}`;
             })
             .join('\n')
-        : 'No itineraries found.';
+        : steps?.length || a || modes?.length
+          ? 'No itineraries fit those choices (avoid list, modes or hand-built route). Say so and offer to relax them.'
+          : 'No itineraries found.';
       return { text, card: { type: 'plan', plan } };
+    },
+  }),
+
+  tool({
+    name: 'stops_near',
+    description:
+      'Stops near a point in Tbilisi, closest first, with straight-line distance. Filter by mode, e.g. SUBWAY for the nearest metro station. Resolve a place to coordinates first (find_place, or the user\'s home from context).',
+    schema: z.object({
+      lat: z.number(),
+      lon: z.number(),
+      mode: modeSchema.optional(),
+      radiusM: z.number().int().min(50).max(2000).optional().describe('Search radius in metres, default 600'),
+    }).refine((p) => insideTbilisi(p.lat, p.lon), 'must be inside Tbilisi (lat ≈ 41.7, lon ≈ 44.8)'),
+    mcp: true,
+    run: async ({ lat, lon, mode, radiusM }) => {
+      const hits = await stops.near({ lat, lon }, { radiusM: radiusM ?? 600, limit: 8, mode, locale });
+      if (!hits.length) return { text: `No ${mode ? `${mode} ` : ''}stops within ${radiusM ?? 600} m.` };
+      return {
+        text: hits.map((s) => `${s.id} | ${s.name} | ${s.mode} | ${s.distanceM} m`).join('\n'),
+        card: { type: 'stops', stops: hits.map(({ id, name, lat, lon, mode }) => ({ id, name, lat, lon, mode })) },
+      };
+    },
+  }),
+
+  tool({
+    name: 'lines_at_stop',
+    description:
+      'Which lines stop at a TTC stop, where each goes (headsign) and the stops it visits next, with stop ids. Give toStopId to keep only lines that ride directly from this stop to that one. Use it to build a route by hand (bus to the metro, then metro) before plan_trip with steps.',
+    schema: z.object({ stopId, toStopId: stopId.optional() }),
+    mcp: true,
+    run: async ({ stopId: id, toStopId }) => {
+      if (!source) return { text: 'Line lookup is unavailable right now.' };
+      const stop = await stops.get(id, locale);
+      if (!stop) return { text: `No TTC stop ${id}.` };
+      let patterns = (await source.patternsAt(id)).filter((p) => p.stops.findIndex((s) => s.id === id) < p.stops.length - 1);
+      if (toStopId) patterns = rideLines(patterns, id, toStopId);
+      if (!patterns.length) return { text: toStopId ? `No line rides directly from ${stop.name} to ${toStopId}.` : `No lines found at ${stop.name}.` };
+      const rows = patterns
+        .sort((a, b) => a.shortName.localeCompare(b.shortName, 'en', { numeric: true }))
+        .slice(0, 25)
+        .map((p) => {
+          const next = p.stops.slice(p.stops.findIndex((s) => s.id === id) + 1);
+          const shown = toStopId ? next.slice(0, next.findIndex((s) => s.id === toStopId) + 1) : next.slice(0, 6);
+          const list = shown.map((s) => `${s.name} (${s.id})`).join(', ');
+          const last = next.at(-1)!;
+          const tail = toStopId ? `, ${shown.length} stops` : next.length > shown.length ? ` … last ${last.name} (${last.id}), ${next.length} stops` : '';
+          return `${p.shortName} ${p.mode}${p.minibus ? ' minibus' : ''} → ${p.headsign ?? last.name}: ${list}${tail}`;
+        });
+      return { text: `${stop.name} (${id}):\n${rows.join('\n')}` };
     },
   }),
 
@@ -127,6 +221,56 @@ export const createTools = ({ ttc, stops, plans, locale = 'en', geo }: ToolDeps)
       text: 'Shown to the user as a card to confirm. Not saved yet.',
       card: { type: 'confirm_trip', trip },
     }),
+  }),
+
+  tool({
+    name: 'propose_route',
+    description:
+      'Propose a trip with route preferences for the user to check in the New trip form: an avoid list ("never 518", "no minibuses") and/or a hand-built route (steps, e.g. bus to a metro station, then metro). The server checks every ride against TTC lines. Nothing is saved until the user opens the card and saves. Use propose_trip instead when there are no preferences.',
+    schema: z.object({
+      name: z.string().min(1).max(100),
+      from: place,
+      to: place,
+      arriveBy: hhmm,
+      days: z.array(z.number().int().min(1).max(7)).min(1).max(7).optional().describe('ISO weekdays, 1 = Monday; default Mon–Fri'),
+      avoid: avoidSchema.optional(),
+      steps: stepsSchema.optional(),
+    }),
+    mcp: false,
+    run: async ({ name, from, to, arriveBy, days, avoid, steps }) => {
+      if (!insideTbilisi(from.lat, from.lon) || !insideTbilisi(to.lat, to.lon)) return { text: 'Both places must be inside Tbilisi; resolve them with find_place first.' };
+      const a = cleanAvoid(avoid);
+      if (!a && !steps?.length) return { text: 'No avoid list or steps given: use propose_trip.' };
+      const checked: JourneyStep[] = [];
+      const rides: ProposedRide[] = [];
+      for (const [i, st] of (steps ?? []).entries()) {
+        const named = await Promise.all([...st.fromStops, ...st.toStops].map((id) => stops.get(id, locale)));
+        const missing = [...st.fromStops, ...st.toStops].filter((_, k) => !named[k]);
+        if (missing.length) return { text: `Ride ${i + 1}: unknown stop ${missing.join(', ')}. Use find_stop or stops_near.` };
+        let routes: string[] = st.routes ?? [];
+        if (source) {
+          const found: string[] = [];
+          for (const f of st.fromStops) {
+            const at = await source.patternsAt(f);
+            for (const t of st.toStops) found.push(...rideLines(at, f, t, a).map((p) => p.shortName));
+          }
+          const ok = uniq(found).filter((r) => !st.routes?.length || st.routes.includes(r));
+          if (!ok.length) return { text: `Ride ${i + 1}: no ${st.routes?.length ? `line ${st.routes.join('/')}` : 'line'} goes directly between those stops${a ? ' without avoided lines' : ''}. Check with lines_at_stop.` };
+          routes = st.routes?.length ? ok : [];
+          rides.push({ from: named[0]!.name, to: named[st.fromStops.length]!.name, routes: ok });
+        } else {
+          rides.push({ from: named[0]!.name, to: named[st.fromStops.length]!.name, routes: uniq(st.routes ?? []) });
+        }
+        checked.push({ fromStops: st.fromStops, toStops: st.toStops, ...(routes.length ? { routes } : {}) });
+      }
+      return {
+        text: 'Shown to the user as a card that opens the New trip form. Not saved yet.',
+        card: {
+          type: 'confirm_route',
+          route: { name, from, to, arriveBy, ...(days?.length ? { days: [...new Set(days)].sort() } : {}), ...(a ? { avoid: a } : {}), ...(checked.length ? { steps: checked, rides } : {}) },
+        },
+      };
+    },
   }),
 
   tool({

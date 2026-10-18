@@ -119,7 +119,7 @@ export default function EditTrip() {
     const trip =
       it && first
         ? { ...base, fromStopId: first.from.stopId ?? undefined, toStopId: legs.at(-1)!.to.stopId ?? undefined, walkMin: firstWalkMin(it) }
-        : await withStops(base);
+        : await Promise.race([withStops(base), new Promise<SavedTrip>((r) => setTimeout(() => r(base), 3000))]); // the stop lookup can be slow; save without it after 3 s
     saveTrip(trip);
     haptic('success');
     router.back();

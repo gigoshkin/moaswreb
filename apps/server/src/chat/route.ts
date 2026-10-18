@@ -62,6 +62,8 @@ const bodySchema = {
         },
       },
     },
+    home: place,
+    bufferMin: { type: 'integer', minimum: 0, maximum: 60 },
     locale: { type: 'string', enum: ['ka', 'en'] },
   },
 } as const;

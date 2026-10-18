@@ -3,12 +3,15 @@ import { test } from 'node:test';
 import { PlanService } from '../src/plan/service.ts';
 import { createTools } from '../src/tools/index.ts';
 import { StopIndex } from '../src/ttc/stops.ts';
-import { fakeTtc } from './fakes.ts';
+import { fakeSource, fakeTtc } from './fakes.ts';
 
-const setup = () => {
+const setup = (withSource = true) => {
   const ttc = fakeTtc();
   const stops = new StopIndex(ttc);
-  const tools = createTools({ ttc, stops, plans: new PlanService(ttc, stops), geo: { search: async () => [], reverse: async () => null } });
+  const tools = createTools({
+    ttc, stops, plans: new PlanService(ttc, stops), geo: { search: async () => [], reverse: async () => null },
+    ...(withSource ? { source: fakeSource() } : {}),
+  });
   const run = (name: string, input: unknown) => {
     const t = tools.find((t) => t.name === name)!;
     return t.run(t.schema.parse(input) as never);
@@ -62,5 +65,55 @@ test('proposals only produce confirm cards and are not on MCP', async () => {
   assert.deepEqual((await run('propose_trip', trip)).card, { type: 'confirm_trip', trip });
   const ev = await run('propose_events', { events: [{ title: 'Math', days: [1, 3], start: '10:00', end: '11:30', place: 'Free Uni' }] });
   assert.equal(ev.card?.type, 'confirm_events');
-  assert.deepEqual(tools.filter((t) => t.mcp).map((t) => t.name), ['find_stop', 'find_place', 'next_arrivals', 'plan_trip']);
+  assert.deepEqual(tools.filter((t) => t.mcp).map((t) => t.name), ['find_stop', 'find_place', 'next_arrivals', 'plan_trip', 'stops_near', 'lines_at_stop']);
+  assert.deepEqual(tools.filter((t) => !t.mcp).map((t) => t.name), ['propose_trip', 'propose_route', 'propose_events']);
+});
+
+test('plan_trip passes avoid / modes to the planner and drops avoided lines', async () => {
+  const { run } = setup();
+  const res = await run('plan_trip', { from: { lat: 41.7151, lon: 44.8271 }, to: { lat: 41.7099, lon: 44.7929 }, arriveBy: '2026-10-19T09:00', avoid: { routes: ['306', '306'] }, modes: ['BUS'] });
+  assert.equal(res.card?.type, 'plan');
+  if (res.card?.type !== 'plan') return;
+  assert.deepEqual(res.card.plan.query.avoid, { routes: ['306'] });
+  assert.deepEqual(res.card.plan.query.modes, ['BUS']);
+  assert.doesNotMatch(res.text, /BUS 306/);
+});
+
+test('stops_near finds the closest metro station', async () => {
+  const { run } = setup();
+  const res = await run('stops_near', { lat: 41.7201, lon: 44.8001, mode: 'SUBWAY' });
+  assert.match(res.text, /^1:3000 \| Station Square \| SUBWAY \| \d+ m$/);
+  assert.equal(res.card?.type, 'stops');
+  assert.match((await run('stops_near', { lat: 41.7201, lon: 44.8001, mode: 'GONDOLA' })).text, /No GONDOLA stops/);
+});
+
+test('lines_at_stop lists lines with next stop ids; toStopId keeps direct rides only', async () => {
+  const { run } = setup();
+  const all = await run('lines_at_stop', { stopId: '1:1405' });
+  assert.match(all.text, /306 BUS → Station: Rustaveli Avenue \(1:1000\), Station Square \(1:3000\)/);
+  assert.match(all.text, /518 BUS minibus → Station Square/);
+  const direct = await run('lines_at_stop', { stopId: '1:1405', toStopId: '1:1000' });
+  assert.match(direct.text, /306/);
+  assert.doesNotMatch(direct.text, /518/);
+  const off = setup(false);
+  assert.match((await off.run('lines_at_stop', { stopId: '1:1405' })).text, /unavailable/);
+});
+
+test('propose_route checks rides against TTC lines and the avoid list; card only', async () => {
+  const { run } = setup();
+  const base = { name: 'Uni', from: { label: 'Home', lat: 41.7151, lon: 44.8271 }, to: { label: 'Station', lat: 41.72, lon: 44.8 }, arriveBy: '09:00' };
+  const ok = await run('propose_route', { ...base, avoid: { minibus: true }, steps: [{ fromStops: ['1:1405'], toStops: ['1:3000'] }] });
+  assert.equal(ok.card?.type, 'confirm_route');
+  if (ok.card?.type !== 'confirm_route') return;
+  assert.deepEqual(ok.card.route.avoid, { minibus: true });
+  assert.deepEqual(ok.card.route.rides, [{ from: 'Free University', to: 'Station Square', routes: ['306'] }]);
+  assert.deepEqual(ok.card.route.steps, [{ fromStops: ['1:1405'], toStops: ['1:3000'] }]);
+  // Only the avoided minibus fits: refused, no card.
+  const bad = await run('propose_route', { ...base, avoid: { minibus: true }, steps: [{ fromStops: ['1:1405'], toStops: ['1:3000'], routes: ['518'] }] });
+  assert.equal(bad.card, undefined);
+  assert.match(bad.text, /Ride 1: no line 518/);
+  assert.match((await run('propose_route', { ...base, steps: [{ fromStops: ['1:9999'], toStops: ['1:3000'] }] })).text, /unknown stop 1:9999/);
+  // Avoid only, no steps.
+  const avoidOnly = await run('propose_route', { ...base, avoid: { routes: ['518'] } });
+  assert.deepEqual(avoidOnly.card, { type: 'confirm_route', route: { ...base, avoid: { routes: ['518'] } } });
 });

@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import type { PatternRef, Source } from '../src/journey/source.ts';
 import type { TtcClient } from '../src/ttc/client.ts';
 
 export const rawPlan = JSON.parse(await readFile(new URL('./fixtures/plan-otp-synthetic.json', import.meta.url), 'utf8'));
@@ -35,3 +36,15 @@ export const fakeTtc = (): TtcClient & { calls: string[] } => {
     plan: async () => (calls.push('plan'), rawPlan),
   } as unknown as TtcClient & { calls: string[] };
 };
+
+// SYNTHETIC lines for lines_at_stop / propose_route: 306 Free University → Rustaveli → Station Square, minibus 518 Free University → Station Square.
+const ref = (id: string) => ({ id, name: stopsEn.find((s) => s.id === id)!.name, lat: 0, lon: 0 });
+const pattern = (shortName: string, ids: string[], minibus = false): PatternRef => ({
+  routeId: minibus ? `1:minibus${shortName}` : `1:R${shortName}`, shortName, longName: null, color: null, minibus, mode: 'BUS', suffix: '0:01',
+  headsign: minibus ? null : 'Station', stops: ids.map(ref),
+});
+const patterns = [pattern('306', ['1:1405', '1:1000', '1:3000']), pattern('518', ['1:1405', '1:3000'], true)];
+
+export const fakeSource = (): Pick<Source, 'patternsAt'> => ({
+  patternsAt: async (id) => patterns.filter((p) => p.stops.some((s) => s.id === id)),
+});
