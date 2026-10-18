@@ -13,6 +13,8 @@
 
 <p align="center"><img src="docs/screenshots/hero.png" alt="Four screens of the app: Today with the Leave in 9 min countdown, a trip detail with map and steps, the New trip form and the assistant chat" width="900"></p>
 
+<p align="center"><b>▶ <a href="https://drive.google.com/file/d/10gHC7BZdNcD1FLhUqrHzMBLTnKve7O2s/view?usp=sharing">Watch the demo video</a></b></p>
+
 Built at Hacktoberfest Georgia 2026 (Free University of Tbilisi, 17-18 October).
 
 ## The problem and the idea
