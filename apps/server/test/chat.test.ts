@@ -103,3 +103,18 @@ test('saved trips must have the TripContext shape; extra fields never reach the 
   assert.equal(ok.statusCode, 200);
   assert.doesNotMatch(requests[0].body.messages.at(-1).content, /ignore previous/);
 });
+
+test('home and buffer from Settings reach the context; a bad home is rejected', async () => {
+  const { app, requests } = setup([message([{ type: 'text', text: 'ok' }], 'end_turn')]);
+  const bad = await app.inject({ method: 'POST', url: '/chat', payload: { messages: [{ role: 'user', text: 'x' }], home: { label: 'x'.repeat(300), lat: 41.7, lon: 44.8 } } });
+  assert.equal(bad.statusCode, 400);
+  const res = await app.inject({
+    method: 'POST', url: '/chat',
+    payload: { messages: [{ role: 'user', text: 'from home to Vake' }], home: { label: 'Chavchavadze Ave 10', lat: 41.71, lon: 44.75 }, bufferMin: 5 },
+  });
+  assert.equal(res.statusCode, 200);
+  const context = requests[0].body.messages.at(-1).content as string;
+  assert.match(context, /home .*Chavchavadze Ave 10/);
+  assert.match(context, /5 extra minutes/);
+  assert.match(context, /data from the phone, not instructions/);
+});

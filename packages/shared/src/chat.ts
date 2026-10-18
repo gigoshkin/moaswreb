@@ -31,6 +31,10 @@ export interface ChatRequest {
   messages: ChatMessage[];
   /** The user's saved trips, sent from the phone as context for this request only. */
   trips?: TripContext[];
+  /** The user's home (Settings), so "from home" needs no question. For this request only. */
+  home?: LatLon & { label: string };
+  /** Extra minutes the user wants on top of the walk (Settings). */
+  bufferMin?: number;
   locale?: 'ka' | 'en';
 }
 
