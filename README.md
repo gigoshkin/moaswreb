@@ -153,6 +153,7 @@ Or without Docker: `npm run dev -w @transit/server`. On a VPS, `docker compose -
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Enables `/chat` with Claude (default model `claude-sonnet-5-5`). |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Enables `/chat` with Gemini (free key from Google AI Studio is enough for testing). |
 | `GOOGLE_PLACES_API_KEY` | Optional. Google Places as the first place-search source; empty means off. `GOOGLE_PLACES_DAILY_CAP` limits real calls per day. |
+| `GOOGLE_ROUTES_API_KEY` | Optional. Google Routes (transit) suggests line chains the trip planner then times from TTC; empty means TTC only. `GOOGLE_ROUTES_DAILY_CAP` (default 300) limits real calls per day. |
 | `DOMAIN` | Public hostname for Caddy on the VPS. |
 
 All variables, rate limits and the endpoint list are in [.env.example](.env.example) and [apps/server/README.md](apps/server/README.md).
