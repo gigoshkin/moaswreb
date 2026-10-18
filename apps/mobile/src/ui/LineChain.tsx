@@ -24,7 +24,7 @@ interface Props {
 export function LineChain({ slots, size = 'md', onDark, max = 3 }: Props) {
   const shown = slots.slice(0, max);
   return (
-    <View style={styles.row}>
+    <View style={styles.chain}>
       {shown.map((slot, i) => (
         <View key={i} style={styles.row}>
           {i > 0 && <Icon name="chevron-right" size={size === 'sm' ? 14 : 16} color={onDark ? color.onInkMuted : color.textTertiary} />}
@@ -55,5 +55,7 @@ export function Stack({ slot, size = 'md', onDark }: { slot: Slot; size?: 'sm' |
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  // Wraps to a second line instead of running off the card when a trip has several rides.
+  chain: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', rowGap: 4, flexShrink: 1, minWidth: 0 },
   capsule: { flexDirection: 'row', alignItems: 'center', gap: 3, padding: 3, paddingRight: 4, borderRadius: 14 },
 });
