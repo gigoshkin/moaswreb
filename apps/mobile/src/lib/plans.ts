@@ -1,4 +1,4 @@
-import { leaveAtMs, tbilisiLocalToIso, type Itinerary, type JourneyStep, type PlanLeg } from '@transit/shared';
+import { leaveAtMs, tbilisiLocalToIso, type Itinerary, type JourneyStep, type PlanLeg, type PlanResponse } from '@transit/shared';
 
 // Plan maths shared by the screens. The server's AlertWatcher uses the same
 // rule (leaveAtMs), so a push and the Today screen agree on the leave time.
@@ -74,6 +74,36 @@ export function choose(its: Itinerary[], arriveByLocal: string, now: number, buf
   const soonest = catchable.sort((a, b) => Date.parse(a.it.arriveAt) - Date.parse(b.it.arriveAt))[0];
   if (!soonest) return { kind: 'none' };
   return { kind: 'late', ...soonest, lateMin: Math.max(1, Math.ceil((Date.parse(soonest.it.arriveAt) - deadline) / 60_000)) };
+}
+
+/** Same rides at the same times: the same option, whichever plan it came from. */
+const rideSig = (it: Itinerary) => transitLegs(it).map((l) => `${l.route?.shortName ?? l.mode}@${l.from.stopId ?? l.from.name}@${l.departAt}>${l.to.stopId ?? l.to.name}`).join('|') || it.id;
+
+/** Several lists of itineraries as one: every option once (first seen wins), earliest arrival first, ids unique so lists can key on them. */
+export function mergeItineraries(lists: Itinerary[][]): Itinerary[] {
+  const seen = new Set<string>();
+  const ids = new Set<string>();
+  const out: Itinerary[] = [];
+  lists.forEach((list, n) => {
+    for (const it of list) {
+      const sig = rideSig(it);
+      if (seen.has(sig)) continue;
+      seen.add(sig);
+      const id = ids.has(it.id) ? `${it.id}~${n}` : it.id;
+      ids.add(id);
+      out.push(id === it.id ? it : { ...it, id });
+    }
+  });
+  return out.sort((a, b) => Date.parse(a.arriveAt) - Date.parse(b.arriveAt));
+}
+
+/**
+ * One plan from the plans of a trip's kept ways (one request each). The first
+ * plan's query and time stand for the whole. One plan is returned as it is.
+ */
+export function mergePlans(plans: PlanResponse[]): PlanResponse | null {
+  if (plans.length <= 1) return plans[0] ?? null;
+  return { ...plans[0], itineraries: mergeItineraries(plans.map((p) => p.itineraries)) };
 }
 
 /** Whole minutes until `t`, rounded up so "Leave in 1 min" shows until the minute is over. */
