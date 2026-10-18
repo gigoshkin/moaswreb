@@ -1,4 +1,4 @@
-import type { ActionCard, Itinerary, LatLon, PlanResponse, ProposedEvent, ProposedTrip } from '@transit/shared';
+import type { ActionCard, Itinerary, LatLon, PlanAvoid, PlanResponse, ProposedEvent, ProposedRoute, ProposedTrip } from '@transit/shared';
 import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -41,6 +41,8 @@ export function ChatCard(props: CardProps) {
       return <EventsCard {...props} events={card.events} />;
     case 'confirm_trip':
       return <TripCard {...props} trip={card.trip} />;
+    case 'confirm_route':
+      return <RouteCard {...props} route={card.route} />;
     case 'arrivals':
       return (
         <Shell title={card.stop.name} icon="bus">
@@ -157,7 +159,8 @@ function PlanCard({ plan, itemId, index, done }: CardProps & { plan: PlanRespons
             style={styles.flex}
             onPress={() => {
               markCard(itemId, index, 'Opened in New trip');
-              openNewTrip({ name: to.label, from, to, arriveBy: arriveBy.slice(11, 16) });
+              const { avoid, steps } = plan.query;
+              openNewTrip({ name: to.label, from, to, arriveBy: arriveBy.slice(11, 16), ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) });
             }}
           />
         </Actions>
@@ -341,6 +344,64 @@ function TripCard({ trip, itemId, index, done }: CardProps & { trip: ProposedTri
   );
 }
 
+const avoidText = (a: PlanAvoid) => [...(a.routes ?? []), ...(a.minibus ? ['minibuses'] : [])].join(', ');
+
+/** A trip with an avoid list or a hand-built route. Opens New trip prefilled; the user checks it there and saves. */
+function RouteCard({ route, itemId, index, done, onEdit }: CardProps & { route: ProposedRoute }) {
+  const days = route.days?.length ? route.days : DEFAULT_DAYS;
+  const open = () => {
+    markCard(itemId, index, 'Opened in New trip');
+    openNewTrip({
+      name: route.name,
+      from: route.from,
+      to: route.to,
+      arriveBy: route.arriveBy,
+      days,
+      ...(route.avoid ? { avoid: route.avoid } : {}),
+      ...(route.steps?.length ? { steps: route.steps } : {}),
+    });
+  };
+  const rows: Array<[string, ReactNode]> = [
+    ['From', route.from.label],
+    ['To', route.to.label],
+    ['Arrive by', `${route.arriveBy}  ${daysText(days)}`],
+    ...(route.avoid ? [['Never', avoidText(route.avoid)] as [string, ReactNode]] : []),
+  ];
+  return (
+    <Shell
+      title={route.name}
+      icon="pin"
+      actions={
+        <Actions done={done}>
+          <Button label="Edit" kind="secondary" style={styles.flex} haptic="none" onPress={() => onEdit('Change ')} />
+          <Button label="Review" style={styles.flex} onPress={open} />
+        </Actions>
+      }
+    >
+      {rows.map(([label, value], i) => (
+        <View key={label} style={[styles.row, i > 0 && styles.rowBorderTop]}>
+          <Text variant="caption" color={color.textSecondary} style={styles.tripLabel}>
+            {label}
+          </Text>
+          <Text variant="body15" style={styles.flex} numberOfLines={2}>
+            {value}
+          </Text>
+        </View>
+      ))}
+      {route.rides?.map((r, i) => (
+        <View key={`ride${i}`} style={[styles.row, styles.rowBorderTop]}>
+          <View style={styles.ridePlates}>
+            {r.routes.length ? r.routes.slice(0, 2).map((n) => <RoutePlate key={n} label={n} size="md" />) : <Icon name="bus" size={16} />}
+          </View>
+          <Text variant="body15" style={styles.flex} numberOfLines={2}>
+            {`${r.from} → ${r.to}${r.routes.length > 2 ? ` (also ${r.routes.slice(2).join(', ')})` : ''}`}
+          </Text>
+        </View>
+      ))}
+    </Shell>
+  );
+}
+
 const styles = StyleSheet.create({
   card: { backgroundColor: color.surface, borderRadius: radius.lg, padding: 20, ...shadow.card },
   title: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -357,6 +418,7 @@ const styles = StyleSheet.create({
   when: { width: 76, paddingTop: 3 },
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: -2 },
   tripLabel: { width: 64 },
+  ridePlates: { width: 64, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 16 },
   done: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16, height: 52, justifyContent: 'center', borderRadius: radius.md, backgroundColor: 'rgba(28,26,26,0.05)' },
 });

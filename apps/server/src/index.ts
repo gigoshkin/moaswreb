@@ -38,8 +38,8 @@ app.get('/logger/stats', async () => poller.stats());
 app.get('/alerts/stats', async () => ({ enabled: Boolean(watcher), sent: watcher?.sent ?? 0, lastError: watcher?.lastError ?? null }));
 registerPlanRoute(app, plans);
 registerStopRoutes(app, { ttc, stops, source });
-registerChatRoute(app, { ttc, stops, plans });
-registerMcpRoute(app, createTools({ ttc, stops, plans }));
+registerChatRoute(app, { ttc, stops, plans, source });
+registerMcpRoute(app, createTools({ ttc, stops, plans, source }));
 if (store) registerMeRoutes(app, store);
 else app.log.warn('TRIPS_KEY not set: stored trips and alerts are off');
 

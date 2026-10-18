@@ -3,7 +3,7 @@
 // never from the model. Proposals (trips, events) are confirmed by the user and
 // stored on the phone; the server keeps no user data.
 
-import type { LatLon, PlanResponse } from './plan.ts';
+import type { JourneyStep, LatLon, PlanAvoid, PlanResponse } from './plan.ts';
 
 export interface ChatAttachment {
   kind: 'image' | 'pdf';
@@ -77,12 +77,32 @@ export interface ProposedEvent {
   place: string | null;
 }
 
+/** One ride of a proposed hand-built route, as the server checked it against TTC lines (names and lines from TTC, not the model). */
+export interface ProposedRide {
+  from: string;
+  to: string;
+  /** Lines that go from `from` to `to` and are not avoided. */
+  routes: string[];
+}
+
+/** A trip with a route preference, opened in the New trip form for the user to check and save. */
+export interface ProposedRoute extends ProposedTrip {
+  /** ISO weekdays; missing = Mon–Fri. */
+  days?: number[];
+  avoid?: PlanAvoid;
+  /** A hand-built route: the rides in order. */
+  steps?: JourneyStep[];
+  /** Same length as `steps`. */
+  rides?: ProposedRide[];
+}
+
 export type ActionCard =
   | { type: 'plan'; plan: PlanResponse }
   | { type: 'arrivals'; stop: { id: string; name: string }; arrivals: Arrival[] }
   | { type: 'stops'; stops: StopHit[] }
   | { type: 'confirm_trip'; trip: ProposedTrip }
-  | { type: 'confirm_events'; events: ProposedEvent[] };
+  | { type: 'confirm_events'; events: ProposedEvent[] }
+  | { type: 'confirm_route'; route: ProposedRoute };
 
 export interface ChatResponse {
   /** One short sentence; the cards carry the content. */
