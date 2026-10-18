@@ -34,13 +34,14 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: color.bg }}>
       <SafeAreaProvider>
+        {/* gestureEnabled:false on the map screens: the iOS edge swipe-back fights map panning and would leave the place picker from map mode. They all have an on-screen back/close button. */}
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.bg }, animation: 'ios_from_right' }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="trip/[id]" />
           <Stack.Screen name="trip/edit" options={{ animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="trip/route" />
-          <Stack.Screen name="trip/build" />
-          <Stack.Screen name="pick-place" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="trip/route" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="trip/build" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="pick-place" options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
           <Stack.Screen name="buffer" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="privacy" />
         </Stack>

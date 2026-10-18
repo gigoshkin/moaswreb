@@ -42,7 +42,7 @@ export default function PickPlace() {
   useEffect(() => () => finishPick(null), []);
 
   useEffect(() => {
-    if (mode !== 'map' || Platform.OS === 'web') return;
+    if (mode !== 'map' || Platform.OS !== 'android') return; // BackHandler is Android-only; iOS swipe-back is disabled in _layout
     // Android back from the map returns to the search, not out of the picker.
     const sub = BackHandler.addEventListener('hardwareBackPress', () => (setMode('search'), true));
     return () => sub.remove();
@@ -151,6 +151,8 @@ function Search({ kind, onPick, onMap }: { kind: PickKind; onPick: (p: Place) =>
             placeholderTextColor={color.textSecondary}
             style={styles.input}
             returnKeyType="search"
+            clearButtonMode="while-editing"
+            autoCapitalize="none"
             autoCorrect={false}
             maxFontSizeMultiplier={1.15}
           />

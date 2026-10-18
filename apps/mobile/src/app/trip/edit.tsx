@@ -182,6 +182,7 @@ export default function EditTrip() {
               })()}
               mode="time"
               display="spinner"
+              themeVariant="light"
               is24Hour
               onChange={(_e: DateTimePickerEvent, d?: Date) => d && setArriveBy(hhmmLocal(d))}
             />

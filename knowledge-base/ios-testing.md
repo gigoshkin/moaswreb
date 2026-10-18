@@ -28,3 +28,22 @@ Push notifications, home-screen widgets, `app.json` permission strings (Expo Go 
 - iOS shows Apple Maps unless a Google key is set for iOS; the map style differs.
 - "Other time" in chat uses an Android-only picker.
 - Some shadows disappear on iOS (`overflow: hidden` with shadow props).
+
+## iOS fixes done / still open (18 Oct 2026, from the iOS audit; George ordered all fixes)
+Done (Android unchanged, all guarded by `Platform.OS` or cross-platform):
+- `app.json`: `supportsTablet:false`; plugins `expo-image-picker` (camera/photos strings, no mic) and `expo-location` (when-in-use string); `ITSAppUsesNonExemptEncryption:false`; ATS `NSAllowsLocalNetworking` plus `NSLocalNetworkUsageDescription` for LAN dev (remove for a store build if wanted). Real iOS builds need an `https://` API URL (noted in apps/mobile/README.md).
+- Shadows: `theme.ts` now uses `boxShadow` on every platform, so `overflow:hidden` cards keep their shadow on iOS.
+- Chat "Other time": iOS opens a sheet with a spinner time picker and a "Plan for this time" button (Android keeps its native dialog).
+- AttachSheet: "Select more photos" tile on iOS limited access (`presentPermissionsPickerAsync`); camera wrapped in try/catch; picker images always sent as `image/jpeg` (avoids heic).
+- `gestureEnabled:false` on `pick-place`, `trip/route`, `trip/build`; BackHandler only on Android.
+- Map: iOS = Apple Maps with `mapType="mutedStandard"` and `legalLabelInsets` above the sheet; Android = Google Maps with the custom style. Documented in MapCanvas.tsx.
+- Cosmetic: search input clear button and `autoCapitalize="none"`; `themeVariant="light"` on both time pickers.
+
+Still open / only a real iPhone or dev build can verify:
+- Whether the Apple Maps look is acceptable; zoom/offset drift from `animateToRegion` (audit L9); legal label placement.
+- Permission prompts with our strings, limited-photo flow, camera, HEIC photos, time-picker sheet look, swipe-back on map screens, shadow look.
+- ATS behaviour on a plain-http LAN API in a dev build.
+- Not done (owned by the alerts work): `alarmClock`/`channelId` only on Android, ask for notification permission in context instead of at first launch, `extra.eas.projectId` for push tokens (needs `eas init`).
+- Not done: chat input top padding tweak (audit L12), inverted-list layout flicker (C10), `npx expo install --check` for react-native-screens (C11). Nothing there is verified as broken.
+- `expo lint` is not set up in the repo (it tries to install eslint, a stack change for George); only `tsc --noEmit` was run.
+

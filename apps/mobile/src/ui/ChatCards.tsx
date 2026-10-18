@@ -1,5 +1,5 @@
 import type { ActionCard, Itinerary, LatLon, PlanResponse, ProposedEvent, ProposedTrip } from '@transit/shared';
-import { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -15,6 +15,7 @@ import { Button } from './Button';
 import { Icon, type IconName } from './Icon';
 import { LineChain } from './LineChain';
 import { RoutePlate } from './RoutePlate';
+import { Sheet } from './Sheet';
 import { Tap, haptic } from './Tap';
 import { Text } from './Text';
 import { color, font, radius, shadow } from './theme';
@@ -110,6 +111,7 @@ function labelFor(p: LatLon, name: string | undefined, fallback: string): Place 
 
 function PlanCard({ plan, itemId, index, done }: CardProps & { plan: PlanResponse }) {
   const [busy, setBusy] = useState(false);
+  const [picked, setPicked] = useState<Date | null>(null);
   const arriveBy = plan.query.arriveBy;
   const date = arriveBy.slice(0, 10);
   const best = choose(plan.itineraries, arriveBy, Date.now());
@@ -119,25 +121,27 @@ function PlanCard({ plan, itemId, index, done }: CardProps & { plan: PlanRespons
   const from = labelFor(plan.query.from, first?.legs[0]?.from.name, 'Start');
   const to = labelFor(plan.query.to, first?.legs.at(-1)?.to.name, 'Destination');
 
+  const replan = async (d: Date) => {
+    setBusy(true);
+    const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    try {
+      const next = await fetchPlan({ ...plan.query, arriveBy: `${date}T${time}` });
+      replaceCard(itemId, index, { type: 'plan', plan: next });
+    } catch {
+      say("Couldn't plan for that time. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const otherTime = () => {
     const [h, m] = arriveBy.slice(11, 16).split(':').map(Number);
     const value = new Date();
     value.setHours(h, m, 0, 0);
-    const replan = async (d: Date) => {
-      setBusy(true);
-      const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      try {
-        const next = await fetchPlan({ ...plan.query, arriveBy: `${date}T${time}` });
-        replaceCard(itemId, index, { type: 'plan', plan: next });
-      } catch {
-        say("Couldn't plan for that time. Try again.");
-      } finally {
-        setBusy(false);
-      }
-    };
-    // Android only: the demo phone. iOS would need an inline picker here.
+    // Android: native dialog. iOS: spinner in a sheet (picked below).
     if (Platform.OS === 'android')
       DateTimePickerAndroid.open({ value, mode: 'time', is24Hour: true, onChange: (e: DateTimePickerEvent, d?: Date) => e.type === 'set' && d && replan(d) });
+    else setPicked(value);
   };
 
   return (
@@ -166,6 +170,28 @@ function PlanCard({ plan, itemId, index, done }: CardProps & { plan: PlanRespons
         <Text variant="body15" color={color.textSecondary}>
           No route found for that time.
         </Text>
+      )}
+      {Platform.OS === 'ios' && (
+        <Sheet visible={picked !== null} onClose={() => setPicked(null)}>
+          {picked && (
+            <DateTimePicker
+              value={picked}
+              mode="time"
+              display="spinner"
+              is24Hour
+              themeVariant="light"
+              onChange={(_e: DateTimePickerEvent, d?: Date) => d && setPicked(d)}
+            />
+          )}
+          <Button
+            label="Plan for this time"
+            onPress={() => {
+              const d = picked;
+              setPicked(null);
+              if (d) replan(d);
+            }}
+          />
+        </Sheet>
       )}
     </Shell>
   );

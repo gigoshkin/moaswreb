@@ -1,4 +1,4 @@
-import { Platform, type TextStyle, type ViewStyle } from 'react-native';
+import { type TextStyle, type ViewStyle } from 'react-native';
 import type { WithSpringConfig } from 'react-native-reanimated';
 
 // Design tokens from andro's Figma ("Moaswreb App": style guide + Screens v2).
@@ -81,19 +81,12 @@ export const radius = { xs: 6, sm: 8, md: 14, lg: 24, full: 999 } as const;
 /** Screen side padding. */
 export const gutter = 20;
 
+// boxShadow (RN 0.76+) renders the same on both platforms and, unlike the old
+// shadow* props, is not clipped by overflow:'hidden' on iOS.
 export const shadow = {
-  card: Platform.select<ViewStyle>({
-    ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
-    default: { boxShadow: '0px 2px 10px rgba(0,0,0,0.06)' },
-  }),
-  soft: Platform.select<ViewStyle>({
-    ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-    default: { boxShadow: '0px 2px 6px rgba(0,0,0,0.05)' },
-  }),
-  bar: Platform.select<ViewStyle>({
-    ios: { shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
-    default: { boxShadow: '0px 1px 2px rgba(0,0,0,0.04)' },
-  }),
+  card: { boxShadow: '0px 2px 10px rgba(0,0,0,0.06)' } satisfies ViewStyle,
+  soft: { boxShadow: '0px 2px 6px rgba(0,0,0,0.05)' } satisfies ViewStyle,
+  bar: { boxShadow: '0px 1px 2px rgba(0,0,0,0.04)' } satisfies ViewStyle,
 };
 
 /** Springs. `snappy` for taps and toggles, `smooth` for things that travel. */

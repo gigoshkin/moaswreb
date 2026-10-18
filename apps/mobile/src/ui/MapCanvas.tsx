@@ -201,7 +201,12 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
         <MapView
           ref={map}
           style={StyleSheet.absoluteFill}
+          // Android: Google Maps (customMapStyle applies). iOS: Apple Maps (provider undefined, deliberate:
+          // PROVIDER_GOOGLE on iOS needs an API key and a dev build). Apple Maps ignores customMapStyle, so iOS
+          // gets its own POIs; mutedStandard is the closest to the quiet Android style. Needs a real iPhone to judge.
           provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+          mapType={Platform.OS === 'ios' ? 'mutedStandard' : 'standard'}
+          legalLabelInsets={Platform.OS === 'ios' ? { top: 0, left: 0, right: 0, bottom: insetBottom } : undefined}
           {...(Platform.OS === 'android'
             ? { initialCamera: { center: ll(initial.camera.center), zoom: initial.camera.g, heading: 0, pitch: 0 } }
             : { initialRegion: regionOf(initial.camera.center, initial.camera.g, size.w, size.h) })}

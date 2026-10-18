@@ -4,7 +4,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Platform, StyleSheet, View } from 'react-native';
 import type { Attachment } from '../lib/chat';
 import { Icon, type IconName } from './Icon';
 import { Sheet } from './Sheet';
@@ -51,16 +51,21 @@ export function AttachSheet({ visible, onClose, onPick }: Props) {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) return void notify('Camera is off', 'Allow camera access for this app in your phone settings to take a photo.');
     onClose();
-    const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.6, base64: true });
-    const a = res.assets?.[0];
-    if (!res.canceled && a?.base64) onPick({ kind: 'image', mediaType: a.mimeType ?? 'image/jpeg', data: a.base64, uri: a.uri });
+    try {
+      const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.6, base64: true });
+      const a = res.assets?.[0];
+      // quality < 1 re-encodes to JPEG, but iOS can still report image/heic.
+      if (!res.canceled && a?.base64) onPick({ kind: 'image', mediaType: 'image/jpeg', data: a.base64, uri: a.uri });
+    } catch {
+      notify("Camera isn't available", 'Use Photos instead.');
+    }
   };
 
   const library = async () => {
     onClose();
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.6, base64: true });
     const a = res.assets?.[0];
-    if (!res.canceled && a?.base64) onPick({ kind: 'image', mediaType: a.mimeType ?? 'image/jpeg', data: a.base64, uri: a.uri });
+    if (!res.canceled && a?.base64) onPick({ kind: 'image', mediaType: 'image/jpeg', data: a.base64, uri: a.uri });
   };
 
   const pdf = async () => {
@@ -110,6 +115,19 @@ export function AttachSheet({ visible, onClose, onPick }: Props) {
         <TileButton icon="image" label="Photos" onPress={library} />
         <TileButton icon="file" label="PDF" onPress={pdf} />
       </View>
+
+      {granted && Platform.OS === 'ios' && permission?.accessPrivileges === 'limited' && (
+        <Tap onPress={() => MediaLibrary.presentPermissionsPickerAsync().then(() => MediaLibrary.getAssetsAsync({ first: RECENT, mediaType: 'photo', sortBy: [['creationTime', false]] })).then((page) => setRecent(page.assets)).catch(() => {})} feedback="tint" style={styles.allow} accessibilityRole="button">
+          <Icon name="image" size={22} color={color.textSecondary} />
+          <View style={styles.allowText}>
+            <Text variant="label16">Select more photos</Text>
+            <Text variant="body13" color={color.textSecondary}>
+              You gave access to only some photos.
+            </Text>
+          </View>
+          <Icon name="chevron-right" size={20} color={color.textTertiary} />
+        </Tap>
+      )}
 
       {granted ? (
         recent.length > 0 && (
