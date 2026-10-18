@@ -30,6 +30,8 @@ export const clearChat = () => chatStore.set([]);
 
 const id = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
+const ctxPlace = (p: { label: string; lat: number; lon: number }) => ({ label: p.label.slice(0, 200), lat: p.lat, lon: p.lon });
+
 /** Earlier turns sent as context, text only. */
 const HISTORY = 12;
 
@@ -68,7 +70,8 @@ export async function send(text: string, attachment?: Attachment): Promise<void>
     const { home, bufferMin } = settings.get();
     const res = await sendChat({
       messages: [...history, last],
-      trips: listTrips().map((t) => ({ name: t.name, from: t.from, to: t.to, arriveBy: t.arriveBy })),
+      // Inside the server's limits (name ≤ 100, label ≤ 200, 50 trips): a long event title saved from a PDF must not break every later chat.
+      trips: listTrips().slice(0, 50).map((t) => ({ name: t.name.slice(0, 100), from: ctxPlace(t.from), to: ctxPlace(t.to), arriveBy: t.arriveBy })),
       ...(home ? { home: { label: home.label.slice(0, 200), lat: home.lat, lon: home.lon } } : {}),
       ...(bufferMin > 0 ? { bufferMin: Math.min(60, Math.round(bufferMin)) } : {}),
       locale: 'en',

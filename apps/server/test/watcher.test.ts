@@ -103,3 +103,10 @@ test('within 5 min of the latest departure, less walking beats a later start', (
   assert.equal(bestItinerary([far, near], arrive)?.id, 'near', 'one minute earlier, ten minutes less walking');
   assert.equal(bestItinerary([far, near, way], arrive)?.id, 'near', 'eight minutes earlier is no tie: not chosen over the latest pool');
 });
+
+test('overlapping ticks (a pass slower than the interval) send the push once', async () => {
+  const { watcher, sent } = setup();
+  const [a, b] = await Promise.all([watcher.tick(at('08:01')), watcher.tick(at('08:01'))]);
+  assert.equal(a.length + b.length, 1);
+  assert.equal(sent.length, 1);
+});

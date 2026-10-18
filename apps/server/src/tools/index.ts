@@ -291,9 +291,10 @@ export const createTools = ({ ttc, stops, plans, locale = 'en', geo, source }: T
         .min(1),
     }),
     mcp: false,
+    // Days deduplicated and sorted: the phone syncs them to /me/trips, which rejects repeated days (and with them every trip).
     run: async ({ events }) => ({
       text: `${events.length} events shown to the user to confirm. Not saved yet.`,
-      card: { type: 'confirm_events', events },
+      card: { type: 'confirm_events', events: events.map((e) => ({ ...e, days: [...new Set(e.days)].sort((a, b) => a - b) })) },
     }),
   }),
 ];

@@ -135,3 +135,11 @@ test('a hand-built route becomes a confirm_route card; every tool schema reaches
   for (const n of ['stops_near', 'lines_at_stop', 'propose_route']) assert.ok(names.includes(n), n);
   assert.ok(requests[0].body.tools.every((t: any) => t.input_schema?.type === 'object'));
 });
+
+test('running out of tool steps gives a reply, not an empty bubble', async () => {
+  const call = message([{ type: 'tool_use', id: 'tu_1', name: 'next_arrivals', input: { stopId: '1:1405' } }], 'tool_use');
+  const { app } = setup(Array.from({ length: 8 }, () => call));
+  const res = await app.inject({ method: 'POST', url: '/chat', payload: { messages: [{ role: 'user', text: 'x' }] } });
+  assert.equal(res.statusCode, 200);
+  assert.match(res.json().reply, /too many steps/);
+});

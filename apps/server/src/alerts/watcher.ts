@@ -65,6 +65,8 @@ export class AlertWatcher {
 
   sent = 0;
   lastError: string | null = null;
+  /** A pass still running (slow TTC answers can take longer than the interval): the next tick skips, so no push goes out twice. */
+  private running = false;
 
   constructor(store: TripStore, stops: StopIndex, plans: PlanService, send: SendPush) {
     this.store = store;
@@ -91,6 +93,16 @@ export class AlertWatcher {
    * recorded once Expo accepts it, so a failed send is retried next tick.
    */
   async tick(now = Date.now()): Promise<PushMessage[]> {
+    if (this.running) return [];
+    this.running = true;
+    try {
+      return await this.pass(now);
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async pass(now: number): Promise<PushMessage[]> {
     // Today and tomorrow: a 00:30 arrive-by is watched from 22:30 the day before.
     const days = [tbilisiDay(now), tbilisiDay(now + DAY_MS)];
     const out: Array<{ msg: PushMessage; key: string; next: TripState }> = [];
