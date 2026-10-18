@@ -164,7 +164,8 @@ function baseAndroid(body: string, leaveAt: number) {
     importance: AndroidImportance.HIGH,
     category: AndroidCategory.REMINDER,
     visibility: AndroidVisibility.PUBLIC,
-    ongoing: true,
+    // Not ongoing: a card the system fails to remove (a missed alarm in Doze) can always be swiped away.
+    ongoing: false,
     autoCancel: false,
     showTimestamp: true,
     timestamp: leaveAt,
@@ -343,12 +344,28 @@ function trackWatch(trip: string, date: string, ride: CardInput['ride'], now: nu
   return watch;
 }
 
+/** Cards still on screen well after their time (the alarm or the service that should end them did not run): remove them. */
+async function sweepStale(now: number): Promise<void> {
+  if (!notifee) return;
+  const mine = [CARD, NOW, FALLBACK, TEST_CARD, TEST_NOW, TEST_FALLBACK];
+  const shown = await notifee.getDisplayedNotifications().catch(() => []);
+  for (const s of shown) {
+    const id = s.id ?? s.notification?.id;
+    const leaveAt = Number(s.notification?.data?.leaveAt);
+    if (id && mine.includes(id) && Number.isFinite(leaveAt) && now >= leaveAt + KEEP_AFTER_MS + 60_000) {
+      await notifee.cancelNotification(id).catch(() => {});
+      if (!shown.some((o) => o.id !== id && o.id && mine.includes(o.id))) await notifee.stopForegroundService().catch(() => {});
+    }
+  }
+}
+
 /**
  * Schedule, replace or remove the card for the next trip's current plan.
  * Re-posts only when the plan's leave time or text changed.
  */
 async function sync(now = Date.now()): Promise<void> {
   if (!notifee) return;
+  await sweepStale(now);
   const live = readCache<LiveRecord>(LIVE_KEY);
   const status = liveStatus(live, now);
   // The service owns the card while it reports; it updates the plan itself.
