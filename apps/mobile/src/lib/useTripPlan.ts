@@ -1,12 +1,13 @@
 import type { Itinerary, PlanQuery } from '@transit/shared';
 import { useMemo } from 'react';
-import { choose, isMetro, leaveAt, routeKey, transitLegs, type Choice } from './plans';
+import { choose, isMetro, leaveAt, routeKey, transitLegs, wireSteps, type Choice } from './plans';
 import { settings } from './settings';
 import { memory } from './store';
 import { hhmm } from './time';
 import { TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from '@transit/shared';
 import { hasAvoid, type SavedTrip } from './trips';
-import { usePlan } from './usePlan';
+import { usePlans } from './usePlan';
+import { tripWays } from './ways';
 
 /** The plan query for a trip on a date (`YYYY-MM-DD`). Only coordinates, so cache keys stay stable. */
 export const tripQuery = (trip: Pick<SavedTrip, 'from' | 'to' | 'arriveBy' | 'avoid' | 'steps'>, date: string): PlanQuery => ({
@@ -14,8 +15,18 @@ export const tripQuery = (trip: Pick<SavedTrip, 'from' | 'to' | 'arriveBy' | 'av
   to: { lat: trip.to.lat, lon: trip.to.lon },
   arriveBy: `${date}T${trip.arriveBy}`,
   ...(hasAvoid(trip.avoid) ? { avoid: trip.avoid } : {}),
-  ...(trip.steps?.length ? { steps: trip.steps } : {}),
+  ...(trip.steps?.length ? { steps: wireSteps(trip.steps) } : {}),
 });
+
+/**
+ * One query per kept way (the app plans each on its own and merges them), or
+ * the trip's own query when it keeps none. Each is the query a single pinned
+ * way always had, so cached plans stay valid.
+ */
+export const tripQueries = (trip: Pick<SavedTrip, 'from' | 'to' | 'arriveBy' | 'avoid' | 'steps' | 'ways'>, date: string): PlanQuery[] => {
+  const ways = tripWays(trip);
+  return ways.length ? ways.map((steps) => tripQuery({ ...trip, steps }, date)) : [tripQuery(trip, date)];
+};
 
 // The first option seen for each trip and day. When a later re-plan picks a
 // different bus or moves the leave time by 3+ min, Today says what changed.
@@ -38,36 +49,31 @@ export const rideLabel = (it: Itinerary) => {
 };
 
 export function useTripPlan(trip: SavedTrip | null, date: string, now: number, opts: { refreshMs?: number; trackChanges?: boolean } = {}): TripPlan {
-  const query = useMemo(() => (trip ? tripQuery(trip, date) : null), [trip?.from.lat, trip?.from.lon, trip?.to.lat, trip?.to.lon, trip?.arriveBy, date, JSON.stringify(trip?.avoid), JSON.stringify(trip?.steps)]);
-  const main = usePlan(query, { refreshMs: opts.refreshMs });
+  const queries = useMemo(() => (trip ? tripQueries(trip, date) : null), [trip?.from.lat, trip?.from.lon, trip?.to.lat, trip?.to.lon, trip?.arriveBy, date, JSON.stringify(trip?.avoid), JSON.stringify(trip?.steps), JSON.stringify(trip?.ways)]);
+  const query = queries?.[0] ?? null;
+  const main = usePlans(queries, { refreshMs: opts.refreshMs });
   const bufferMin = settings.use().bufferMin;
   const mainChoice = useMemo(() => (query && main.plan ? choose(main.plan.itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [main.plan, query, now, bufferMin]);
 
   // Once the last bus that arrives in time has gone, "arrive by" plans come back empty. Ask again with a
   // later deadline (rounded to 15 min, so the query stays stable) to still show the soonest arrival, marked late.
-  const lateQuery = useMemo(() => {
-    if (!query || !main.plan || mainChoice.kind !== 'none') return null;
+  // Every kept way is asked again, and only those: a trip with ways never falls back to other lines.
+  const lateQueries = useMemo(() => {
+    if (!queries || !query || !main.plan || mainChoice.kind !== 'none') return null;
     const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '');
     // Long enough to include a ride leaving now: the trip's own duration (from the plans just received) plus a margin.
     const longest = Math.max(0, ...main.plan.itineraries.map((i) => i.durationSec)) * 1000;
     const later = Math.ceil((now + Math.max(60 * 60_000, longest + 30 * 60_000)) / (15 * 60_000)) * 15 * 60_000;
     if (!(deadline < later)) return null;
-    return { ...query, arriveBy: new Date(later + TBILISI_UTC_OFFSET_MIN * 60_000).toISOString().slice(0, 16) };
-  }, [query, main.plan, mainChoice.kind, Math.floor(now / (15 * 60_000))]);
-  const retry = usePlan(lateQuery, { refreshMs: opts.refreshMs });
-  const second = lateQuery && retry.plan ? { ...retry, error: null } : main;
+    const arriveBy = new Date(later + TBILISI_UTC_OFFSET_MIN * 60_000).toISOString().slice(0, 16);
+    return queries.map((q) => ({ ...q, arriveBy }));
+  }, [queries, query, main.plan, mainChoice.kind, Math.floor(now / (15 * 60_000))]);
+  const retry = usePlans(lateQueries, { refreshMs: opts.refreshMs });
+  const second = lateQueries && retry.plan ? { ...retry, error: null } : main;
   const secondChoice = useMemo(() => (query && second.plan ? choose(second.plan.itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [second.plan, query, now, bufferMin]);
 
-  // A pinned route (hand-built, or the one picked in chat) that gives nothing, not even a late one, must not end in "No route
-  // found": plan the trip without the pinned rides, so the fastest way still shows (marked late when it is).
-  const looseQuery = useMemo(() => {
-    if (!query?.steps?.length || !second.plan || secondChoice.kind !== 'none') return null;
-    const { steps: _pinned, ...loose } = lateQuery ?? query;
-    return loose as PlanQuery;
-  }, [query, lateQuery, second.plan, secondChoice.kind]);
-  const loose = usePlan(looseQuery, { refreshMs: opts.refreshMs });
-
-  const { plan, refreshing, error } = looseQuery && loose.plan ? { ...loose, error: null } : second;
+  // A pinned route never falls back to a different one: it may be late, but it stays the route the user picked.
+  const { plan, refreshing, error } = second;
   const itineraries = plan?.itineraries ?? [];
   const choice = useMemo(() => (query ? choose(itineraries, query.arriveBy, now, bufferMin) : ({ kind: 'none' } as Choice)), [itineraries, query, now, bufferMin]);
 

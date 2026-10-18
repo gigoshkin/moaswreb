@@ -5,13 +5,13 @@ import { AppState, Platform } from 'react-native';
 import { cachedPlan, fetchPlan, hasApi } from './api';
 import { readCache, writeCache } from './cache';
 import { isExpoGo } from './kv';
-import { choose, transitLegs } from './plans';
+import { choose, mergePlans, transitLegs } from './plans';
 import { FALLBACK_AFTER_MS, findSwitch, LIVE_FETCH_EVERY_MS, liveStatus, liveView, nextLookIn, nextWatch, shouldAlert, viewChanged, type LiveRecord, type LiveView, type Switch, type Watch } from './leaveCardLive';
 import { cardKey, cardProgress, cardText, cardTimes, KEEP_AFTER_MS, type CardInput, type CardTimes } from './leaveCardText';
 import { settings } from './settings';
 import { addDays, hhmm, isoWeekday, todayLocal } from './time';
 import { tripDays, tripsStore, type SavedTrip } from './trips';
-import { tripQuery } from './useTripPlan';
+import { tripQueries } from './useTripPlan';
 
 // Android "leave card": an ongoing notification that appears 30 min before
 // the leave time and counts down by itself (the system chronometer), then
@@ -119,14 +119,22 @@ interface Card {
  */
 async function cardFor(trip: SavedTrip, date: string, now: number, every?: number): Promise<Card | null> {
   if (!hasApi) return null;
-  const q = tripQuery(trip, date);
-  let plan = cachedPlan(q);
-  const key = JSON.stringify(q);
-  const fetchNow = every !== undefined ? now - (lastFetch.get(key) ?? 0) >= every : !plan && AppState.currentState === 'active' && now - (lastFetch.get(key) ?? 0) > FETCH_EVERY_MS;
-  if (fetchNow) {
-    lastFetch.set(key, now);
-    plan = (await fetchPlan(q).catch(() => null)) ?? plan;
-  }
+  // Every way the trip keeps, merged (one query each, as the trip screen plans them).
+  const qs = tripQueries(trip, date);
+  const q = qs[0];
+  const plans = await Promise.all(
+    qs.map(async (one) => {
+      const key = JSON.stringify(one);
+      let p = cachedPlan(one);
+      const fetchNow = every !== undefined ? now - (lastFetch.get(key) ?? 0) >= every : !p && AppState.currentState === 'active' && now - (lastFetch.get(key) ?? 0) > FETCH_EVERY_MS;
+      if (fetchNow) {
+        lastFetch.set(key, now);
+        p = (await fetchPlan(one).catch(() => null)) ?? p;
+      }
+      return p;
+    }),
+  );
+  const plan = mergePlans(plans.flatMap((p) => p ?? []));
   if (!plan) return null;
   const c = choose(plan.itineraries, q.arriveBy, now, settings.get().bufferMin);
   if (c.kind === 'none') return null;

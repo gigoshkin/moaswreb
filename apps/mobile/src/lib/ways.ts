@@ -1,4 +1,4 @@
-import type { Itinerary } from '@transit/shared';
+import type { Itinerary, JourneyStep } from '@transit/shared';
 import type { LineRef, Slot } from '../ui/LineChain';
 import { kindOf, leaveAt, transitLegs } from './plans';
 
@@ -92,4 +92,91 @@ export function groupWays(all: Itinerary[], bufferMin: number): Way[] {
     else groups.push([it]);
   }
   return groups.map((its) => ({ key: wayKey(its[0]), its, slots: slotsFor(its[0], its) })).sort((a, b) => best(a.its[0], b.its[0]));
+}
+
+// A picked way is kept as the trip's rides. Each ride may be done by any of
+// its variations (the lines of the way's group); the planner then looks at
+// nothing else for that ride.
+
+/**
+ * One ride of a pinned route as the phone keeps it: the planner step plus every
+ * line that can do the ride (`lines`, from the way or the by-hand builder). Only fromStops, toStops and routes go to the server (wireSteps).
+ */
+export interface RideStep extends JourneyStep {
+  lines?: LineRef[];
+}
+
+/** What the server takes per ride (store and /plan/journey schemas). */
+const MAX_STOPS = 8;
+const MAX_ROUTES = 20;
+
+/**
+ * The rides of `it` with every variation of each from `all` (same way, see
+ * sameWay): their boarding and alighting stops (the picked itinerary's first)
+ * and all their lines, every one allowed. Undefined when a ride has no stop id.
+ */
+export function variantSteps(it: Itinerary, all: Itinerary[]): RideStep[] | undefined {
+  const own = transitLegs(it);
+  if (!own.length || own.some((l) => !l.from.stopId || !l.to.stopId)) return undefined;
+  const rides = own.map(() => ({ fromStops: [] as string[], toStops: [] as string[], lines: [] as LineRef[], named: true }));
+  const add = (x: Itinerary) =>
+    transitLegs(x).forEach((l, i) => {
+      const r = rides[i];
+      if (l.from.stopId && !r.fromStops.includes(l.from.stopId)) r.fromStops.push(l.from.stopId);
+      if (l.to.stopId && !r.toStops.includes(l.to.stopId)) r.toStops.push(l.to.stopId);
+      const line = lineOf(l);
+      if (!r.lines.some((x) => x.label === line.label)) r.lines.push(line);
+      if (!l.route?.shortName) r.named = false;
+    });
+  add(it);
+  for (const other of all) if (other !== it && sameWay(it, other)) add(other);
+  // A ride without line numbers can't be narrowed down: it stays "any line between these stops".
+  return rides.map(({ fromStops, toStops, lines, named }) => {
+    const kept = lines.slice(0, MAX_ROUTES);
+    return { fromStops: fromStops.slice(0, MAX_STOPS), toStops: toStops.slice(0, MAX_STOPS), lines: kept, ...(named ? { routes: kept.map((l) => l.label) } : {}) };
+  });
+}
+
+// A trip may keep several ways: the rider ticks every row of the list they'd
+// take, and the trip plans each ticked way on its own and nothing else. Each
+// ticked way is a pinned route as above. `steps` stays the first one, so trips
+// saved before this, older app versions and the server (alerts plan with
+// `steps`) keep working; `ways` is only stored when more than one is ticked.
+
+/** The ways a trip keeps (empty: the app picks from every line). */
+export const tripWays = (t: { steps?: RideStep[]; ways?: RideStep[][] }): RideStep[][] => (t.ways?.length ? t.ways : t.steps?.length ? [t.steps] : []);
+
+/** The trip fields for a set of kept ways: the first as `steps`, the whole list as `ways` when there are several. */
+export const waysFields = (ways: RideStep[][]): { steps: RideStep[] | undefined; ways: RideStep[][] | undefined } => ({
+  steps: ways[0],
+  ways: ways.length > 1 ? ways : undefined,
+});
+
+/** True when `it` rides exactly the kept way `steps`: same number of rides, each from one of its stops, to one of its stops, on one of its lines. */
+export function fitsWay(steps: JourneyStep[], it: Itinerary): boolean {
+  const legs = transitLegs(it);
+  if (legs.length !== steps.length) return false;
+  return legs.every((l, i) => {
+    const s = steps[i];
+    if (!l.from.stopId || !l.to.stopId || !s.fromStops.includes(l.from.stopId) || !s.toStops.includes(l.to.stopId)) return false;
+    return !s.routes?.length || (!!l.route?.shortName && s.routes.includes(l.route.shortName));
+  });
+}
+
+/** A row of the list is ticked when one of its itineraries is a kept way. */
+export const isTicked = (way: Way, kept: JourneyStep[][]): boolean => way.its.some((it) => kept.some((k) => fitsWay(k, it)));
+
+/**
+ * Tick or untick a row. Ticking keeps the row's way with all its variations
+ * (variantSteps over `all`); unticking drops every kept way the row rides. The
+ * last ticked way stays: a trip with ways keeps at least one ("let the app
+ * pick" clears them instead). A row whose rides have no stop ids can't be kept.
+ */
+export function toggleWay(kept: RideStep[][], way: Way, all: Itinerary[]): RideStep[][] {
+  if (isTicked(way, kept)) {
+    const left = kept.filter((k) => !way.its.some((it) => fitsWay(k, it)));
+    return left.length ? left : kept;
+  }
+  const steps = variantSteps(way.its[0], all);
+  return steps ? [...kept, steps] : kept;
 }

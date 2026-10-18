@@ -16,6 +16,7 @@ import type {
 } from '@transit/shared';
 import { readCache, writeRecent } from './cache';
 import { deviceId } from './device';
+import { wireSteps } from './plans';
 
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? '';
 // Ships inside the app, so it's not a secret; the server's rate limits do the real work.
@@ -93,7 +94,7 @@ export async function fetchPlan(q: PlanQuery): Promise<PlanResponse> {
     ? await request<PlanResponse>('/plan/journey', {
         method: 'POST',
         timeoutMs: PLAN_TIMEOUT_MS,
-        body: { from: q.from, to: q.to, arriveBy: q.arriveBy, steps: q.steps, avoid: q.avoid, locale: q.locale },
+        body: { from: q.from, to: q.to, arriveBy: q.arriveBy, steps: wireSteps(q.steps), avoid: q.avoid, locale: q.locale },
       })
     : await request<PlanResponse>(
         `/plan?${qs({

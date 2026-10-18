@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { samplePlan } from '../dev/samplePlan';
 import { cachedPlan, fetchPlan, hasApi } from './api';
+import { mergePlans } from './plans';
 
 interface PlanState {
   plan: PlanResponse | null;
@@ -14,7 +15,9 @@ interface PlanState {
   refresh: () => void;
 }
 
-const initial = (query: PlanQuery | null) => (!query ? null : hasApi ? cachedPlan(query) : samplePlan());
+// Each query is cached on its own, so a way that failed this time shows its last plan.
+const cachedAll = (queries: PlanQuery[]) => mergePlans(queries.flatMap((q) => cachedPlan(q) ?? []));
+const initial = (queries: PlanQuery[] | null) => (!queries?.length ? null : hasApi ? cachedAll(queries) : samplePlan());
 
 /**
  * Cache first, then network: the last plan for this query shows instantly,
@@ -22,32 +25,45 @@ const initial = (query: PlanQuery | null) => (!query ? null : hasApi ? cachedPla
  * the app comes back to the foreground (the Today hero). A null query does
  * nothing. Without EXPO_PUBLIC_API_URL it shows synthetic sample data.
  */
-export function usePlan(query: PlanQuery | null, { refreshMs }: { refreshMs?: number } = {}): PlanState {
-  const key = query ? JSON.stringify(query) : '';
-  const [plan, setPlan] = useState<PlanResponse | null>(() => initial(query));
+export function usePlan(query: PlanQuery | null, opts: { refreshMs?: number } = {}): PlanState {
+  return usePlans(query ? [query] : null, opts);
+}
+
+/**
+ * usePlan for several queries at once (a trip with several kept ways): one
+ * request each, in parallel, merged into one plan (mergePlans). A query that
+ * fails falls back to its cached plan; the error shows only when all fail.
+ */
+export function usePlans(queries: PlanQuery[] | null, { refreshMs }: { refreshMs?: number } = {}): PlanState {
+  const key = queries?.length ? JSON.stringify(queries) : '';
+  const [plan, setPlan] = useState<PlanResponse | null>(() => initial(queries));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Only the latest request may update state; an older one finishing late is dropped.
   const latest = useRef(0);
-  const queryRef = useRef(query);
-  queryRef.current = query;
+  const queryRef = useRef(queries);
+  queryRef.current = queries;
 
   const refresh = useCallback(() => {
-    const q = queryRef.current;
-    if (!hasApi || !q) return;
+    const qs = queryRef.current;
+    if (!hasApi || !qs?.length) return;
     const id = ++latest.current;
     setRefreshing(true);
     setError(null);
-    fetchPlan(q)
-      .then((p) => id === latest.current && setPlan(p))
-      .catch((e: Error) => id === latest.current && setError(e.message))
+    Promise.allSettled(qs.map(fetchPlan))
+      .then((rs) => {
+        if (id !== latest.current) return;
+        const failed = rs.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        if (failed && rs.every((r) => r.status === 'rejected')) return setError((failed.reason as Error)?.message ?? 'Plan failed');
+        setPlan(mergePlans(rs.flatMap((r, i) => (r.status === 'fulfilled' ? [r.value] : (cachedPlan(qs[i]) ?? [])))));
+      })
       .finally(() => id === latest.current && setRefreshing(false));
   }, []);
 
   useEffect(() => {
-    setPlan(initial(query));
+    setPlan(initial(queries));
     refresh();
-    // key captures query.
+    // key captures the queries.
   }, [key]);
 
   useEffect(() => {
