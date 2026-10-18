@@ -82,7 +82,7 @@ export default function Settings() {
         </Group>
         <Group>
           <GroupRow label="Privacy" onPress={() => router.push('/privacy')} />
-          <GroupRow label="Replay intro" onPress={replayIntro} last />
+          <GroupRow label="Replay intro" onPress={() => { replayIntro(); setTimeout(() => router.replace('/welcome'), 0); }} last />
         </Group>
         {__DEV__ && (
           <Group>
