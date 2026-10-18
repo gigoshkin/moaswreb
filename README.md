@@ -222,8 +222,8 @@ There are no accounts. Trip names, addresses, your home and the chat history sta
 
 ## Team
 
-- **George Kiknadze** ([@gigoshkin](https://github.com/gigoshkin)): code owner. Stack, architecture, server, data sources, app code.
-- **Andro Petrosyan** ([@AndroPetrosyan](https://github.com/AndroPetrosyan)): features and user flows, product spec and Figma design.
+- George Kiknadze ([@gigoshkin](https://github.com/gigoshkin))
+- Andro Petrosyan ([@AndroPetrosyan](https://github.com/AndroPetrosyan))
 
 Code was written with Claude Code (Anthropic) under the direction of both authors.
 
@@ -233,4 +233,4 @@ Hackathon build. Most native-only parts (leave card, push, map screens) have not
 
 ## Licence
 
-No licence file has been added to this repository yet. Until one is, all rights are reserved by the authors.
+Copyright (c) 2026 George Kiknadze and Andro Petrosyan. All rights reserved. This is proprietary software and the intellectual property of its authors; see [LICENSE](LICENSE). The source is public for evaluation only.
