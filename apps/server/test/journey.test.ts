@@ -166,3 +166,44 @@ test('encodePolyline round-trips with the app decoder format', () => {
   // Google's documented example.
   assert.equal(encodePolyline([at(38.5, -120.2), at(40.7, -120.95), at(43.252, -126.453)]), '_p~iF~ps|U_ulLnnqC_mqNvxq`@');
 });
+
+// A picked way kept as the trip's rides (SYNTHETIC): bus to the metro, then the metro. The first ride can be
+// done by 321 from A or the minibus 518 from A2 next to it; 315 goes the same way but is not ticked, and
+// 550 goes straight to work (another way altogether).
+const A2 = stop('1:A2', 41.7003, 44.7004);
+const M = stop('1:metro_1_x', 41.705, 44.72);
+const W = stop('1:metro_1_w', 41.71, 44.75);
+const pinnedLines = [
+  line('321', [A, M], { trips: [[hm(8, 0), hm(8, 15)], [hm(8, 10), hm(8, 25)]] }),
+  line('518', [A2, M], { minibus: true, trips: [[hm(8, 5), hm(8, 18)], [hm(8, 15), hm(8, 28)]] }),
+  line('315', [A, M], { trips: [[hm(8, 20), hm(8, 30)]] }),
+  line('550', [A, W], { trips: [[hm(8, 30), hm(8, 50)]] }),
+  { ...line('1', [M, W], { trips: [[hm(8, 20), hm(8, 30)], [hm(8, 30), hm(8, 40)], [hm(8, 40), hm(8, 50)]] }), routeId: '1:metro1', mode: 'SUBWAY' },
+];
+const pinnedNet = (all = pinnedLines): Source => ({
+  ...network(),
+  patternsAt: async (id) => all.filter((l) => l.stops.some((s) => s.id === id)),
+  timetable: async (p, date) => {
+    if (date !== '2026-10-19') return null;
+    const l = all.find((x) => x.routeId === p.routeId)!;
+    return { times: l.stops.map((_, i) => l.trips.map((t) => t[i])) };
+  },
+});
+const pinned = [
+  { fromStops: ['1:A', '1:A2'], toStops: ['1:metro_1_x'], routes: ['321', '518'] },
+  { fromStops: ['1:metro_1_x'], toStops: ['1:metro_1_w'], routes: ['1'] },
+];
+
+test('a pinned route uses only the ticked lines of each ride, from any of its stops, and keeps its rides', async () => {
+  const out = await new Engine(pinnedNet()).solve({ from: HOME, to: WORK, steps: pinned, deadline, now });
+  assert.deepEqual(out.map(lineOf).sort(), ['321>1', '518>1'], 'no 315 (not ticked), no 550 (another way)');
+  const via518 = out.find((it) => lineOf(it) === '518>1')!;
+  assert.equal(via518.legs.find((l) => l.route)!.from.stopId, '1:A2', 'the minibus is boarded at its own stop');
+  for (const it of out) assert.equal(it.legs.find((l) => l.route?.shortName === '1')!.mode, 'SUBWAY');
+});
+
+test('a pinned route whose ticked lines have no ride gives nothing rather than another line', async () => {
+  const left = pinnedLines.filter((l) => l.shortName !== '321' && l.shortName !== '518');
+  const out = await new Engine(pinnedNet(left)).solve({ from: HOME, to: WORK, steps: pinned, deadline, now });
+  assert.deepEqual(out, []);
+});
