@@ -28,6 +28,20 @@ export const config = {
     enabled: Boolean(process.env.ANTHROPIC_API_KEY),
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
   },
+  /**
+   * Which model answers /chat. AI_PROVIDER=anthropic|gemini picks one; unset = Anthropic if its key
+   * is set, else Gemini if its key is set. Switch by changing the env var and restarting.
+   */
+  gemini: {
+    key: process.env.GEMINI_API_KEY ?? '',
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  },
+  aiProvider: ((): 'anthropic' | 'gemini' | null => {
+    const want = process.env.AI_PROVIDER;
+    if (want === 'anthropic' || want === 'gemini') return want;
+    if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+    return process.env.GEMINI_API_KEY ? 'gemini' : null;
+  })(),
   dataDir: process.env.DATA_DIR ?? './data',
   ttc: {
     siteUrl: 'https://transit.ttc.com.ge/',

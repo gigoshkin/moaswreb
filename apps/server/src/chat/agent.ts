@@ -6,7 +6,7 @@ import { createTools, type ToolDeps } from '../tools/index.ts';
 
 // Stable across requests so it stays in the prompt cache. Per-request context
 // (time, saved trips) goes in a system message at the end instead.
-const SYSTEM = `You are the input assistant of a Tbilisi public transport app. The user writes, or sends a photo or PDF of a timetable, a schedule or a TTC service notice.
+export const SYSTEM = `You are the input assistant of a Tbilisi public transport app. The user writes, or sends a photo or PDF of a timetable, a schedule or a TTC service notice.
 
 How to answer:
 - Reply in English, also when the user writes in Georgian or sends a Georgian notice: the app is English-only. One short sentence. The app shows your tool results as cards, so never repeat times, routes or lists in text.
@@ -18,11 +18,20 @@ How to answer:
 
 export type ChatDeps = ToolDeps & { client: Anthropic };
 
-const nowInTbilisi = (): string => {
+export const nowInTbilisi = (): string => {
   const d = new Date(Date.now() + 4 * 3600_000);
   const weekday = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getUTCDay()];
   return `${d.toISOString().slice(0, 16)} (${weekday}, Tbilisi time)`;
 };
+
+/** Per-request facts for the model: the time and the user's saved trips. */
+export const contextOf = (req: ChatRequest): string =>
+  [
+    `Now: ${nowInTbilisi()}.`,
+    req.trips?.length
+      ? `The user's saved trips (from their phone, for this request only): ${JSON.stringify(req.trips)}`
+      : 'The user has no saved trips yet.',
+  ].join('\n');
 
 const toParams = (req: ChatRequest): Anthropic.Beta.BetaMessageParam[] => {
   const lastUser = req.messages.findLastIndex((m) => m.role === 'user');
@@ -38,12 +47,7 @@ const toParams = (req: ChatRequest): Anthropic.Beta.BetaMessageParam[] => {
     );
     return { role: 'user', content: [...files, { type: 'text', text: m.text || '(see attachment)' }] };
   });
-  const context = [
-    `Now: ${nowInTbilisi()}.`,
-    req.trips?.length
-      ? `The user's saved trips (from their phone, for this request only): ${JSON.stringify(req.trips)}`
-      : 'The user has no saved trips yet.',
-  ].join('\n');
+  const context = contextOf(req);
   // Operator channel after the last user turn: keeps the cached prefix intact.
   messages.push({ role: 'system', content: context });
   return messages;

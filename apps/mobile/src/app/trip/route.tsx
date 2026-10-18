@@ -88,6 +88,12 @@ export default function RouteBuilder() {
     setSteps(undefined);
   };
 
+  const buildByHand = async () => {
+    if (!from || !to) return;
+    const r = await buildSteps({ from, to, arriveBy: init.arriveBy, days: init.days, steps: steps ?? [], avoid });
+    if (r) setSteps(r);
+  };
+
   const finish = () => {
     if (!from || !to) return;
     haptic('success');
@@ -112,7 +118,8 @@ export default function RouteBuilder() {
         onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
       >
         {from && to ? (
-          // Both ends set: one row split in half, with the swap button between.
+          // Both ends set: one row split in half, with the swap button between, and the by-hand builder under it.
+          <View style={styles.gap}>
           <View style={styles.pair}>
             <Tap onPress={() => pick('from')} feedback="tint" style={styles.half} accessibilityRole="button" accessibilityLabel={`From: ${from.label}`}>
               <View style={styles.railDot} />
@@ -131,6 +138,14 @@ export default function RouteBuilder() {
                 {to.label}
               </Text>
             </Tap>
+          </View>
+          <Tap onPress={buildByHand} feedback="tint" style={styles.byHand} accessibilityRole="button" accessibilityLabel="Build the route by hand, stop by stop">
+            <Icon name="map" size={18} />
+            <Text variant="label14" style={styles.flex}>
+              {steps?.length ? 'Change my hand-built route' : 'Build route by hand'}
+            </Text>
+            <Icon name="chevron-right" size={18} color={color.textTertiary} />
+          </Tap>
           </View>
         ) : (
           <View style={styles.ends}>
@@ -152,17 +167,6 @@ export default function RouteBuilder() {
             <View style={styles.links}>
               <Tap onPress={() => setShowOptions((v) => !v)} scaleTo={0.96} style={styles.pill} accessibilityRole="button">
                 <Text variant="label14">{showOptions ? 'Hide ways' : `All ways${plan.itineraries.length ? ` (${plan.itineraries.length})` : ''}`}</Text>
-              </Tap>
-              <Tap
-                onPress={async () => {
-                  const r = await buildSteps({ from: from!, to: to!, arriveBy: init.arriveBy, days: init.days, steps: steps ?? [], avoid });
-                  if (r) setSteps(r);
-                }}
-                scaleTo={0.96}
-                style={styles.pill}
-                accessibilityRole="button"
-              >
-                <Text variant="label14">{steps?.length ? 'Change stops on map' : 'Pick stops on map'}</Text>
               </Tap>
             </View>
             {showOptions && (
@@ -240,6 +244,7 @@ function Summary({ it, all, busy, error }: { it: Itinerary | null; all: Itinerar
 }
 
 const styles = StyleSheet.create({
+  byHand: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: color.surfaceMuted, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12 },
   screen: { flex: 1, backgroundColor: color.bg },
   floating: { position: 'absolute', left: 12 },
   sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: color.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: gutter, paddingTop: 16, gap: 12, ...shadow.bar },

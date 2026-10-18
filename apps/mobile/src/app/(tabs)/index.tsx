@@ -122,6 +122,7 @@ function Hero({ trip, date, now, plan }: { trip: SavedTrip; date: string; now: n
             ) : (
               <Countdown prefix="Leave at" value={hhmm(choice.leaveAt)} tint={fg} />
             )}
+            <Boarding it={choice.it} color={fg} />
             {(plan.change || choice.kind === 'late') && (
               <View style={styles.alert}>
                 <Icon name="alert" size={24} color={fg} />
@@ -136,6 +137,18 @@ function Hero({ trip, date, now, plan }: { trip: SavedTrip; date: string; now: n
         )}
       </Animated.View>
     </Tap>
+  );
+}
+
+/** When the first vehicle is expected, and where: "Bus 539 at 07:58 · Didi Dighomi 3". */
+function Boarding({ it, color: tint }: { it: Itinerary; color: string }) {
+  const first = transitLegs(it)[0];
+  if (!first) return null;
+  const kind = first.mode === 'SUBWAY' ? 'Metro' : 'Bus';
+  return (
+    <Text variant="body14" color={tint} numberOfLines={2}>
+      {`${kind} ${first.route?.shortName ?? ''} ${first.realtime ? 'expected' : 'scheduled'} ${hhmm(first.departAt)} · ${first.from.name}`}
+    </Text>
   );
 }
 

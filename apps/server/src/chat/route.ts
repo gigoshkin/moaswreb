@@ -5,6 +5,7 @@ import { requireKey } from '../auth.ts';
 import { config } from '../config.ts';
 import type { ToolDeps } from '../tools/index.ts';
 import { runChat } from './agent.ts';
+import { GeminiError, runGeminiChat } from './gemini.ts';
 
 const MAX_BODY = 20 * 1024 * 1024; // photos and PDFs arrive base64-encoded
 
@@ -67,21 +68,28 @@ const bodySchema = {
 
 /** POST /chat: the app's single input (request 0001). Answers with a short reply plus action cards. */
 export const registerChatRoute = (app: FastifyInstance, deps: ToolDeps, client: Anthropic | null = null): void => {
-  const anthropic = client ?? (config.anthropic.enabled ? new Anthropic() : null);
+  const useGemini = !client && config.aiProvider === 'gemini' && Boolean(config.gemini.key);
+  const anthropic = client ?? (!useGemini && config.anthropic.enabled ? new Anthropic() : null);
 
   app.post<{ Body: ChatRequest }>(
     '/chat',
     { preHandler: requireKey, bodyLimit: MAX_BODY, schema: { body: bodySchema } },
     async (req, reply) => {
-      if (!anthropic) {
-        return reply.code(503).send({ error: 'chat_disabled', message: 'ANTHROPIC_API_KEY is not set on the server' });
+      if (!anthropic && !useGemini) {
+        return reply.code(503).send({ error: 'chat_disabled', message: 'No AI key is set on the server (ANTHROPIC_API_KEY or GEMINI_API_KEY)' });
       }
       if (req.body.messages.at(-1)?.role !== 'user') {
         return reply.code(400).send({ error: 'bad_request', message: 'The last message must be from the user' });
       }
       try {
-        return await runChat(req.body, { ...deps, client: anthropic });
+        return useGemini ? await runGeminiChat(req.body, deps) : await runChat(req.body, { ...deps, client: anthropic! });
       } catch (err) {
+        if (err instanceof GeminiError) {
+          req.log.error({ status: err.status, msg: err.message }, 'Gemini API error');
+          return err.status === 429
+            ? reply.code(429).send({ error: 'busy', message: 'Too many requests, try again shortly' })
+            : reply.code(502).send({ error: 'upstream', message: 'The assistant is unavailable right now' });
+        }
         if (err instanceof Anthropic.RateLimitError) {
           return reply.code(429).send({ error: 'busy', message: 'Too many requests, try again shortly' });
         }
