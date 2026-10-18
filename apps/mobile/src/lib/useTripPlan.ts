@@ -48,7 +48,9 @@ export function useTripPlan(trip: SavedTrip | null, date: string, now: number, o
   const lateQuery = useMemo(() => {
     if (!query || !main.plan || mainChoice.kind !== 'none') return null;
     const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '');
-    const later = Math.ceil((now + 60 * 60_000) / (15 * 60_000)) * 15 * 60_000;
+    // Long enough to include a ride leaving now: the trip's own duration (from the plans just received) plus a margin.
+    const longest = Math.max(0, ...main.plan.itineraries.map((i) => i.durationSec)) * 1000;
+    const later = Math.ceil((now + Math.max(60 * 60_000, longest + 30 * 60_000)) / (15 * 60_000)) * 15 * 60_000;
     if (!(deadline < later)) return null;
     return { ...query, arriveBy: new Date(later + TBILISI_UTC_OFFSET_MIN * 60_000).toISOString().slice(0, 16) };
   }, [query, main.plan, mainChoice.kind, Math.floor(now / (15 * 60_000))]);
