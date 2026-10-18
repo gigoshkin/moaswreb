@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hasApi, nearStops, reversePlace, stopLines } from '../../lib/api';
 import * as Haptics from 'expo-haptics';
 import { finishSteps, stepsDraft } from '../../lib/handoff';
-import { FAR_WALK_M, UNDO_DEPTH, distM, gapBefore, place, removeAt, stepOf, toggleLine, walkMinutes, type BuiltRide } from '../../lib/chain';
+import { FAR_WALK_M, UNDO_DEPTH, distM, gapBefore, place, removeAt, rideFromStep, stepOf, toggleLine, walkMinutes, type BuiltRide } from '../../lib/chain';
 import { kindOf, leaveAt, type Kind } from '../../lib/plans';
 import { locateMe } from '../../lib/locate';
 import { settings } from '../../lib/settings';
@@ -112,16 +112,16 @@ export default function BuildRoute() {
   const it = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
   const here: Point = rides.length ? rides.at(-1)!.off : (init?.from ?? startPlace ?? centre ?? from);
 
-  // Steps that came in from the route screen: name their stops and lines from the planned legs.
+  // Steps that came in from the route screen: name their stops from the planned legs, keep the way's other stops and every line.
   useEffect(() => {
     if (rides.length || !seed.length || !it) return;
     const legs = it.legs.filter((l) => l.mode !== 'WALK');
-    if (!legs.length || legs.some((l) => !l.from.stopId || !l.to.stopId)) return;
+    if (legs.length !== seed.length || legs.some((l) => !l.from.stopId || !l.to.stopId)) return;
     setRides(
-      legs.map((l) => {
+      legs.map((l, i) => {
         const a = { id: l.from.stopId!, name: l.from.name, lat: l.from.lat, lon: l.from.lon, mode: l.mode };
         const b = { id: l.to.stopId!, name: l.to.name, lat: l.to.lat, lon: l.to.lon, mode: l.mode };
-        return { board: a, off: b, lines: l.route ? [{ label: l.route.shortName, kind: kindOf(l) }] : [], skipped: [], path: [a, b] };
+        return rideFromStep(seed[i], a, b, l.route ? { label: l.route.shortName, kind: kindOf(l) } : null);
       }),
     );
   }, [it?.id]); // eslint-disable-line react-hooks/exhaustive-deps

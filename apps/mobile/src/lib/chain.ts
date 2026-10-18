@@ -1,5 +1,4 @@
-import type { StopHit } from '@transit/shared';
-import type { LineRef } from '../ui/LineChain';
+import type { LineRef, StopHit } from '@transit/shared';
 import type { RideStep } from './ways';
 
 type Point = { lat: number; lon: number };
@@ -14,6 +13,9 @@ export interface BuiltRide {
   skipped: string[];
   /** Stops on the way, boarding stop first; what the map draws. */
   path: Point[];
+  /** Neighbouring stops the kept way also boards / leaves at (its variations), kept when the ride is edited. */
+  alsoFrom?: string[];
+  alsoTo?: string[];
 }
 
 /** Rides further apart than this (previous get-off to next boarding stop) are flagged as a long walk. */
@@ -29,7 +31,21 @@ export const walkMinutes = (m: number) => Math.max(1, Math.round((m * 1.25) / 75
 /** The planner step for a ride. A ride with some lines switched off lists only the ones left; every line is kept for the trip screen's ticks. */
 export function stepOf(r: BuiltRide): RideStep {
   const left = r.lines.map((l) => l.label).filter((l) => !r.skipped.includes(l));
-  return { fromStops: [r.board.id], toStops: [r.off.id], ...(r.skipped.length && left.length ? { routes: left } : {}), ...(r.lines.length ? { lines: r.lines } : {}) };
+  const stops = (own: string, also?: string[]) => [own, ...(also ?? []).filter((s) => s !== own)];
+  return { fromStops: stops(r.board.id, r.alsoFrom), toStops: stops(r.off.id, r.alsoTo), ...(r.skipped.length && left.length ? { routes: left } : {}), ...(r.lines.length ? { lines: r.lines } : {}) };
+}
+
+/**
+ * A kept way's ride opened in the hand builder: named from the planned leg
+ * (`board`, `off`, the leg's line as `own`), but keeping everything the way had,
+ * its other stops and every line, so editing one ride leaves the way's
+ * variations as they were. Lines the way didn't allow start switched off.
+ */
+export function rideFromStep(step: RideStep, board: StopHit, off: StopHit, own: LineRef | null): BuiltRide {
+  const lines: LineRef[] = step.lines?.length ? [...step.lines] : (step.routes ?? []).map((label) => ({ label, kind: own?.kind ?? 'bus' }));
+  if (own && !lines.some((l) => l.label === own.label)) lines.unshift(own);
+  const skipped = step.routes?.length ? lines.map((l) => l.label).filter((l) => !step.routes!.includes(l)) : [];
+  return { board, off, lines, skipped, path: [board, off], alsoFrom: step.fromStops.filter((s) => s !== board.id), alsoTo: step.toStops.filter((s) => s !== off.id) };
 }
 
 /** Put a ride at index `at` (insert), or in place of the one there (replace). The rides after it stay. */

@@ -143,6 +143,23 @@ test('another way only when every kept way missed, and only when it is faster', 
   assert.equal(suggestOther({ keepsWays: true, kept: late, other: { kind: 'none' } }), null);
 });
 
+test('a kept way opened in the hand builder comes back the same way, variations included', async () => {
+  const { rideFromStep, stepOf, toggleLine } = await import('../src/lib/chain.ts');
+  const kept = variantSteps(via335, all)!;
+  const stop = (p: typeof home) => ({ id: p.stopId, name: p.name, lat: p.lat, lon: p.lon, mode: 'BUS' });
+  const rides = [rideFromStep(kept[0], stop(home335), stop(metroBus), { label: '335', kind: 'bus' }), rideFromStep(kept[1], stop(metroA), stop(metroB), { label: '1', kind: 'metro' })];
+  const back = rides.map(stepOf);
+  assert.deepEqual(back.map((s) => s.fromStops), kept.map((s) => s.fromStops));
+  assert.deepEqual(back.map((s) => s.toStops), kept.map((s) => s.toStops));
+  assert.deepEqual(back[0].lines!.map((l) => l.label), ['335', '321', '518']);
+  for (const x of [via321, via335, via518]) assert.ok(fitsWay(back, x), 'still every variation');
+  assert.equal(fitsWay(back, direct302), false);
+  // Switching a line off in the builder narrows the way to the lines left.
+  const narrowed = stepOf(toggleLine(rides[0], '518'));
+  assert.deepEqual(narrowed.routes, ['335', '321']);
+  assert.equal(fitsWay([narrowed, back[1]], via518), false);
+});
+
 test('chat cards save exactly the ticked ways, through the same fields as every screen', () => {
   const { cardKept, waysFields, tripWays, toggleWay } = shared;
   const now = Date.parse('2026-10-19T03:30:00Z');
