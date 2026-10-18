@@ -122,7 +122,10 @@ export default function EditTrip() {
         : await Promise.race([withStops(base), new Promise<SavedTrip>((r) => setTimeout(() => r(base), 3000))]); // the stop lookup can be slow; save without it after 3 s
     saveTrip(trip);
     haptic('success');
-    router.back();
+    // A new trip came from chat or the Today tab, possibly through a route preview: close every screen above the tabs,
+    // or Back would land on the preview and its "Save this route" button again.
+    if (existing) router.back();
+    else router.dismissAll();
   };
 
   const remove = async () => {

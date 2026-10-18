@@ -4,7 +4,9 @@ import type { LatLon, NearStop, StopHit } from '@transit/shared';
 import { Engine } from '../src/journey/engine.ts';
 import { encodePolyline } from '../src/journey/polyline.ts';
 import type { PatternRef, Source, StopRef, Timetable } from '../src/journey/source.ts';
-import { blockFor } from '../src/journey/ttc-source.ts';
+import { blockFor, TtcSource } from '../src/journey/ttc-source.ts';
+import type { TtcClient } from '../src/ttc/client.ts';
+import type { StopIndex } from '../src/ttc/stops.ts';
 import type { ScheduleBlock } from '../src/ttc/types.ts';
 
 // A made-up network (SYNTHETIC): home — A — B (metro side) — work, lines 321, 335 and
@@ -113,6 +115,35 @@ test('catching a connection: the second bus leaves after the first arrives, a wa
   assert.equal(clock(first.arriveAt), '08:25');
   assert.ok(Date.parse(second.departAt) - Date.parse(first.arriveAt) >= 3 * 60_000);
   assert.equal(it.transfers, 1);
+});
+
+test('an on-time bus you can no longer reach (walk + margin) does not hide the next one of that line', async () => {
+  // 15 min walk to A, so leave 15 + 3 margin = 18 min before the bus. At 08:04 the 8:20 bus of 321 is out of reach.
+  const far: Source = { ...network(), walk: async (a, b) => (a === HOME ? { sec: 15 * 60, m: 1200 } : b === WORK ? { sec: 120, m: 160 } : { sec: 60, m: 80 }) };
+  const out = await new Engine(far).solve({ from: HOME, to: WORK, steps: [ride], deadline, now: Date.parse('2026-10-19T08:04:00+04:00') });
+  const rides321 = out.filter((it) => lineOf(it) === '321').map((it) => clock(it.legs.find((l) => l.route)!.departAt));
+  // The on-time 8:20 is still listed (the app marks it gone), and the leave-now option is the 8:40, not the 8:20 again.
+  assert.deepEqual(rides321.sort(), ['08:20', '08:40']);
+});
+
+test('live arrivals: two patterns of one route at a stop each get their own vehicles', async () => {
+  let calls = 0;
+  const ttc = {
+    routeArrivals: async () => {
+      calls++;
+      return [
+        { patternSuffix: '0:01', realtime: true, realtimeArrivalMinutes: 7 },
+        { patternSuffix: '1:01', realtime: true, realtimeArrivalMinutes: 3 },
+        { patternSuffix: '0:01', realtime: false, realtimeArrivalMinutes: 1 },
+      ];
+    },
+  } as unknown as TtcClient;
+  const src = new TtcSource(ttc, {} as StopIndex);
+  const there = { ...l321, suffix: '0:01' };
+  const back = { ...l321, suffix: '1:01' };
+  assert.deepEqual(await src.live('1:A', there), [7]);
+  assert.deepEqual(await src.live('1:A', back), [3]);
+  assert.equal(calls, 1, 'one TTC call per stop and route');
 });
 
 test('nothing fits: no itineraries instead of a wrong one', async () => {

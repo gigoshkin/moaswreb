@@ -1,5 +1,5 @@
 import { distanceM } from '../ttc/stops.ts';
-import type { Itinerary, JourneyStep, LatLon, PlanAvoid, PlanLeg, PlanPlace } from '@transit/shared';
+import { leaveAtMs, type Itinerary, type JourneyStep, type LatLon, type PlanAvoid, type PlanLeg, type PlanPlace } from '@transit/shared';
 import { encodePolyline } from './polyline.ts';
 import { isAvoided, type PatternRef, type Source, type StopRef } from './source.ts';
 
@@ -64,6 +64,9 @@ export interface JourneyInput {
   /** Modes allowed, e.g. ['BUS', 'SUBWAY']. */
   modes?: string[];
 }
+
+/** When to leave the start for a departure, by the same rule the app and the alert watcher use (walk + early-bus margin, whole minutes). */
+const leaveFor = (depMs: number, walk: { sec: number }): number => leaveAtMs(depMs, Math.round(walk.sec / 60));
 
 const rideTimes = (all: Dep[], t: number): number => {
   // Ride time of the timetable trip closest to `t`.
@@ -160,8 +163,11 @@ export class Engine {
     if (altsByStep.some((a) => !a.length)) return [];
 
     const back = await this.backward(altsByStep, input);
-    // A line whose on-time ride can still be caught needs no "leave now" version.
-    const catchable = new Set(back.filter((n) => n.dep.dep - 0 >= input.now).map((n) => n.alt.p.shortName));
+    // A line whose on-time ride can still be caught (walk to the stop and margin included) needs no "leave now" version.
+    const catchable = new Set<string>();
+    for (const n of back) {
+      if (leaveFor(n.dep.dep, await this.walkBetween(input.from, n.alt.board)) >= input.now) catchable.add(n.alt.p.shortName);
+    }
     // And one that arrives long before the deadline is not an answer to "arrive by": that line has no ride near the time.
     const fwd = (soon ? await this.forward(altsByStep, input) : []).filter((n) => {
       if (catchable.has(n.alt.p.shortName)) return false;
@@ -224,8 +230,8 @@ export class Engine {
     const firsts: Node[] = [];
     for (const first of altsByStep[0]) {
       const w = await this.walkBetween(input.from, first.board);
-      const ready = input.now + w.sec * 1000;
-      const dep = first.deps.find((d) => d.dep >= ready);
+      // The first bus you can catch leaving now, with the same early-bus margin the app adds to the leave time.
+      const dep = first.deps.find((d) => leaveFor(d.dep, w) >= input.now);
       if (!dep) continue;
       // Build forward and link it backwards afterwards.
       const chain: Node[] = [{ alt: first, dep, next: null, walkAfter: { sec: 0, m: 0 } }];

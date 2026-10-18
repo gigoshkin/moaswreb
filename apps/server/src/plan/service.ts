@@ -1,5 +1,5 @@
 import type { Itinerary, JourneyStep, PlanQuery, PlanResponse } from '@transit/shared';
-import { tbilisiLocalToIso } from '@transit/shared';
+import { TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from '@transit/shared';
 import { Engine } from '../journey/engine.ts';
 import { isAvoided } from '../journey/source.ts';
 import type { TtcSource } from '../journey/ttc-source.ts';
@@ -14,6 +14,46 @@ const NEAR_FROM_M = 900;
 const NEAR_TO_M = 900;
 /** Stops considered at each end. Many lines pass within walking distance in the centre, and the nearest few are often one line's. */
 const NEAR_LIMIT = 14;
+/**
+ * TTC's planner answers with at most 3 itineraries (numItineraries is ignored)
+ * and, for one arrive-by time, often fills them with bus chains while a
+ * bus + metro option arriving 10-20 min earlier is left out (Didi Dighomi →
+ * Zurab Anjaparidze St, arrive 09:00: no metro; arrive 08:45: 314 > metro 2).
+ * So it is asked once more this much earlier and the answers are merged.
+ */
+export const TTC_EARLIER_MIN = 15;
+
+/** Tbilisi `YYYY-MM-DDTHH:mm` shifted by `min` minutes (crosses midnight correctly). */
+export const shiftLocal = (local: string, min: number): string => {
+  const ms = Date.parse(tbilisiLocalToIso(local) ?? '');
+  if (!Number.isFinite(ms)) return local;
+  return new Date(ms + (min + TBILISI_UTC_OFFSET_MIN) * 60_000).toISOString().slice(0, 16);
+};
+
+/** The lines of an itinerary in order, e.g. "314>2"; walking-only trips are "WALK". */
+export const lineChain = (it: Itinerary): string =>
+  it.legs.filter((l) => l.mode !== 'WALK').map((l) => `${l.mode}:${l.route?.shortName ?? ''}`).join('>') || 'WALK';
+
+/**
+ * One itinerary per distinct line chain: the latest-leaving one that still
+ * arrives by `deadline`, or the earliest arrival when none does.
+ */
+export const onePerChain = (its: Itinerary[], deadline: number): Itinerary[] => {
+  const best = new Map<string, Itinerary>();
+  for (const it of its) {
+    const k = lineChain(it);
+    const cur = best.get(k);
+    if (!cur) { best.set(k, it); continue; }
+    const fits = Date.parse(it.arriveAt) <= deadline, curFits = Date.parse(cur.arriveAt) <= deadline;
+    const better = fits !== curFits ? fits : fits ? it.departAt > cur.departAt : it.arriveAt < cur.arriveAt;
+    if (better) best.set(k, it);
+  }
+  return [...best.values()];
+};
+
+/** Earliest arrival first; on the same arrival minute, fewer changes first. */
+export const byArrivalThenTransfers = (a: Itinerary, b: Itinerary): number =>
+  a.arriveAt.slice(0, 16).localeCompare(b.arriveAt.slice(0, 16)) || a.transfers - b.transfers || a.arriveAt.localeCompare(b.arriveAt);
 
 /**
  * Trip planning shared by GET /plan, the chat agent, the alert watcher and the
@@ -73,10 +113,17 @@ export class PlanService {
 
   /** TTC's planner, minus anything the trip avoids. Asked again with other preferences when that leaves little. */
   private async ttcOptions(query: PlanQuery): Promise<Itinerary[]> {
-    const [date, time] = query.arriveBy.split('T');
-    const ask = (optimize: 'quick' | 'lessWalking' | 'fewerTransfers') =>
-      this.ttc.plan({ from: query.from, to: query.to, departMode: 'arriveBy', date, time, modes: query.modes ?? ['BUS', 'SUBWAY', 'GONDOLA'], optimize, locale: query.locale });
+    const ask = (optimize: 'quick' | 'lessWalking' | 'fewerTransfers', at = query.arriveBy) => {
+      const [date, time] = at.split('T');
+      return this.ttc.plan({ from: query.from, to: query.to, departMode: 'arriveBy', date, time, modes: query.modes ?? ['BUS', 'SUBWAY', 'GONDOLA'], optimize, locale: query.locale });
+    };
     const first = normalizePlan(await ask(query.optimize ?? 'quick'));
+    // A second, earlier ask finds what the 3-itinerary cap pushed out (often the metro).
+    try {
+      first.push(...normalizePlan(await ask(query.optimize ?? 'quick', shiftLocal(query.arriveBy, -TTC_EARLIER_MIN))));
+    } catch {
+      // The first answer stands.
+    }
     const minibus = this.source ? await this.source.minibusNames().catch(() => new Set<string>()) : new Set<string>();
     const mark = (its: Itinerary[]) => {
       for (const it of its) for (const l of it.legs) if (l.route) l.route.minibus = minibus.has(l.route.shortName);
@@ -95,8 +142,8 @@ export class PlanService {
         }
       }
     }
-    const seen = new Set<string>();
-    return out.filter((it) => !seen.has(it.id) && (seen.add(it.id), true));
+    const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '') || Infinity;
+    return onePerChain(out, deadline);
   }
 
   async plan(query: PlanQuery): Promise<PlanResponse> {
@@ -120,7 +167,7 @@ export class PlanService {
     // Where our planner found a line, its numbers win over TTC's for the same lines.
     const key2 = (it: Itinerary) => it.legs.filter((l) => l.route).map((l) => l.route!.shortName).join('>');
     const ours = new Set(ownDone.map(key2));
-    const itineraries = [...ownDone, ...(theirs ?? []).filter((it) => !ours.has(key2(it)))].sort((a, b) => a.arriveAt.localeCompare(b.arriveAt));
+    const itineraries = [...ownDone, ...(theirs ?? []).filter((it) => !ours.has(key2(it)))].sort(byArrivalThenTransfers);
     await this.fillStopIds(itineraries);
     const body: PlanResponse = { query, itineraries, source: 'ttc', fetchedAt: new Date().toISOString() };
     // An answer made without our planner (it was still loading) is not kept for the full minute.

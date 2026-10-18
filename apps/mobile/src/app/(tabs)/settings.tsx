@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { cancelBackups, setUpAlerts } from '../../lib/alerts';
@@ -16,6 +17,9 @@ import { color, gutter } from '../../ui/theme';
 
 // Figma "Settings / default", without the Language row: the app is
 // English-only (George, 17 Oct).
+
+const build = Constants.expoConfig?.extra?.build as { branch?: string; commit?: string; dirty?: boolean } | undefined;
+const versionText = [Constants.expoConfig?.version, build?.commit ? `${build.branch ? `${build.branch} ` : ''}${build.commit}${build.dirty ? '+' : ''}` : ''].filter(Boolean).join(' · ');
 
 export default function Settings() {
   const s = settings.use();
@@ -89,6 +93,9 @@ export default function Settings() {
             <GroupRow label="Test leave card (dev)" value="in 1 min" onPress={testCard} last />
           </Group>
         )}
+        <Group>
+          <GroupRow label="Version" value={versionText} right={<View />} last />
+        </Group>
         <Group>
           <GroupRow label="Delete my data" icon="alert" onPress={deleteAll} right={<View />} last />
         </Group>

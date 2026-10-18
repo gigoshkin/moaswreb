@@ -1,4 +1,4 @@
-import type { ActionCard, Itinerary, LatLon, PlanAvoid, PlanResponse, ProposedEvent, ProposedRoute, ProposedTrip } from '@transit/shared';
+import type { ActionCard, Itinerary, LatLon, PlanAvoid, PlanResponse, PlanTripMeta, ProposedEvent, ProposedRoute, ProposedTrip } from '@transit/shared';
 import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -36,7 +36,7 @@ export function ChatCard(props: CardProps) {
   const { card } = props;
   switch (card.type) {
     case 'plan':
-      return <PlanCard {...props} plan={card.plan} />;
+      return <PlanCard {...props} plan={card.plan} meta={card.trip} />;
     case 'confirm_events':
       return <EventsCard {...props} events={card.events} />;
     case 'confirm_trip':
@@ -111,7 +111,7 @@ function labelFor(p: LatLon, name: string | undefined, fallback: string): Place 
   return { ...p, label: placeName(name, fallback) };
 }
 
-function PlanCard({ plan, itemId, index, done }: CardProps & { plan: PlanResponse }) {
+function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanResponse; meta?: PlanTripMeta }) {
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<Date | null>(null);
   const arriveBy = plan.query.arriveBy;
@@ -120,15 +120,16 @@ function PlanCard({ plan, itemId, index, done }: CardProps & { plan: PlanRespons
   const bestId = best.kind === 'none' ? null : best.it.id;
   const rows = [...plan.itineraries].sort((a, b) => (a.id === bestId ? -1 : b.id === bestId ? 1 : Date.parse(a.departAt) - Date.parse(b.departAt))).slice(0, 3);
   const first = plan.itineraries[0];
-  const from = labelFor(plan.query.from, first?.legs[0]?.from.name, 'Start');
-  const to = labelFor(plan.query.to, first?.legs.at(-1)?.to.name, 'Destination');
+  const from = labelFor(plan.query.from, meta?.from ?? first?.legs[0]?.from.name, 'Start');
+  const to = labelFor(plan.query.to, meta?.to ?? first?.legs.at(-1)?.to.name, 'Destination');
+  const tripName = meta?.name ?? to.label;
 
   const replan = async (d: Date) => {
     setBusy(true);
     const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     try {
       const next = await fetchPlan({ ...plan.query, arriveBy: `${date}T${time}` });
-      replaceCard(itemId, index, { type: 'plan', plan: next });
+      replaceCard(itemId, index, { type: 'plan', plan: next, ...(meta ? { trip: meta } : {}) });
     } catch {
       say("Couldn't plan for that time. Try again.");
     } finally {
@@ -148,7 +149,7 @@ function PlanCard({ plan, itemId, index, done }: CardProps & { plan: PlanRespons
 
   return (
     <Shell
-      title={`${relativeDay(date)}, arrive by ${arriveBy.slice(11, 16)}`}
+      title={`${relativeDay(date)}, arrive by ${arriveBy.slice(11, 16)}${meta?.days?.length ? ` · ${daysText(meta.days)}` : ''}`}
       icon="clock"
       tint={color.sky}
       actions={
@@ -160,14 +161,14 @@ function PlanCard({ plan, itemId, index, done }: CardProps & { plan: PlanRespons
             onPress={() => {
               markCard(itemId, index, 'Opened in New trip');
               const { avoid, steps } = plan.query;
-              openNewTrip({ name: to.label, from, to, arriveBy: arriveBy.slice(11, 16), ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) });
+              openNewTrip({ name: tripName, from, to, arriveBy: arriveBy.slice(11, 16), ...(meta?.days?.length ? { days: meta.days } : {}), ...(avoid ? { avoid } : {}), ...(steps?.length ? { steps } : {}) });
             }}
           />
         </Actions>
       }
     >
       {rows.map((it, i) => (
-        <PlanRow key={it.id} it={it} best={it.id === bestId} border={i < rows.length - 1} onPress={() => openPreview({ plan, itineraryId: it.id, name: to.label, from, to })} />
+        <PlanRow key={it.id} it={it} best={it.id === bestId} border={i < rows.length - 1} onPress={() => openPreview({ plan, itineraryId: it.id, name: tripName, from, to, ...(meta?.days?.length ? { days: meta.days } : {}) })} />
       ))}
       {!rows.length && (
         <Text variant="body15" color={color.textSecondary}>
@@ -207,9 +208,9 @@ function PlanRow({ it, best, border, onPress }: { it: Itinerary; best: boolean; 
         {hhmm(it.departAt)}
       </Text>
       <View style={styles.plates}>
-        <LineChain slots={chainOf(it)} />
+        <LineChain slots={chainOf(it)} size="sm" />
       </View>
-      <Text variant="caption" color={color.textSecondary}>
+      <Text variant="caption" color={color.textSecondary} style={styles.planMin}>
         {Math.round(it.durationSec / 60)} min
       </Text>
     </Tap>
@@ -292,7 +293,7 @@ function EventsCard({ events, itemId, index, done, onEdit }: CardProps & { event
 
 function TripCard({ trip, itemId, index, done }: CardProps & { trip: ProposedTrip }) {
   const [busy, setBusy] = useState(false);
-  const draft = { name: trip.name, from: trip.from, to: trip.to, arriveBy: trip.arriveBy, days: DEFAULT_DAYS };
+  const draft = { name: trip.name, from: trip.from, to: trip.to, arriveBy: trip.arriveBy, days: trip.days?.length ? trip.days : DEFAULT_DAYS };
   return (
     <Shell
       title={trip.name}
@@ -337,7 +338,7 @@ function TripCard({ trip, itemId, index, done }: CardProps & { trip: ProposedTri
         </Text>
         <Text variant="label16">{trip.arriveBy}</Text>
         <Text variant="caption" color={color.textSecondary}>
-          {daysText(DEFAULT_DAYS)}
+          {daysText(draft.days)}
         </Text>
       </View>
     </Shell>
@@ -412,8 +413,10 @@ const styles = StyleSheet.create({
   rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: 'rgba(28,26,26,0.08)' },
   rowBorderTop: { borderTopWidth: StyleSheet.hairlineWidth * 2, borderTopColor: 'rgba(28,26,26,0.08)' },
   planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  planTime: { width: 88 },
-  plates: { flex: 1, flexDirection: 'row', gap: 4 },
+  planTime: { width: 76 },
+  // minWidth 0 lets the plates shrink instead of running over the minutes.
+  plates: { flex: 1, minWidth: 0, flexDirection: 'row', gap: 4 },
+  planMin: { minWidth: 44, textAlign: 'right' },
   eventRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12 },
   when: { width: 76, paddingTop: 3 },
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: -2 },

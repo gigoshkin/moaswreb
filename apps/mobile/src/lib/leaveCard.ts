@@ -54,6 +54,19 @@ const FETCH_EVERY_MS = 10 * 60_000;
 
 export const leaveCardAvailable = notifee !== null;
 
+/** Opens the trip when the user taps the leave card (cold start or app already running). Returns an unsubscribe. */
+export function onLeaveCardTap(open: (tripId: string) => void): () => void {
+  if (!notifee || !kit) return () => {};
+  const handle = (n?: Notification | null) => {
+    const tripId = n?.data?.tripId;
+    if (typeof tripId === 'string') open(tripId);
+  };
+  notifee.getInitialNotification().then((i) => handle(i?.notification)).catch(() => {});
+  return notifee.onForegroundEvent(({ type, detail }) => {
+    if (type === kit.EventType.PRESS) handle(detail.notification);
+  });
+}
+
 /** The trip the card is for: the same rule as Today's hero (today's next arrive-by), else the next day that has one. */
 function nextTrip(trips: SavedTrip[], now: number, done: string[]): { trip: SavedTrip; date: string } | null {
   const today = todayLocal(now);

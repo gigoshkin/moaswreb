@@ -93,6 +93,7 @@ export interface Preview {
   name: string;
   from: Place;
   to: Place;
+  days?: number[];
 }
 const previews = new Map<string, Preview>();
 

@@ -2,7 +2,7 @@ import type { ActionCard, ChatRequest, ChatResponse } from '@transit/shared';
 import * as z from 'zod/v4';
 import { config } from '../config.ts';
 import { createTools, type ToolDeps } from '../tools/index.ts';
-import { contextOf, SYSTEM } from './agent.ts';
+import { contextOf, SYSTEM, TOO_MANY_STEPS } from './agent.ts';
 
 // Free-tier stand-in for Claude while testing (AI_PROVIDER=gemini): Google AI Studio's
 // REST API, same tools, same cards. Photos and PDFs go in as inline data.
@@ -74,7 +74,7 @@ async function generate(doFetch: Fetch, body: string): Promise<Response> {
 /** One chat turn on Gemini: the model calls our tools; tool results become the cards. */
 export async function runGeminiChat(req: ChatRequest, deps: ToolDeps, doFetch: Fetch = fetch): Promise<ChatResponse> {
   const cards: ActionCard[] = [];
-  const tools = createTools({ ...deps, locale: req.locale ?? 'en' });
+  const tools = createTools({ fetch: doFetch, ...deps, locale: req.locale ?? 'en' });
   const byName = new Map(tools.map((t) => [t.name, t]));
   const declarations = tools.map((t) => ({
     name: t.name,
@@ -127,5 +127,5 @@ export async function runGeminiChat(req: ChatRequest, deps: ToolDeps, doFetch: F
     }
     contents.push({ role: 'user', parts: answers });
   }
-  return { reply: 'That took too many steps. Try asking in a simpler way.', cards };
+  return { reply: TOO_MANY_STEPS, cards };
 }
