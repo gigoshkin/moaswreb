@@ -11,18 +11,21 @@ interface Props {
   size?: 'xs' | 'sm' | 'md' | 'lg';
   /** On the dark hero the plate is outlined so it doesn't vanish. */
   onDark?: boolean;
+  /** A light edge, so plates stacked in a deck stay apart. */
+  edged?: boolean;
 }
 
 export const kindColor = { bus: color.bus, minibus: color.minibus, metro: color.metro } as const;
 
 /** Route number on a plate coloured by transport type. */
-export function RoutePlate({ label, kind = 'bus', size = 'sm', onDark }: Props) {
+export function RoutePlate({ label, kind = 'bus', size = 'sm', onDark, edged }: Props) {
   const s = sizes[size];
   return (
     <View
       style={[
         styles.plate,
         { height: s.h, minWidth: s.minW, paddingHorizontal: s.px, borderRadius: kind === 'metro' ? s.h / 2 : s.r, backgroundColor: kindColor[kind] },
+        edged && styles.edged,
         onDark && styles.onDark,
       ]}
     >
@@ -42,5 +45,6 @@ const sizes = {
 
 const styles = StyleSheet.create({
   plate: { alignItems: 'center', justifyContent: 'center' },
+  edged: { borderWidth: 1.5, borderColor: color.surface },
   onDark: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
 });

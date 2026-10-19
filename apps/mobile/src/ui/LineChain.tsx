@@ -100,7 +100,7 @@ function Deck({ slot, size, onDark }: { slot: Slot; size: 'xs' | 'sm' | 'md'; on
               if (widths.current.filter(Boolean).length === n && max !== width) setWidth(max);
             }}
           >
-            <RoutePlate label={l.label} kind={l.kind} size={size} onDark={onDark} />
+            <RoutePlate label={l.label} kind={l.kind} size={size} onDark={onDark} edged />
           </Card>
         ))}
       </View>
