@@ -1,5 +1,5 @@
 import type { Itinerary, JourneyStep, PlanQuery, PlanResponse } from '@transit/shared';
-import { groupWays, TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from '@transit/shared';
+import { groupWays, leaveAt, TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from '@transit/shared';
 import { Engine } from '../journey/engine.ts';
 import { alternatives, type Journey } from '../journey/raptor.ts';
 import { isAvoided } from '../journey/source.ts';
@@ -27,7 +27,7 @@ export const TTC_EARLIER_MIN = 15;
 /** Stops this close to a found ride's boarding / alighting stop are tried too (the other side, the next pole): they make the way's variations. */
 const SIBLING_M = 150;
 /** Different journeys the network search hands to the engine per plan. */
-const MAX_NETWORK_JOURNEYS = 8;
+const MAX_NETWORK_JOURNEYS = 12;
 /** Google line chains timed per request (each costs TTC lookups and walking times). */
 const MAX_GOOGLE_CANDIDATES = 4;
 /**
@@ -149,7 +149,7 @@ export class PlanService {
     const engine = this.engine;
     const now = Date.now();
     const runs = steps.map((st) => engine.solve({ from: query.from, to: query.to, steps: st, avoid: query.avoid, deadline, now, modes: query.modes }).catch(() => [] as Itinerary[]));
-    return (await Promise.all(runs)).flat();
+    return simplest((await Promise.all(runs)).flat(), deadline);
   }
 
   /** A found journey as planner steps: each ride from its stop (or one beside it) to its stop (or one beside it), any line between them. */
@@ -317,7 +317,7 @@ export class PlanService {
     const key2 = (it: Itinerary) => it.legs.filter((l) => l.route).map((l) => l.route!.shortName).join('>');
     const ours = new Set(ownDone.map(key2));
     const merged = [...ownDone, ...(theirs ?? []).filter((it) => !ours.has(key2(it)))];
-    const itineraries = googleDone.length ? withGoogle(merged, googleDone, query) : merged.sort(byArrivalThenTransfers);
+    const itineraries = withGoogle(merged, googleDone, query);
     await this.fillStopIds(itineraries);
     const body: PlanResponse = { query, itineraries, source: 'ttc', fetchedAt: new Date().toISOString() };
     // An answer made without our planner (it was still loading) is not kept for the full minute.
@@ -325,6 +325,37 @@ export class PlanService {
     return body;
   }
 }
+
+/** One more change has to let you leave this much later (or arrive this much sooner) to be listed. */
+const CHANGE_WORTH_MIN = 5;
+
+/** Changes that count: a change between metro lines (Station Square) is part of riding the metro. */
+const changes = (it: Itinerary): number => {
+  const rides = it.legs.filter((l) => l.mode !== 'WALK');
+  return rides.slice(1).filter((l, i) => !(l.mode === 'SUBWAY' && rides[i].mode === 'SUBWAY')).length;
+};
+
+/**
+ * Drops options with two or more changes that a simpler one beats: fewer
+ * changes, no more than 5 min more walking, and leaving no more than 5 min per
+ * saved change earlier (both on time, or the simpler one arriving no later).
+ * "518 > 422 > 541 > metro 2" is not worth listing beside "541 > metro 2"; a
+ * bus + metro way is always listed beside a direct bus.
+ */
+export const simplest = (its: Itinerary[], deadline: number): Itinerary[] => {
+  const onTime = (it: Itinerary) => Date.parse(it.arriveAt) <= deadline;
+  return its.filter(
+    (b) =>
+      changes(b) < 2 ||
+      !its.some((a) => {
+        const saved = changes(b) - changes(a);
+        if (saved <= 0 || a.walkSec > b.walkSec + 300) return false;
+        const slack = saved * CHANGE_WORTH_MIN * 60_000;
+        if (onTime(b)) return onTime(a) && leaveAt(a) >= leaveAt(b) - slack;
+        return Date.parse(a.arriveAt) <= Date.parse(b.arriveAt) + slack;
+      }),
+  );
+};
 
 /**
  * Google-suggested chains (timed by our planner) merged into the list: one

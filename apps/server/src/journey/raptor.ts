@@ -17,7 +17,11 @@ const CONNECT_MS = 2 * MIN;
 /** Walks between stops at a change. */
 export const TRANSFER_M = 400;
 /** Walks at the start and the end. */
-export const ACCESS_M = 1000;
+export const ACCESS_M = 800;
+/** Walking at the ends counts this much more than riding when comparing journeys (people would rather wait at home). */
+const WALK_WEIGHT = 1.5;
+/** One more ride has to let you leave at least this much later to be worth it. */
+export const CHANGE_WORTH_MS = 5 * MIN;
 
 export interface Ride {
   p: PatternRef;
@@ -177,7 +181,7 @@ export async function raptor(net: RaptorNetwork, input: RaptorInput, trips = new
   const beats = (id: string, t: number, cur: Map<string, Label>) => t > (seq ? -Infinity : best.get(id) ?? -Infinity) && t > (cur.get(id)?.t ?? -Infinity);
 
   const access = (pt: LatLon) =>
-    [...stops.values()].filter((s) => distanceM(pt, s) <= ACCESS_M).map((s) => ({ id: s.id, ms: estimateWalk(pt, s).sec * 1000 }));
+    [...stops.values()].filter((s) => distanceM(pt, s) <= ACCESS_M).map((s) => ({ id: s.id, ms: estimateWalk(pt, s).sec * 1000 * WALK_WEIGHT }));
   const egress = access(input.to);
   const starts = access(input.from);
   if (!egress.length || !starts.length) return [];
@@ -272,9 +276,12 @@ export async function raptor(net: RaptorNetwork, input: RaptorInput, trips = new
       const l = cur.get(s.id);
       if (l?.ride && (!top || l.t - s.ms > top.leave)) top = { id: s.id, leave: l.t - s.ms };
     }
-    if (top && top.leave > bestLeave && (!seq || k === seq.length)) {
+    // A change between metro lines is part of the metro ride, not worth a margin.
+    const metroChange = top !== null && cur.get(top.id)?.ride?.p.mode === 'SUBWAY';
+    if (top && top.leave > bestLeave + (Number.isFinite(bestLeave) && !metroChange ? CHANGE_WORTH_MS : 0) && (!seq || k === seq.length)) {
       const rides = trace(rounds, k, top.id);
-      if (rides) {
+      // Riding the same line twice (off and back on) is never a real way.
+      if (rides && new Set(rides.map((r) => r.p.shortName)).size === rides.length) {
         bestLeave = top.leave;
         out.push({ rides, leave: top.leave, arrive: input.deadline });
       }
@@ -302,10 +309,14 @@ function trace(rounds: Array<Map<string, Label>>, k: number, id: string): Ride[]
 }
 
 /**
- * Several different journeys: the Pareto set (rides vs leave time), then again
- * with the first ride's line of each found journey left out, so a second-best
+ * Several different journeys: the Pareto set (rides vs leave time) for the
+ * deadline and for 15 and 30 min before it, then again with the first ride's
+ * line of each found journey left out, so a second-best
  * line or another change point shows up too. At most `max`, distinct by lines.
  */
+/** Deadlines also searched, minutes before the real one. */
+const EARLIER_MIN = [15, 30];
+
 export async function alternatives(net: RaptorNetwork, input: RaptorInput, max = 8): Promise<Journey[]> {
   const trips = new Map<PatternRef, Trips>();
   const seen = new Set<string>();
@@ -320,6 +331,8 @@ export async function alternatives(net: RaptorNetwork, input: RaptorInput, max =
   };
   const banned = new Set(input.banned ?? []);
   add(await raptor(net, { ...input, banned }, trips));
+  // Arriving earlier finds the quicker ways too (a bus + metro that is 20 min shorter but must leave a bit sooner).
+  for (const earlier of EARLIER_MIN) add(await raptor(net, { ...input, banned, deadline: input.deadline - earlier * MIN }, trips));
   // Leave out each first-ride line once (and its other direction is irrelevant: it doesn't go there).
   for (let round = 0; round < 3 && out.length < max; round++) {
     const firsts = out.map((j) => patternKey(j.rides[0].p)).filter((k) => !banned.has(k));

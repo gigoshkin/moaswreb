@@ -126,13 +126,13 @@ const allTools = ({ ttc, stops, plans, locale = 'en', geo, source, network, fetc
   /** A stop id, or a stop name: the stops of that name and those within 250 m of them (both sides of the road, the metro entrance). */
   const stopsCalled = async (text: string): Promise<string[]> => {
     if (new RegExp(STOP_ID_PATTERN).test(text)) return [text];
-    const hits = await stops.search(text, 6, locale);
+    const hits = await stops.search(text, 12, locale);
     const out = new Set<string>();
     for (const h of hits) {
       out.add(h.id);
       for (const n of await stops.near(h, { radiusM: 250, limit: 8, locale })) out.add(n.id);
     }
-    return [...out].slice(0, 24);
+    return [...out].slice(0, 80);
   };
 
   /**

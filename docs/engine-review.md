@@ -65,7 +65,18 @@ Hand-built routes (`POST /plan/journey`, steps) used only our engine.
 7. **Concurrent identical plans are shared.** Once the network is loaded, the quick part (`part=ttc`) is the full plan.
 8. **`build_route` (AI and MCP).** It turns "321|335|518 to Sarajishvili, then metro" into a route: exactly those rides from the network, with a metro line change added when needed. The prompt now says which tool to use for what.
 
-Measured after the change: see section 6.
+Measured after the change, on the same trip with the network loaded from disk (1.4 s at startup):
+
+| Case | Time | TTC requests |
+|---|---|---|
+| Auto plan, first ask | 5.5 s | 7 (start/end walks, stop boards) |
+| Same trip, next minute | 0.2 s | 0 |
+| Three other trips across the city | 3.5–7 s | 5–10 |
+| `build_route` 321\|335\|518 → metro | 0.7 s | 0 |
+
+The automatic plan now lists 321 / 518 / 335 → metro 1 → metro 2 next to direct 302 and the bus + metro 2 ways. The rider's own route no longer needs building by hand.
+
+Loading the whole network from TTC takes 14.5 min (1,085 requests, 425 patterns). It must persist in `DATA_DIR` (`/data`), so a redeploy doesn't start cold.
 
 ## 5. UX gaps (not fixed yet)
 
@@ -80,6 +91,7 @@ What a commuter wants: "I always take 321, 335 or 518 to the metro, then the met
 
 ## 6. Open items
 
-- The first deploy has to load the network: about 15–20 min of background TTC requests. Until then plans work as before, TTC first.
+- The first deploy loads the network in about 15 min of background TTC requests. Until then plans work as before, TTC first. On CapRover, `/data` must be a persistent directory, or every deploy starts cold.
+- One TTC line (`1:minibusR25222`) answers 500. It stays out of the network until a later refresh loads it.
 - `build_route` and the new prompt have not been run against the real Claude API from here.
 - The new planner returns at most 4 rides and 400 m change walks. Tune after real use.

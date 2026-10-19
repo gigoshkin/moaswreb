@@ -85,7 +85,7 @@ export class StopIndex {
     return (await this.near(p, { radiusM: maxM, limit: 1, mode }))[0]?.id ?? null;
   }
 
-  /** Name or stop-code search; prefix matches rank above substring matches. */
+  /** Name or stop-code search; prefix matches rank above substring matches, then the shortest name ("M/S Sarajishvili" before "Davit Sarajishvili Avenue #11"). */
   async search(query: string, limit = 5, locale: Locale = 'en'): Promise<StopHit[]> {
     await this.ensure();
     const q = query.trim().toLowerCase();
@@ -101,7 +101,7 @@ export class StopIndex {
       if (best >= 0) scored.push([best, e]);
     }
     return scored
-      .sort((a, b) => b[0] - a[0] || a[1].hit.name.localeCompare(b[1].hit.name))
+      .sort((a, b) => b[0] - a[0] || a[1].nameEn.length - b[1].nameEn.length || a[1].hit.name.localeCompare(b[1].hit.name))
       .slice(0, limit)
       .map(([, e]) => this.named(e, locale));
   }

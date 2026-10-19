@@ -66,6 +66,8 @@ export class TtcClient {
   private timer: NodeJS.Timeout | null = null;
   private lastRequestAt = 0;
   private consecutiveFailures = 0;
+  /** 5xx answers in a row; three of them count as TTC being down. */
+  private serverErrors = 0;
 
   /** While set, every request waits; set by backoff after throttling or server errors. */
   pausedUntil = 0;
@@ -246,13 +248,17 @@ export class TtcClient {
         return this.request<T>(path, params, false);
       }
       if (!res.ok) {
-        if (res.status === 403 || res.status === 429 || res.status >= 500) {
-          this.backOff(Number(res.headers.get('retry-after')) || 0);
+        // Throttled or blocked: everyone waits. A server error on one request (TTC answers 500 for some lines) pauses only when it keeps happening.
+        if (res.status === 403 || res.status === 429) this.backOff(Number(res.headers.get('retry-after')) || 0);
+        else if (res.status >= 500 && ++this.serverErrors >= 3) {
+          this.serverErrors = 0;
+          this.backOff(0);
         }
         throw new TtcError(res.status, path, await res.text());
       }
       const data = (await res.json()) as T;
       this.consecutiveFailures = 0;
+      this.serverErrors = 0;
       return data;
     } catch (err) {
       this.errors++;
