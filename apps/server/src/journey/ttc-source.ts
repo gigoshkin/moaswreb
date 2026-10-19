@@ -3,6 +3,7 @@ import type { LatLon, NearStop, StopHit } from '@transit/shared';
 import type { TtcClient } from '../ttc/client.ts';
 import { distanceM, type StopIndex } from '../ttc/stops.ts';
 import type { RouteSummary, ScheduleBlock } from '../ttc/types.ts';
+import type { NetworkView } from './compose.ts';
 import { estimateWalk, type PatternRef, type Source, type Timetable } from './source.ts';
 
 const HOUR = 3_600_000;
@@ -199,6 +200,11 @@ export class TtcSource implements Source {
   /** True once warm() has indexed the whole network. */
   get ready(): boolean {
     return this.all !== null;
+  }
+
+  /** The network as the route search reads it; always current (a refresh swaps the patterns in). */
+  get view(): NetworkView {
+    return { ready: this.ready, patterns: this.patterns(), timetable: (p, d) => this.timetable(p, d) };
   }
 
   /** Every pattern of the network (empty until warm() has run). */

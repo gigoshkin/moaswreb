@@ -43,6 +43,17 @@ export interface RaptorInput {
   /** Patterns (routeId|suffix) not to use; for finding alternatives. */
   banned?: Set<string>;
   maxRides?: number;
+  /**
+   * A route the rider described: exactly these rides, in order, each limited
+   * to some lines (`allow`) and, optionally, to getting off at some stops.
+   * Then only the journey with exactly that many rides is returned.
+   */
+  sequence?: RideRule[];
+}
+
+export interface RideRule {
+  allow: (p: PatternRef) => boolean;
+  alightAt?: Set<string>;
 }
 
 export interface RaptorNetwork {
@@ -156,9 +167,14 @@ const tripsFor = async (net: RaptorNetwork, p: PatternRef, deadline: number, cac
 export async function raptor(net: RaptorNetwork, input: RaptorInput, trips = new Map<PatternRef, Trips>()): Promise<Journey[]> {
   if (!net.patterns.length) return [];
   const { stops, near, at } = prepare(net.patterns);
-  const maxRides = input.maxRides ?? 4;
-  const usable = (p: PatternRef) =>
-    !isAvoided(p, input.avoid) && (!input.modes || input.modes.includes(p.mode)) && !input.banned?.has(patternKey(p));
+  const seq = input.sequence;
+  const maxRides = seq ? seq.length : input.maxRides ?? 4;
+  // Backwards: round k is the k-th ride from the end.
+  const rule = (k: number) => seq?.[seq.length - k];
+  const usable = (p: PatternRef, k: number) =>
+    !isAvoided(p, input.avoid) && (!input.modes || input.modes.includes(p.mode)) && !input.banned?.has(patternKey(p)) && (rule(k)?.allow(p) ?? true);
+  // A described route needs exactly its rides: a label from fewer rides must not block one with more.
+  const beats = (id: string, t: number, cur: Map<string, Label>) => t > (seq ? -Infinity : best.get(id) ?? -Infinity) && t > (cur.get(id)?.t ?? -Infinity);
 
   const access = (pt: LatLon) =>
     [...stops.values()].filter((s) => distanceM(pt, s) <= ACCESS_M).map((s) => ({ id: s.id, ms: estimateWalk(pt, s).sec * 1000 }));
@@ -186,7 +202,7 @@ export async function raptor(net: RaptorNetwork, input: RaptorInput, trips = new
     const queue = new Map<PatternRef, number>();
     for (const id of marked) {
       for (const { p, i } of at.get(id) ?? []) {
-        if (!usable(p)) continue;
+        if (!usable(p, k)) continue;
         queue.set(p, Math.max(queue.get(p) ?? -1, i));
       }
     }
@@ -201,7 +217,7 @@ export async function raptor(net: RaptorNetwork, input: RaptorInput, trips = new
         // Board here on the current trip.
         if (trip >= 0 && !Number.isNaN(tr[trip][i])) {
           const t = tr[trip][i];
-          if (t > (best.get(id) ?? -Infinity) && t > (cur.get(id)?.t ?? -Infinity)) {
+          if (beats(id, t, cur)) {
             cur.set(id, { t, ride: { p, b: i, a: alight, trip } });
             best.set(id, t);
             improved.add(id);
@@ -210,6 +226,8 @@ export async function raptor(net: RaptorNetwork, input: RaptorInput, trips = new
         // Or get off here: the latest trip that arrives in time for what comes after.
         const after = prev.get(id);
         if (!after) continue;
+        const only = rule(k)?.alightAt;
+        if (only && !only.has(id)) continue;
         const limit = after.t - (k > 1 ? CONNECT_MS : 0);
         let lo = trip + 1;
         let hi = tr.length - 1;
@@ -239,7 +257,7 @@ export async function raptor(net: RaptorNetwork, input: RaptorInput, trips = new
       const l = cur.get(id)!;
       for (const n of near.get(id) ?? []) {
         const t = l.t - n.ms;
-        if (t > (best.get(n.id) ?? -Infinity) && t > (cur.get(n.id)?.t ?? -Infinity)) {
+        if (beats(n.id, t, cur)) {
           cur.set(n.id, { t, walk: id });
           best.set(n.id, t);
           improved.add(n.id);
@@ -254,7 +272,7 @@ export async function raptor(net: RaptorNetwork, input: RaptorInput, trips = new
       const l = cur.get(s.id);
       if (l?.ride && (!top || l.t - s.ms > top.leave)) top = { id: s.id, leave: l.t - s.ms };
     }
-    if (top && top.leave > bestLeave) {
+    if (top && top.leave > bestLeave && (!seq || k === seq.length)) {
       const rides = trace(rounds, k, top.id);
       if (rides) {
         bestLeave = top.leave;

@@ -3,6 +3,7 @@ import { STOP_ID_PATTERN, defaultKept, groupWays, isTicked, nextArriveBy, tbilis
 import * as z from 'zod/v4';
 import { detectMapsInput, mapsLinkToPlaces } from '../chat/maps-link.ts';
 import { insideTbilisi } from '../geo.ts';
+import { composeRoute, type NetworkView } from '../journey/compose.ts';
 import { isAvoided, type PatternRef, type Source } from '../journey/source.ts';
 import type { PlanService } from '../plan/service.ts';
 import type { TtcClient } from '../ttc/client.ts';
@@ -39,6 +40,8 @@ export interface ToolDeps {
   geo?: StreetGeo;
   /** Line patterns per stop (journey/ttc-source.ts) for lines_at_stop and checking hand-built routes. Without it those say "unavailable". */
   source?: Pick<Source, 'patternsAt'>;
+  /** The whole network in memory (TtcSource), for build_route. Without it, or while it loads, build_route says so. */
+  network?: () => NetworkView;
   /** Used to resolve short Google Maps links (parse_maps_link). Tests inject a stub; no network in tests. */
   fetch?: typeof fetch;
   /** The app can show the Share my location button (newer app versions). Older ones would get a dead end, so the tool is withheld. */
@@ -119,7 +122,19 @@ const keepSchema = z
 
 export const createTools = (deps: ToolDeps): ToolDef[] => allTools(deps).filter((t) => t.name !== 'request_location' || deps.locationButton);
 
-const allTools = ({ ttc, stops, plans, locale = 'en', geo, source, fetch: fetchFn }: ToolDeps): ToolDef[] => {
+const allTools = ({ ttc, stops, plans, locale = 'en', geo, source, network, fetch: fetchFn }: ToolDeps): ToolDef[] => {
+  /** A stop id, or a stop name: the stops of that name and those within 250 m of them (both sides of the road, the metro entrance). */
+  const stopsCalled = async (text: string): Promise<string[]> => {
+    if (new RegExp(STOP_ID_PATTERN).test(text)) return [text];
+    const hits = await stops.search(text, 6, locale);
+    const out = new Set<string>();
+    for (const h of hits) {
+      out.add(h.id);
+      for (const n of await stops.near(h, { radiusM: 250, limit: 8, locale })) out.add(n.id);
+    }
+    return [...out].slice(0, 24);
+  };
+
   /**
    * The ways a proposal card ticks, from a plan of the trip's next occurrence:
    * a hand-built route is its own way; otherwise the ways `keep` names, else the
@@ -274,6 +289,64 @@ const allTools = ({ ttc, stops, plans, locale = 'en', geo, source, fetch: fetchF
             return `${p.shortName} ${p.mode}${p.minibus ? ' minibus' : ''} → ${p.headsign ?? last.name}: ${list}${tail}`;
           });
         return { text: `${stop.name} (${id}):\n${rows.join('\n')}` };
+      },
+    }),
+
+    tool({
+      name: 'build_route',
+      description:
+        'Build a route the user describes by its rides, e.g. "321, 335 or 518 to Sarajishvili, then the metro" = rides [{lines:["321","335","518"], getOffAt:"Sarajishvili"}, {mode:"SUBWAY"}]. Finds the boarding and change stops itself from the whole network and times the route like plan_trip (card with the route and its variations). Use it whenever the user names lines or a change point, or says a route plan_trip did not return; TTC and Google never return routes like these when a direct bus exists. "M" or "metro" = {mode:"SUBWAY"}; a metro ride may change line (1 to 2 at Station Square) by itself. Then propose_route with the steps it returns to save it.',
+      schema: z.object({
+        from: latLon,
+        to: latLon,
+        arriveBy: z.string().describe('Tbilisi local time, YYYY-MM-DDTHH:mm'),
+        rides: z
+          .array(
+            z.object({
+              lines: z.array(routeName).max(12).optional().describe('Lines that can do this ride ("321|335|518" = ["321","335","518"]); omit for any line of the mode'),
+              mode: modeSchema.optional().describe('SUBWAY for the metro, GONDOLA for the cable car; default any'),
+              getOffAt: z.string().min(1).max(100).optional().describe('Stop name or id where this ride ends, if the user said (e.g. "Sarajishvili"); omit to let the next ride decide'),
+            }),
+          )
+          .min(1)
+          .max(4),
+        avoid: avoidSchema.optional(),
+        name: z.string().min(1).max(100).optional(),
+        fromName: z.string().min(1).max(200).optional(),
+        toName: z.string().min(1).max(200).optional(),
+        days: dayList.optional(),
+      }),
+      mcp: true,
+      run: async ({ from, to, arriveBy, rides, avoid, name, fromName, toName, days }) => {
+        const deadline = Date.parse(tbilisiLocalToIso(arriveBy) ?? '');
+        if (!Number.isFinite(deadline)) return { text: 'arriveBy must be YYYY-MM-DDTHH:mm (Tbilisi time).' };
+        const net = network?.();
+        if (!net?.ready) return { text: 'Route building is still loading on the server (a few minutes after a restart). Build it by hand instead: stops_near / find_stop, lines_at_stop with toStopId, then plan_trip with steps.' };
+        const specs = [];
+        for (const [i, r] of rides.entries()) {
+          const getOffAt = r.getOffAt ? await stopsCalled(r.getOffAt) : undefined;
+          if (r.getOffAt && !getOffAt?.length) return { text: `Ride ${i + 1}: no stop called "${r.getOffAt}". Check with find_stop.` };
+          specs.push({ ...(r.lines?.length ? { lines: r.lines } : {}), ...(r.mode ? { mode: r.mode } : {}), ...(getOffAt ? { getOffAt } : {}) });
+        }
+        const a = cleanAvoid(avoid);
+        const siblings = async (id: string, at: LatLon, mode: string) => {
+          const near = await stops.near(at, { radiusM: 150, limit: 8, mode });
+          return [id, ...near.map((s) => s.id).filter((s) => s !== id)].slice(0, 8);
+        };
+        const composed = await composeRoute(net, { from, to, deadline, rides: specs, ...(a ? { avoid: a } : {}) }, siblings);
+        if (!composed) return { text: 'No such route arrives by that time in the timetables (check the lines and the change point with lines_at_stop, or try another time).' };
+        const plan = await plans.plan({ from, to, arriveBy, locale, steps: composed.steps, ...(a ? { avoid: a } : {}) });
+        const described = plan.itineraries.length ? describeWays(plan.itineraries) : null;
+        const found = composed.journey.rides.map((r) => `${r.p.mode} ${r.p.shortName} ${r.p.stops[r.b].name} (${r.p.stops[r.b].id}) → ${r.p.stops[r.a].name} (${r.p.stops[r.a].id})`).join('; ');
+        const trip = name || fromName || toName || days ? { ...(name ? { name } : {}), ...(fromName ? { from: fromName } : {}), ...(toName ? { to: toName } : {}), ...(days ? { days: [...new Set(days)].sort((x, y) => x - y) } : {}) } : undefined;
+        return {
+          text: [
+            `Route found: ${found}.`,
+            described ? described.text : 'It has no departures near that time right now.',
+            `To save it, call propose_route with steps: ${JSON.stringify(composed.steps)}`,
+          ].join('\n'),
+          card: { type: 'plan', plan, ...(trip ? { trip } : {}), ...(described ? { ways: described.ways } : {}) },
+        };
       },
     }),
 

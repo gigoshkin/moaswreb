@@ -144,9 +144,7 @@ export class PlanService {
     if (!this.engine || !this.source?.ready || query.steps?.length) return null;
     const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '');
     if (!Number.isFinite(deadline)) return [];
-    const source = this.source;
-    const net = { patterns: source.patterns(), timetable: (p: Parameters<TtcSource['timetable']>[0], d: string) => source.timetable(p, d) };
-    const found = await alternatives(net, { from: query.from, to: query.to, deadline, avoid: query.avoid, modes: query.modes }, MAX_NETWORK_JOURNEYS);
+    const found = await alternatives(this.source.view, { from: query.from, to: query.to, deadline, avoid: query.avoid, modes: query.modes }, MAX_NETWORK_JOURNEYS);
     const steps = await Promise.all(found.map((j) => this.stepsOf(j)));
     const engine = this.engine;
     const now = Date.now();
