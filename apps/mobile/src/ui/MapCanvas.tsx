@@ -107,7 +107,8 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
   const dy = focus - size.h / 2;
 
   // Latest values for callbacks that outlive a render.
-  const live = useRef({ w: 0, h: 0, dy: 0, g: 15, at: null as LatLon | null, focus: 0 });
+  // `at` / `g`: where the camera is, or is gliding to (so a re-centre mid-glide keeps the glide's target, not where it set off from).
+  const live = useRef({ w: 0, h: 0, dy: 0, g: 15, at: null as LatLon | null, focus: 0, gesture: false });
   live.current.w = size.w;
   live.current.h = size.h;
   live.current.dy = dy;
@@ -136,6 +137,9 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
   const go = useCallback((at: LatLon, g: number, duration: number) => {
     const { w, h, dy: off } = live.current;
     const c = shiftDown(at, g, -off);
+    live.current.at = at;
+    live.current.g = g;
+    live.current.gesture = false;
     if (Platform.OS === 'android') map.current?.animateCamera({ center: ll(c), zoom: g }, { duration });
     else map.current?.animateToRegion(regionOf(c, g, w, h), duration);
   }, []);
@@ -146,12 +150,15 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     focusY.value = withTiming(focus, { duration: 260, easing: Easing.out(Easing.cubic) });
     if (Math.abs(focus - live.current.focus) < 2) return;
     live.current.focus = focus;
+    // Not under a finger: the drag decides where the map goes, and its idle reports the point under the pin.
+    if (live.current.gesture) return;
     if (live.current.at) go(live.current.at, live.current.g, 260);
   }, [focus, initial, focusY, go]);
 
   const regionStart = useCallback(
     (_: Region, d: { isGesture?: boolean }) => {
       if (!d.isGesture) return;
+      live.current.gesture = true;
       moving.value = withSpring(1, spring.snappy);
       onMoveStartRef.current?.();
     },
@@ -168,6 +175,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
   const regionDone = useCallback(
     (r: Region) => {
       moving.value = withSpring(0, spring.snappy);
+      live.current.gesture = false;
       const { w, dy: off } = live.current;
       if (!w || !r.longitudeDelta) return;
       const g = Math.log2((360 * w) / (WORLD * r.longitudeDelta));
