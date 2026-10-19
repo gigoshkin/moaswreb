@@ -24,7 +24,7 @@ const scripted = (respond: () => Response | Promise<Response> = () => new Respon
 };
 
 const make = (s: ReturnType<typeof scripted>, over: { dailyCap?: number; now?: () => number } = {}) =>
-  createGoogleSearch({ key: 'test-key', dailyCap: over.dailyCap ?? 500, fetch: s.doFetch, now: over.now, log: () => {} });
+  createGoogleSearch({ key: 'test-key', autocomplete: false, dailyCap: over.dailyCap ?? 500, fetch: s.doFetch, now: over.now, log: () => {} });
 
 test('Google: places map to PlaceHit', async () => {
   const s = scripted();
@@ -113,4 +113,42 @@ test('findPlaces: Google failing (empty) falls back to TTC and Photon', async ()
   const geo: StreetGeo = { search: async () => [hit('Photon place', 41.6)], reverse: async () => null };
   const out = await findPlaces(ttc, 'x place', 'en', 5, geo, async () => []);
   assert.deepEqual(out.map((p) => p.name), ['Photon place']);
+});
+
+test('Google: abbreviations and the TTC spelling are spelled out before the search', async () => {
+  const { tidyQuery } = await import('../src/ttc/google-places.ts');
+  assert.equal(tidyQuery('7B Archil Mef St'), '7B Archil Mefe Street');
+  assert.equal(tidyQuery('Archil Mepe st.'), 'Archil Mefe Street');
+  assert.equal(tidyQuery('Rustaveli Ave'), 'Rustaveli Avenue');
+  assert.equal(tidyQuery('Vake Park'), 'Vake Park');
+  const s = scripted();
+  await make(s)('7B Archil Mef St');
+  assert.equal(JSON.parse(String(s.calls[0].init.body)).textQuery, '7B Archil Mefe Street');
+});
+
+test('Google autocomplete: half-typed text gets suggestions, then coordinates from Place Details', async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  const doFetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} });
+    if (String(url).endsWith(':autocomplete')) return new Response(JSON.stringify({ suggestions: [{ placePrediction: { placeId: 'A1' } }, { placeQuery: {} }, { placePrediction: { placeId: 'B2' } }] }), { status: 200 });
+    return new Response(JSON.stringify(place(String(url).includes('A1') ? '7b Archil Mefe Street' : '7B Archil Mefe Street', 41.79, 44.74)), { status: 200 });
+  }) as typeof fetch;
+  const search = createGoogleSearch({ key: 'test-key', dailyCap: 500, fetch: doFetch, log: () => {} });
+  const hits = await search('7B archil mef');
+  assert.deepEqual(hits.map((h) => h.name), ['7b Archil Mefe Street', '7B Archil Mefe Street']);
+  assert.equal(JSON.parse(String(calls[0].init.body)).input, '7B archil mef');
+  assert.ok(calls.slice(1).every((c) => /places\/(A1|B2)\?/.test(c.url)));
+  assert.equal((await search('7b archil mef')).length, 2);
+  assert.equal(calls.length, 3, 'the repeat is served from the cache');
+});
+
+test('Google autocomplete: no suggestions falls back to Text Search', async () => {
+  const urls: string[] = [];
+  const doFetch = (async (url: string | URL | Request) => {
+    urls.push(String(url));
+    return String(url).endsWith(':autocomplete') ? new Response(JSON.stringify({}), { status: 200 }) : new Response(JSON.stringify({ places: [place('Cafe Linville', 41.7, 44.8)] }), { status: 200 });
+  }) as typeof fetch;
+  const hits = await createGoogleSearch({ key: 'test-key', dailyCap: 500, fetch: doFetch, log: () => {} })('linville');
+  assert.equal(hits.length, 1);
+  assert.deepEqual(urls.map((u) => u.split('/').pop()), ['places:autocomplete', 'places:searchText']);
 });
