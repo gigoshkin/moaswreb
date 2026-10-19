@@ -299,16 +299,21 @@ export class PlanService {
     let ownDone: Itinerary[] = [];
     let googleDone: Itinerary[] = [];
     let ownError: unknown = null;
+    let ownSettled = false;
     const budget = new Promise<void>((resolve) => setTimeout(resolve, ENGINE_BUDGET_MS).unref());
     await Promise.race([
       Promise.all([
-        own.then((r) => void (ownDone = r), (e: unknown) => void (ownError = e)),
+        own.then((r) => void ((ownDone = r), (ownSettled = true)), (e: unknown) => void ((ownError = e), (ownSettled = true))),
         google.then((r) => void (googleDone = r)),
       ]),
       budget,
     ]);
     const theirs = await ttc;
     if (theirs === null && !ownDone.length) throw ownError ?? new Error('TTC trip planner unavailable');
+    // A hand-built route has only our planner. When it failed (TTC busy or down) or ran out of time, that is an
+    // error, not "no ride fits": an empty answer would replace the phone's last good plan of the trip, and a trip
+    // saved on it loses its stops (and its alerts).
+    if (query.steps?.length && !ownDone.length && (ownError || !ownSettled)) throw ownError ?? new Error('Journey planner still loading');
 
     // Where our planner found a line, its numbers win over TTC's for the same lines.
     const key2 = (it: Itinerary) => it.legs.filter((l) => l.route).map((l) => l.route!.shortName).join('>');

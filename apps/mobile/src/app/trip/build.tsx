@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { finishSteps, stepsDraft } from '../../lib/handoff';
 import { distM, rideFromStep, stepOf } from '../../lib/chain';
 import {
-  builder, cancelRide, canFinish, commit, endsOf, finish, groundOk, initFlow, insertAt, namedAll, onwardLines, phaseOf, pinDropped, reachableFrom,
+  builder, cancelRide, canFinish, commit, endsOf, finish, groundOk, initFlow, insertAt, namedAll, onwardLines, phaseOf, pinDropped, pinStop, reachableFrom,
   reboard, removeRide, replaceAt, rideEnded, ridesEnded, rowsOf, seeded, toggleRideLine, twinAcross, undo as undoFlow, type Flow, type Phase,
 } from '../../lib/buildFlow';
 import { metroLinesDrawn, metroReach, metroRides } from '../../lib/metro';
@@ -172,15 +172,12 @@ export default function BuildRoute() {
   const hotStop = hot ? (candidates.find((s) => s.id === hot) ?? null) : null;
 
   // ——— Pin on a stop: within SNAP_PT on screen the stop grows and ticks; settling beside one pulls the pin on. ———
-  const snapped = useRef<string | null>(null); // one pull per stop, so it can never loop
+  // One pull per drag: a pull's own camera move (or a re-centre after the sheet resizes) never pulls again, so two
+  // stops close together (a bus stop beside its metro station) can't pull the pin back and forth. A new drag, or the
+  // pin leaving every stop, allows the next pull.
+  const pulled = useRef(false);
   const stopAt = (c: Point, zoom: number) => {
-    const reach = SNAP_PT * metresPerPoint(c.lat, zoom);
-    let best: { s: StopHit; d: number } | null = null;
-    for (const s of candRef.current) {
-      if (s.id === boardRef.current?.id) continue;
-      const d = distM(c, s);
-      if (d <= reach && (!best || d < best.d)) best = { s, d };
-    }
+    const best = pinStop(c, candRef.current, SNAP_PT * metresPerPoint(c.lat, zoom), hotRef.current, boardRef.current?.id);
     return best ? { ...best, pt: best.d / metresPerPoint(c.lat, zoom) } : null;
   };
   const mark = (id: string | null) => {
@@ -193,13 +190,16 @@ export default function BuildRoute() {
   const onIdle = (c: Point, zoom: number) => {
     const s = stopAt(c, zoom);
     mark(s?.s.id ?? null);
-    if (s && s.pt > 1.5 && s.s.id !== snapped.current) {
-      snapped.current = s.s.id;
+    if (s && s.pt > 1.5 && !pulled.current) {
+      pulled.current = true;
       map.current?.flyTo(s.s, zoom); // eases the pin onto the stop; the next idle reports the stop itself
       return;
     }
-    if (!s) snapped.current = null;
+    if (!s) pulled.current = false;
     setCentre(c);
+  };
+  const onMoveStart = () => {
+    pulled.current = false;
   };
 
   // ——— Events. Nothing is picked for you: every change is a tap. ———
@@ -257,12 +257,16 @@ export default function BuildRoute() {
     act((x) => reboard(x, across));
   };
 
-  /** A metro station near the bus stop you got off at: a shortcut that puts the pin on its dot (you still board with a tap). */
+  /**
+   * A metro station near the bus stop you got off at: a shortcut that puts the pin on its dot (you still board with a tap).
+   * It stays while the pin is on the station: hiding it then resized the sheet, which moved the map under the pin,
+   * which took the pin off the station and brought the button back (a snap / unsnap loop with a tick each time).
+   */
   const metroNear = useMemo(() => {
     if (phase !== 'floating' || !lastOff || lastOff.mode === 'SUBWAY') return null;
     const m = nearby.stops.filter((s) => s.mode === 'SUBWAY' && s.id !== lastOff.id).map((s) => ({ s, d: distM(lastOff, s) })).sort((x, y) => x.d - y.d)[0];
-    return m && m.d <= METRO_NEAR_M && m.s.id !== hot ? m : null;
-  }, [phase, lastOff, nearby.stops, hot]);
+    return m && m.d <= METRO_NEAR_M ? m : null;
+  }, [phase, lastOff, nearby.stops]);
 
   // ——— The map. ———
   const shapes = useRideShapes(f.rides.map((r) => ({ route: r.lines.find((l) => !r.skipped.includes(l.label))?.label ?? '', from: r.board.id, to: r.off.id })));
@@ -327,6 +331,7 @@ export default function BuildRoute() {
         pin
         onMove={onMove}
         onIdle={onIdle}
+        onMoveStart={onMoveStart}
         inset={{ top: insets.top + 64, bottom: Math.max(MIN_SHEET, sheetH) }}
       />
       <View style={[styles.floating, { top: insets.top + 12 }]} pointerEvents="box-none">

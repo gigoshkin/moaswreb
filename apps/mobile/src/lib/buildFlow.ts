@@ -172,6 +172,29 @@ export function twinAcross(board: StopHit, stops: StopHit[]): StopHit | null {
   return best?.s ?? null;
 }
 
+/** The stop the pin is on keeps it until it is this many times the reach away (so two stops close together don't trade it back and forth). */
+export const PIN_KEEP = 1.5;
+/** Another stop takes the pin from the one it is on only when it is nearer by this share of the reach. */
+export const PIN_SWITCH = 0.3;
+
+/**
+ * The stop the pin at `c` is on: the nearest within `reachM` (not `skip`), with
+ * hysteresis: the stop it is already on (`current`) stays while it is within
+ * PIN_KEEP x reach, unless another is clearly nearer. Null: on the ground.
+ */
+export function pinStop<T extends Stopish>(c: Point, stops: readonly T[], reachM: number, current: string | null, skip?: string | null): { s: T; d: number } | null {
+  let best: { s: T; d: number } | null = null;
+  let cur: { s: T; d: number } | null = null;
+  for (const s of stops) {
+    if (s.id === skip) continue;
+    const d = distM(c, s);
+    if (s.id === current) cur = { s, d };
+    if (d <= reachM && (!best || d < best.d)) best = { s, d };
+  }
+  if (cur && cur.d <= reachM * PIN_KEEP && (!best || best.d >= cur.d - reachM * PIN_SWITCH)) return cur;
+  return best;
+}
+
 /** The ride being built boards at another stop instead (across the road); the rest stays as it is. */
 export const reboard = (f: Flow, stop: StopHit): Flow => (f.board && f.board.id !== stop.id ? { ...f, board: stop } : f);
 

@@ -270,3 +270,23 @@ test('several rides end the ride being built in a row, in its slot', () => {
   assert.deepEqual(g.rides.map((r) => `${r.board.id}-${r.off.id}`), ['A-C', 'C-B', 'B-C']);
   assert.equal(F.ridesEnded(f, []), f);
 });
+
+test('the pin on a stop: the nearest within reach, and the one it is on keeps it (no back and forth between two stops)', () => {
+  // The bus stop and its metro station ~50 m apart, zoomed out so both are within reach (60 m).
+  const stops = [sarBus, sarMetro];
+  const mid = { lat: (sarBus.lat + sarMetro.lat) / 2, lon: (sarBus.lon + sarMetro.lon) / 2 };
+  const nearBus = { lat: mid.lat - 0.00003, lon: mid.lon - 0.00002 };
+  const nearMetro = { lat: mid.lat + 0.00003, lon: mid.lon + 0.00002 };
+  assert.equal(F.pinStop(nearBus, stops, 60, null)?.s.id, 'M/S Sarajishvili');
+  assert.equal(F.pinStop(nearMetro, stops, 60, null)?.s.id, 'M/S Sarajishvili metro');
+  // Moving a few metres past the middle doesn't hand the pin over...
+  assert.equal(F.pinStop(nearMetro, stops, 60, 'M/S Sarajishvili')?.s.id, 'M/S Sarajishvili');
+  assert.equal(F.pinStop(nearBus, stops, 60, 'M/S Sarajishvili metro')?.s.id, 'M/S Sarajishvili metro');
+  // ...right onto the other stop does.
+  assert.equal(F.pinStop(sarMetro, stops, 60, 'M/S Sarajishvili')?.s.id, 'M/S Sarajishvili metro');
+  // Out of reach (x PIN_KEEP for the one it is on): the ground.
+  const far = { lat: sarBus.lat - 0.002, lon: sarBus.lon };
+  assert.equal(F.pinStop(far, stops, 60, 'M/S Sarajishvili'), null);
+  // The boarding stop is never a stop to get off at.
+  assert.equal(F.pinStop(sarBus, stops, 60, null, 'M/S Sarajishvili')?.s.id, 'M/S Sarajishvili metro');
+});

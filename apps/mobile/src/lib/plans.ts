@@ -1,4 +1,4 @@
-import { transitLegs, type Choice, type Itinerary, type PlanLeg } from '@transit/shared';
+import { transitLegs, type Choice, type Itinerary, type JourneyStep, type PlanLeg } from '@transit/shared';
 
 // The plan maths that decides routes (transitLegs, kindOf, leaveAt, choose and
 // the merge of several kept ways) is in packages/shared/src/ways.ts, shared with
@@ -65,4 +65,21 @@ export function suggestOther(opts: {
   if (other.kind === 'onTime') return { it: other.it, leaveAt: other.leaveAt, onTime: true };
   if (kept.kind === 'none' || Date.parse(other.it.arriveAt) < Date.parse(kept.it.arriveAt)) return { it: other.it, leaveAt: other.leaveAt, onTime: false };
   return null;
+}
+
+type Stops = { from: { lat: number; lon: number }; to: { lat: number; lon: number }; steps?: JourneyStep[]; fromStopId?: string; toStopId?: string; walkMin?: number };
+
+/**
+ * The stop ids and walk a saved trip already has (what its alerts sync with), for a re-save that has no plan answer
+ * to take them from: kept while they still fit, i.e. the first kept way still boards at `fromStopId` and its last ride
+ * still ends at `toStopId` (or, with no kept way, the ends haven't moved). Otherwise nothing.
+ */
+export function keptStops(old: Stops | undefined, next: Pick<Stops, 'from' | 'to' | 'steps'>): Pick<Stops, 'fromStopId' | 'toStopId' | 'walkMin'> {
+  if (!old?.fromStopId || !old.toStopId) return {};
+  const same = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => a.lat === b.lat && a.lon === b.lon;
+  const steps = next.steps ?? [];
+  const fits = steps.length
+    ? steps[0].fromStops.includes(old.fromStopId) && steps.at(-1)!.toStops.includes(old.toStopId) && same(old.from, next.from)
+    : !old.steps?.length && same(old.from, next.from) && same(old.to, next.to);
+  return fits ? { fromStopId: old.fromStopId, toStopId: old.toStopId, ...(old.walkMin !== undefined ? { walkMin: old.walkMin } : {}) } : {};
 }
