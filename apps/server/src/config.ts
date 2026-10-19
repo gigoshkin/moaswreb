@@ -62,10 +62,12 @@ export const config = {
     userAgent: 'tbilisi-transit-hackathon/0.1 (Hacktoberfest Georgia 2026)',
   },
   logger: {
+    /** The research logger (arrival boards and vehicle positions to disk). Off unless LOGGER=on: it competes with users for TTC's request budget. */
+    enabled: process.env.LOGGER === 'on',
     hotIntervalMs: int(process.env.HOT_INTERVAL_MS, 30_000),
     hotStops: list(process.env.HOT_STOPS),
     hotRoutes: list(process.env.HOT_ROUTES),
-    sweepIntervalMs: int(process.env.SWEEP_INTERVAL_MS, 1_500),
+    sweepIntervalMs: int(process.env.SWEEP_INTERVAL_MS, 0),
     routeRefreshMs: 6 * 60 * 60 * 1000,
     // Tbilisi local hours with (almost) no buses: sweep off, hot set slowed down.
     quietFromHour: int(process.env.QUIET_FROM_HOUR, 1),

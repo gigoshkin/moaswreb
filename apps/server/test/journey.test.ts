@@ -126,15 +126,16 @@ test('an on-time bus you can no longer reach (walk + margin) does not hide the n
   assert.deepEqual(rides321.sort(), ['08:20', '08:40']);
 });
 
-test('live arrivals: two patterns of one route at a stop each get their own vehicles', async () => {
+test('live arrivals: one stop board serves every line and pattern there', async () => {
   let calls = 0;
   const ttc = {
-    routeArrivals: async () => {
+    arrivalTimes: async () => {
       calls++;
       return [
-        { patternSuffix: '0:01', realtime: true, realtimeArrivalMinutes: 7 },
-        { patternSuffix: '1:01', realtime: true, realtimeArrivalMinutes: 3 },
-        { patternSuffix: '0:01', realtime: false, realtimeArrivalMinutes: 1 },
+        { shortName: '321', patternSuffix: '0:01', realtime: true, realtimeArrivalMinutes: 7 },
+        { shortName: '321', patternSuffix: '1:01', realtime: true, realtimeArrivalMinutes: 3 },
+        { shortName: '321', patternSuffix: '0:01', realtime: false, realtimeArrivalMinutes: 1 },
+        { shortName: '335', patternSuffix: '0:01', realtime: true, realtimeArrivalMinutes: 2 },
       ];
     },
   } as unknown as TtcClient;
@@ -143,7 +144,7 @@ test('live arrivals: two patterns of one route at a stop each get their own vehi
   const back = { ...l321, suffix: '1:01' };
   assert.deepEqual(await src.live('1:A', there), [7]);
   assert.deepEqual(await src.live('1:A', back), [3]);
-  assert.equal(calls, 1, 'one TTC call per stop and route');
+  assert.equal(calls, 1, 'one TTC call per stop');
 });
 
 test('nothing fits: no itineraries instead of a wrong one', async () => {

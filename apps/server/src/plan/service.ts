@@ -1,6 +1,7 @@
 import type { Itinerary, JourneyStep, PlanQuery, PlanResponse } from '@transit/shared';
 import { groupWays, TBILISI_UTC_OFFSET_MIN, tbilisiLocalToIso } from '@transit/shared';
 import { Engine } from '../journey/engine.ts';
+import { alternatives, type Journey } from '../journey/raptor.ts';
 import { isAvoided } from '../journey/source.ts';
 import type { TtcSource } from '../journey/ttc-source.ts';
 import type { TtcClient } from '../ttc/client.ts';
@@ -23,6 +24,10 @@ const NEAR_LIMIT = 14;
  * So it is asked once more this much earlier and the answers are merged.
  */
 export const TTC_EARLIER_MIN = 15;
+/** Stops this close to a found ride's boarding / alighting stop are tried too (the other side, the next pole): they make the way's variations. */
+const SIBLING_M = 150;
+/** Different journeys the network search hands to the engine per plan. */
+const MAX_NETWORK_JOURNEYS = 8;
 /** Google line chains timed per request (each costs TTC lookups and walking times). */
 const MAX_GOOGLE_CANDIDATES = 4;
 /**
@@ -31,6 +36,8 @@ const MAX_GOOGLE_CANDIDATES = 4;
  * is about; the longest trips are cut instead.
  */
 export const MAX_ITINERARIES = 10;
+/** With this many different ways from the network search, TTC's planner and Google are not asked (they would only make the list jump). */
+const MIN_NETWORK_WAYS = 2;
 
 /** Tbilisi `YYYY-MM-DDTHH:mm` shifted by `min` minutes (crosses midnight correctly). */
 export const shiftLocal = (local: string, min: number): string => {
@@ -128,6 +135,41 @@ export class PlanService {
   }
 
   /**
+   * Our planner over the whole network in memory: the network search finds
+   * which rides to take (with changes), the engine times each from timetables
+   * and live data. Null until the network is loaded; then TTC's planner and
+   * Google are only asked when it finds little.
+   */
+  private async networkOptions(query: PlanQuery): Promise<Itinerary[] | null> {
+    if (!this.engine || !this.source?.ready || query.steps?.length) return null;
+    const deadline = Date.parse(tbilisiLocalToIso(query.arriveBy) ?? '');
+    if (!Number.isFinite(deadline)) return [];
+    const source = this.source;
+    const net = { patterns: source.patterns(), timetable: (p: Parameters<TtcSource['timetable']>[0], d: string) => source.timetable(p, d) };
+    const found = await alternatives(net, { from: query.from, to: query.to, deadline, avoid: query.avoid, modes: query.modes }, MAX_NETWORK_JOURNEYS);
+    const steps = await Promise.all(found.map((j) => this.stepsOf(j)));
+    const engine = this.engine;
+    const now = Date.now();
+    const runs = steps.map((st) => engine.solve({ from: query.from, to: query.to, steps: st, avoid: query.avoid, deadline, now, modes: query.modes }).catch(() => [] as Itinerary[]));
+    return (await Promise.all(runs)).flat();
+  }
+
+  /** A found journey as planner steps: each ride from its stop (or one beside it) to its stop (or one beside it), any line between them. */
+  private async stepsOf(j: Journey): Promise<JourneyStep[]> {
+    const around = async (id: string, at: { lat: number; lon: number }, mode: string) => {
+      const near = await this.stops.near(at, { radiusM: SIBLING_M, limit: 8, mode }).catch(() => []);
+      return [id, ...near.map((s) => s.id).filter((s) => s !== id)].slice(0, 8);
+    };
+    return Promise.all(
+      j.rides.map(async (r) => {
+        const board = r.p.stops[r.b];
+        const alight = r.p.stops[r.a];
+        return { fromStops: await around(board.id, board, r.p.mode), toStops: await around(alight.id, alight, r.p.mode) };
+      }),
+    );
+  }
+
+  /**
    * Google's line chains, timed by our planner from TTC data. Google only says
    * which lines to ride and roughly where; a chain whose rides don't match TTC
    * stops and lines is left out. Nothing when Google is off or fails.
@@ -205,6 +247,8 @@ export class PlanService {
    * (unmarked), since it is better and just as fast. Failures throw, like plan().
    */
   async planTtc(query: PlanQuery): Promise<PlanResponse> {
+    // With the network loaded the full plan takes about as long as TTC's alone, and doesn't change under the rider.
+    if (this.source?.ready) return this.plan(query);
     const full = this.cache.get(JSON.stringify(query));
     if (full && Date.now() - full.at < CACHE_MS) return full.body;
     const key = `ttc:${JSON.stringify(query)}`;
@@ -222,12 +266,33 @@ export class PlanService {
     if (this.cache.size > 500) this.cache.delete(this.cache.keys().next().value!);
   }
 
-  async plan(query: PlanQuery): Promise<PlanResponse> {
+  /** Full plans being made, so the same query asked twice at once (the app's quick and full part, two riders) is planned once. */
+  private readonly running = new Map<string, Promise<PlanResponse>>();
+
+  plan(query: PlanQuery): Promise<PlanResponse> {
     const key = JSON.stringify(query);
     const hit = this.cache.get(key);
-    if (hit && Date.now() - hit.at < CACHE_MS) return hit.body;
+    if (hit && Date.now() - hit.at < CACHE_MS) return Promise.resolve(hit.body);
+    let run = this.running.get(key);
+    if (!run) {
+      run = this.makePlan(query, key).finally(() => this.running.delete(key));
+      this.running.set(key, run);
+    }
+    return run;
+  }
 
-    const own = this.ownOptions(query);
+  private async makePlan(query: PlanQuery, key: string): Promise<PlanResponse> {
+
+    const network = await this.networkOptions(query).catch(() => null);
+    if (network && groupWays(network).length >= MIN_NETWORK_WAYS) {
+      const itineraries = withGoogle(network, [], query);
+      await this.fillStopIds(itineraries);
+      const body: PlanResponse = { query, itineraries, source: 'ttc', fetchedAt: new Date().toISOString() };
+      this.remember(key, body);
+      return body;
+    }
+
+    const own = network ? Promise.resolve(network) : this.ownOptions(query);
     const google = this.googleOptions(query).catch(() => [] as Itinerary[]);
     // A hand-built route is exactly what was asked for: TTC's planner has nothing to add.
     const ttc = query.steps?.length ? Promise.resolve<Itinerary[] | null>([]) : this.sharedTtcOptions(query).catch(() => null as Itinerary[] | null);

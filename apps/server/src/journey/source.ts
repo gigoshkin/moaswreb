@@ -1,4 +1,5 @@
 import type { LatLon, NearStop, PlanAvoid, StopHit } from '@transit/shared';
+import { distanceM } from '../ttc/stops.ts';
 
 // What the engine needs to know about the network. The real one reads TTC
 // (ttc-source.ts); tests use a small made-up network.
@@ -42,3 +43,13 @@ export interface Source {
 
 export const isAvoided = (p: Pick<PatternRef, 'shortName' | 'minibus'>, avoid?: PlanAvoid): boolean =>
   Boolean(avoid?.routes?.includes(p.shortName) || (avoid?.minibus && p.minibus));
+
+/**
+ * Walking without asking anyone: streets are ~1.3x the straight line and TTC's
+ * router walks ~1.3 m/s (19 Oct: 225 m in 180 s for 180 m straight; 468 m in
+ * 5 min), so about one second per straight-line metre.
+ */
+export const estimateWalk = (a: LatLon, b: LatLon): { sec: number; m: number } => {
+  const straight = distanceM(a, b);
+  return { sec: Math.round(straight), m: Math.round(straight * 1.3) };
+};

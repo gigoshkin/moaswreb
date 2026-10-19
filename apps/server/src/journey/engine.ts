@@ -1,7 +1,7 @@
 import { distanceM } from '../ttc/stops.ts';
 import { leaveAtMs, type Itinerary, type JourneyStep, type LatLon, type PlanAvoid, type PlanLeg, type PlanPlace } from '@transit/shared';
 import { encodePolyline } from './polyline.ts';
-import { isAvoided, type PatternRef, type Source, type StopRef } from './source.ts';
+import { estimateWalk, isAvoided, type PatternRef, type Source, type StopRef } from './source.ts';
 
 // Links, not guesses. A journey is: walk, ride, (walk, ride)…, walk. Each ride
 // has alternatives (every line that goes from one of its stops to another).
@@ -108,7 +108,7 @@ export class Engine {
   }
 
   /** Timetable trips in the window, with live vehicles replacing the timetable where TTC reports them. */
-  private async departures(alt: Alt, lo: number, hi: number, now: number): Promise<Dep[]> {
+  private async departures(alt: Alt, lo: number, hi: number, now: number, withLive: boolean): Promise<Dep[]> {
     const table: Dep[] = [];
     for (let date = addDays(tbilisiDate(lo), -1); date <= tbilisiDate(hi); date = addDays(date, 1)) {
       const tt = await this.src.timetable(alt.p, date);
@@ -124,7 +124,7 @@ export class Engine {
     table.sort((x, y) => x.dep - y.dep);
 
     let liveMins: number[] = [];
-    if (hi >= now && lo <= now + 3 * 3_600_000) liveMins = await this.src.live(alt.board.id, alt.p).catch(() => []);
+    if (withLive && hi >= now && lo <= now + 3 * 3_600_000) liveMins = await this.src.live(alt.board.id, alt.p).catch(() => []);
     if (!liveMins.length) return table;
     const live: Dep[] = liveMins
       .map((m) => now + m * MIN)
@@ -137,9 +137,10 @@ export class Engine {
     return [...live, ...table.filter((d) => d.dep > last + 2 * MIN)];
   }
 
-  private async walkBetween(a: LatLon, b: LatLon): Promise<{ sec: number; m: number }> {
+  /** `ends`: one end is the trip's start or destination (worth the street router); stop-to-stop changes are estimated. */
+  private async walkBetween(a: LatLon, b: LatLon, ends = false): Promise<{ sec: number; m: number }> {
     if (distanceM(a, b) < 15) return { sec: 0, m: 0 };
-    return this.src.walk(a, b);
+    return ends ? this.src.walk(a, b) : estimateWalk(a, b);
   }
 
   /** Itineraries for the first ride's alternatives, each arriving by the deadline with the latest possible start; then, for what's still catchable now, the soonest ones. */
@@ -157,7 +158,8 @@ export class Engine {
       const perLine = new Map<string, Alt[]>();
       for (const a of all) perLine.set(a.p.shortName, [...(perLine.get(a.p.shortName) ?? []), a]);
       const kept = [...perLine.values()].flatMap((g) => g.sort((x, y) => near(x) - near(y)).slice(0, KEEP_PER_LINE));
-      for (const a of kept) a.deps = await this.departures(a, lo, hi, input.now);
+      // Live data for the first ride only: that is the bus the leave time hangs on; later rides keep their timetable (and a change margin).
+      await Promise.all(kept.map(async (a) => void (a.deps = await this.departures(a, lo, hi, input.now, i === 0))));
       altsByStep.push(kept.filter((a) => a.deps.length));
     }
     if (altsByStep.some((a) => !a.length)) return [];
@@ -166,7 +168,7 @@ export class Engine {
     // A line whose on-time ride can still be caught (walk to the stop and margin included) needs no "leave now" version.
     const catchable = new Set<string>();
     for (const n of back) {
-      if (leaveFor(n.dep.dep, await this.walkBetween(input.from, n.alt.board)) >= input.now) catchable.add(n.alt.p.shortName);
+      if (leaveFor(n.dep.dep, await this.walkBetween(input.from, n.alt.board, true)) >= input.now) catchable.add(n.alt.p.shortName);
     }
     // And one that arrives long before the deadline is not an answer to "arrive by": that line has no ride near the time.
     const fwd = (soon ? await this.forward(altsByStep, input) : []).filter((n) => {
@@ -199,7 +201,7 @@ export class Engine {
         let next: Node | null = null;
         let walkAfter: { sec: number; m: number };
         if (i === n - 1) {
-          walkAfter = await this.walkBetween(alt.alight, input.to);
+          walkAfter = await this.walkBetween(alt.alight, input.to, true);
           limit = input.deadline - walkAfter.sec * 1000;
         } else {
           // The best following ride that can still be caught from here.
@@ -229,7 +231,7 @@ export class Engine {
   private async forward(altsByStep: Alt[][], input: JourneyInput): Promise<Node[]> {
     const firsts: Node[] = [];
     for (const first of altsByStep[0]) {
-      const w = await this.walkBetween(input.from, first.board);
+      const w = await this.walkBetween(input.from, first.board, true);
       // The first bus you can catch leaving now, with the same early-bus margin the app adds to the leave time.
       const dep = first.deps.find((d) => leaveFor(d.dep, w) >= input.now);
       if (!dep) continue;
@@ -253,7 +255,7 @@ export class Engine {
       }
       if (!ok) continue;
       const last = chain[chain.length - 1];
-      last.walkAfter = await this.walkBetween(last.alt.alight, input.to);
+      last.walkAfter = await this.walkBetween(last.alt.alight, input.to, true);
       for (let i = 0; i < chain.length - 1; i++) chain[i].next = chain[i + 1];
       firsts.push(chain[0]);
     }
@@ -262,7 +264,7 @@ export class Engine {
 
   private async itinerary(first: Node, input: JourneyInput): Promise<Itinerary> {
     const legs: PlanLeg[] = [];
-    const startWalk = await this.walkBetween(input.from, first.alt.board);
+    const startWalk = await this.walkBetween(input.from, first.alt.board, true);
     const place = (name: string, p: LatLon, stopId: string | null): PlanPlace => ({ name, lat: p.lat, lon: p.lon, stopId });
     const origin = place('Origin', input.from, null);
     const walk = (from: PlanPlace, to: PlanPlace, startMs: number, w: { sec: number; m: number }): PlanLeg => ({

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { config } from '../config.ts';
 import type {
   ArrivalTime,
@@ -36,18 +37,35 @@ export class TtcBusyError extends Error {
 export const upstreamFailed = (err: unknown): 502 | 503 =>
   err instanceof TtcError && err.status < 500 && err.status !== 429 ? 502 : 503;
 
+/** Requests started inside `TtcClient.background()` wait behind everyone else's. */
+const backgroundScope = new AsyncLocalStorage<true>();
+
+interface Job {
+  run: () => void;
+}
+
+/** Requests in flight at once; the gap between starts still caps the rate. */
+const MAX_IN_FLIGHT = 3;
+/** Background work (network refresh, logger) may queue this many; it is never in a hurry. */
+const MAX_BACKGROUND_QUEUE = 5000;
+
 /**
  * Client for TTC's PIS gateway. The API key is the one TTC ships to every
  * visitor of transit.ttc.com.ge; we read it from that page at runtime (and
- * again on 401) instead of storing it. All requests go through one queue
- * with a minimum gap, so we never hit TTC harder than ~1.4 req/s.
+ * again on 401) instead of storing it. Requests start at most one per
+ * minIntervalMs (~1.4 req/s). People waiting on an answer go first: work run
+ * inside `background()` (network refresh, the data logger) only gets the
+ * slots nobody else wants.
  */
 export class TtcClient {
   private key: string | null = null;
-  private queue: Promise<unknown> = Promise.resolve();
+  private keyLoading: Promise<string> | null = null;
+  private readonly urgent: Job[] = [];
+  private readonly later: Job[] = [];
+  private inFlight = 0;
+  private timer: NodeJS.Timeout | null = null;
   private lastRequestAt = 0;
   private consecutiveFailures = 0;
-  private pending = 0;
 
   /** While set, every request waits; set by backoff after throttling or server errors. */
   pausedUntil = 0;
@@ -55,7 +73,22 @@ export class TtcClient {
   errors = 0;
   lastError: string | null = null;
 
-  async loadKey(): Promise<string> {
+  /** Runs `fn` with every TTC request it makes queued behind interactive ones. */
+  background<T>(fn: () => Promise<T>): Promise<T> {
+    return backgroundScope.run(true, fn);
+  }
+
+  /** Requests waiting to start (interactive, background). */
+  get queued(): { urgent: number; background: number } {
+    return { urgent: this.urgent.length, background: this.later.length };
+  }
+
+  loadKey(): Promise<string> {
+    this.keyLoading ??= this.fetchKey().finally(() => (this.keyLoading = null));
+    return this.keyLoading;
+  }
+
+  private async fetchKey(): Promise<string> {
     const res = await fetch(config.ttc.siteUrl, {
       headers: { 'User-Agent': config.ttc.userAgent },
     });
@@ -157,20 +190,44 @@ export class TtcClient {
 
   // --- transport ---
   private get<T>(path: string, params: Params = {}): Promise<T> {
+    const low = backgroundScope.getStore() === true;
+    const queue = low ? this.later : this.urgent;
     // A full queue would delay every caller (alerts too) by minutes; fail fast instead.
-    if (this.pending >= config.ttc.maxQueue) return Promise.reject(new TtcBusyError());
-    this.pending++;
-    const run = () => this.request<T>(path, params, true);
-    const next = this.queue.then(run, run).finally(() => this.pending--);
-    this.queue = next.catch(() => undefined);
-    return next;
+    if (low ? queue.length >= MAX_BACKGROUND_QUEUE : queue.length + this.inFlight >= config.ttc.maxQueue) return Promise.reject(new TtcBusyError());
+    return new Promise<T>((resolve, reject) => {
+      queue.push({
+        run: () => {
+          this.inFlight++;
+          this.request<T>(path, params, true)
+            .then(resolve, reject)
+            .finally(() => {
+              this.inFlight--;
+              this.pump();
+            });
+        },
+      });
+      this.pump();
+    });
+  }
+
+  /** Starts the next request when the gap since the last one has passed: interactive first, then background. */
+  private pump(): void {
+    if (this.timer || this.inFlight >= MAX_IN_FLIGHT || (!this.urgent.length && !this.later.length)) return;
+    const wait = Math.max(this.lastRequestAt + config.ttc.minIntervalMs, this.pausedUntil) - Date.now();
+    if (wait > 0) {
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        this.pump();
+      }, wait);
+      return;
+    }
+    const job = this.urgent.shift() ?? this.later.shift()!;
+    this.lastRequestAt = Date.now();
+    job.run();
+    this.pump();
   }
 
   private async request<T>(path: string, params: Params, retryOn401: boolean): Promise<T> {
-    const wait = Math.max(this.lastRequestAt + config.ttc.minIntervalMs, this.pausedUntil) - Date.now();
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    this.lastRequestAt = Date.now();
-
     const key = this.key ?? (await this.loadKey());
     const url = new URL(`${config.ttc.apiBase}/${path}`);
     for (const [k, v] of Object.entries(params)) {
@@ -184,6 +241,7 @@ export class TtcClient {
         signal: AbortSignal.timeout(20_000),
       });
       if (res.status === 401 && retryOn401) {
+        this.key = null;
         await this.loadKey();
         return this.request<T>(path, params, false);
       }

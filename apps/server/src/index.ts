@@ -56,8 +56,12 @@ process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
 await app.listen({ port: config.port, host: '0.0.0.0' });
-poller.start().catch((err) => app.log.error(err, 'poller failed to start'));
+if (config.logger.enabled) ttc.background(() => poller.start()).catch((err) => app.log.error(err, 'poller failed to start'));
 watcher?.start();
+// The whole network in memory (from the disk cache, refreshed behind riders' requests), so planning never waits on line lookups.
+const warm = () => source.warm().then(() => app.log.info(`network ready: ${source.patterns().length} patterns`), (err) => app.log.warn({ err }, 'network warm-up failed'));
+void warm();
+setInterval(warm, 6 * 60 * 60 * 1000).unref();
 if (store) {
   const purge = () => app.log.info(`purged ${store.purge()} inactive devices`);
   purge();
