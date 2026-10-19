@@ -6,7 +6,7 @@ import Animated, { FadeIn, FadeInDown, LinearTransition } from 'react-native-rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { slotsFor, tripWays, waysFields, withBuiltWay, type RideStep } from '../../lib/ways';
 import { buildSteps, finishRoute, pickPlace, routeDraft, type PickKind } from '../../lib/handoff';
-import { firstWalkMin, leaveAt, mergeItineraries } from '../../lib/plans';
+import { firstWalkMin, leaveAt, mergeItineraries, routeKey } from '../../lib/plans';
 import { settings } from '../../lib/settings';
 import { daysText, hhmm, nextArriveBy } from '../../lib/time';
 import type { Place } from '../../lib/trips';
@@ -62,6 +62,8 @@ export default function RouteBuilder() {
   const every = useTripPlan(anyLine, date, now);
   const listed = useMemo(() => (ways.length ? mergeItineraries([every.itineraries, plan.itineraries]) : plan.itineraries), [ways.length, every.itineraries, plan.itineraries]);
   const best: Itinerary | null = plan.choice.kind === 'none' ? (plan.itineraries[0] ?? null) : plan.choice.it;
+  // The best option as the merged list has it (merging may rename an id that both plans had).
+  const bestListed = best ? listed.find((x) => x === best) ?? listed.find((x) => x.departAt === best.departAt && x.arriveAt === best.arriveAt && routeKey(x) === routeKey(best)) ?? best : null;
   // A way tapped in the list is shown on the map; the app still uses the best kept one.
   const it = listed.find((x) => x.id === picked) ?? best;
   const roadIt = useRoadItinerary(it);
@@ -199,7 +201,7 @@ export default function RouteBuilder() {
               <ScrollView style={styles.options} contentContainerStyle={styles.optionsContent} showsVerticalScrollIndicator={false}>
                 <Ways
                   itineraries={listed}
-                  chosenId={best?.id}
+                  chosenId={bestListed?.id}
                   selectedId={picked ?? undefined}
                   now={now}
                   bufferMin={settings.get().bufferMin}

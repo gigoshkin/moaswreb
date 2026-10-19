@@ -201,10 +201,11 @@ export const slotsFor = (it: Itinerary, all: Itinerary[]): Slot[] => {
 /** THE grouping: itineraries into ways (see sameWay), best (earliest arrival, then latest leave) first. */
 export function groupWays(all: Itinerary[], bufferMin = 0): Way[] {
   const best = (a: Itinerary, b: Itinerary) => Date.parse(a.arriveAt) - Date.parse(b.arriveAt) || leaveAt(b, bufferMin) - leaveAt(a, bufferMin);
-  // The same lines can show up with different times or stops: keep the best of each, so nothing is listed twice.
+  // The same lines at the same stops can show up at different times: keep the best of each, so nothing is listed twice.
+  // The same lines from other stops are another way (a hand-built route must not be pushed out by a look-alike).
   const seen = new Set<string>();
   const distinct = [...all].sort(best).filter((it) => {
-    const k = chainOf(it).map((s) => s[0].label).join('>');
+    const k = transitLegs(it).map((l) => `${lineOf(l).label}@${stopKey(l.from)}>${stopKey(l.to)}`).join('|');
     return !seen.has(k) && !!seen.add(k);
   });
   // Each joins the first group whose best itinerary is the same way (best first, so that one leads).
