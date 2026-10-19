@@ -135,10 +135,6 @@ function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanR
   const from = labelFor(plan.query.from, meta?.from ?? first?.legs[0]?.from.name, 'Start');
   const to = labelFor(plan.query.to, meta?.to ?? first?.legs.at(-1)?.to.name, 'Destination');
   const tripName = meta?.name ?? to.label;
-  // The map draws the ticked ways (their soonest option), so the rider sees where the route goes before saving it.
-  const drawn = groupWays(plan.itineraries)
-    .filter((w) => isTicked(w, kept))
-    .map((w) => w.its[0]);
 
   const replan = async (d: Date) => {
     setBusy(true);
@@ -186,11 +182,7 @@ function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanR
         </Actions>
       }
     >
-      {drawn.length > 0 && (
-        <View style={styles.map}>
-          <StaticMap itinerary={drawn[0]} also={drawn.slice(1)} endpoints={{ from: plan.query.from, to: plan.query.to }} height={140} fadeTo={color.sky} />
-        </View>
-      )}
+      <KeptMap plan={plan} kept={kept} fadeTo={color.sky} />
       <WayRows
         its={plan.itineraries}
         arriveBy={arriveBy}
@@ -319,6 +311,19 @@ function useProposalWays(trip: ProposedTrip & { avoid?: PlanAvoid; steps?: RideS
   return { plan, more, kept, setKept, days };
 }
 
+/** The ticked ways on a small map (their soonest option each), so the rider sees where the route goes before saving it. */
+function KeptMap({ plan, kept, fadeTo }: { plan: PlanResponse; kept: RideStep[][]; fadeTo: string }) {
+  const drawn = groupWays(plan.itineraries)
+    .filter((w) => isTicked(w, kept))
+    .map((w) => w.its[0]);
+  if (!drawn.length) return null;
+  return (
+    <View style={styles.map}>
+      <StaticMap itinerary={drawn[0]} also={drawn.slice(1)} endpoints={{ from: plan.query.from, to: plan.query.to }} height={140} fadeTo={fadeTo} />
+    </View>
+  );
+}
+
 /** The ways of a proposal with their ticks, or a line while they are planned. */
 function ProposedWays({ plan, more, kept, onKeep }: { plan: PlanResponse | null; more: boolean; kept: RideStep[][]; onKeep: (ways: RideStep[][]) => void }) {
   if (!plan) return hasApi ? <Busy label="Finding the ways…" /> : null;
@@ -328,6 +333,7 @@ function ProposedWays({ plan, more, kept, onKeep }: { plan: PlanResponse | null;
       <Text variant="caption" color={color.textSecondary} style={styles.waysHint}>
         Tick the ways you take
       </Text>
+      <KeptMap plan={plan} kept={kept} fadeTo={color.surface} />
       <WayRows its={plan.itineraries} arriveBy={plan.query.arriveBy} kept={kept} onKeep={onKeep} />
       {more && <Busy label="Checking every line…" />}
     </View>
