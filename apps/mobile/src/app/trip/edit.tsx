@@ -9,7 +9,7 @@ import { nameOfPlace } from '../../lib/nameOfPlace';
 import { tripTourSeen } from '../../lib/onboarding';
 import { DROPPED_PIN } from '../../lib/placeNames';
 import { revealDelta } from '../../lib/reveal';
-import { firstWalkMin, leaveAt, placeName, transitLegs } from '../../lib/plans';
+import { firstWalkMin, keptStops, leaveAt, placeName, transitLegs } from '../../lib/plans';
 import { chainOf, tripWays, waysFields, wayLabel, withBuiltWay } from '../../lib/ways';
 import { settings } from '../../lib/settings';
 import { DAY_SHORT, hhmm, nextArriveBy } from '../../lib/time';
@@ -124,7 +124,9 @@ export default function EditTrip() {
     setSaving(true);
     // Names still being looked up for a pin are waited for a moment, so the trip is not saved as "Dropped pin".
     const [namedFrom, namedTo] = await Promise.all([nameOfPlace(from), nameOfPlace(to)]);
-    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || namedTo.label, from: namedFrom, to: namedTo, arriveBy, days, ...(avoid ? { avoid } : {}), ...waysFields(ways) };
+    // A trip being edited keeps the stops its alerts sync with when no plan answers now (the planner is slow or down),
+    // as long as they still fit; a plan, when there is one, replaces them.
+    const base: SavedTrip = { id: existing?.id ?? newTripId(), name: name.trim() || namedTo.label, from: namedFrom, to: namedTo, arriveBy, days, ...(avoid ? { avoid } : {}), ...waysFields(ways), ...keptStops(existing, { from: namedFrom, to: namedTo, steps: ways[0] }) };
     const first = legs[0];
     const trip =
       it && first

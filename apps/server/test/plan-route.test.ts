@@ -185,3 +185,20 @@ test('part=ttc: bad value → 400, TTC down → 503', async () => {
   assert.equal(res.statusCode, 503);
   assert.equal(res.json().error, 'upstream');
 });
+
+// A hand-built route has only our planner: its failure is an error, not an empty plan (the phone would keep the empty one).
+test('/plan/journey: our planner failing → 503; no ride on the steps → 200 with none', async () => {
+  const body = { from: { lat: 41.7151, lon: 44.8271 }, to: { lat: 41.7099, lon: 44.7929 }, arriveBy: '2026-10-19T09:00', steps: [{ fromStops: ['1:a'], toStops: ['1:b'] }] };
+  const ttc = { plan: async () => raw } as unknown as TtcClient;
+  const serve = (patternsAt: () => Promise<unknown>) => {
+    const app = Fastify();
+    const src = { patternsAt, minibusNames: async () => new Set<string>() } as unknown as TtcSource;
+    registerPlanRoute(app, new PlanService(ttc, new StopIndex(ttc), src));
+    return app;
+  };
+  const busy = await serve(async () => { throw new Error('TTC request queue is full'); }).inject({ method: 'POST', url: '/plan/journey', payload: body });
+  assert.equal(busy.statusCode, 503);
+  const none = await serve(async () => []).inject({ method: 'POST', url: '/plan/journey', payload: body });
+  assert.equal(none.statusCode, 200);
+  assert.deepEqual(none.json().itineraries, []);
+});

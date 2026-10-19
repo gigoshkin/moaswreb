@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { leaveAtMs, type Itinerary, type PlanLeg } from '@transit/shared';
-import { choose, firstWalkMin, lastWalkMin, leaveAt } from '../src/lib/plans.ts';
+import { choose, firstWalkMin, keptStops, lastWalkMin, leaveAt } from '../src/lib/plans.ts';
 
 const place = { name: 'x', lat: 41.7, lon: 44.7, stopId: null };
 const leg = (mode: string, dep: string, arr: string, name?: string): PlanLeg => ({
@@ -29,4 +29,21 @@ test('multi-leg: leave from the first ride minus the first walk only; arrival fr
   const c = choose([busMetro], '2026-10-19T09:00', Date.parse('2026-10-19T03:00:00Z'));
   assert.equal(c.kind, 'onTime');
   if (c.kind === 'onTime') assert.equal(c.it.arriveAt, busMetro.legs.at(-1)!.arriveAt);
+});
+
+test('a re-save with no plan answer keeps the stops the trip syncs with, while they still fit', () => {
+  const a = { lat: 41.79, lon: 44.75 };
+  const b = { lat: 41.7, lon: 44.8 };
+  const steps = [{ fromStops: ['1:bus', '1:bus2'], toStops: ['1:sar'] }, { fromStops: ['1:sar_m'], toStops: ['1:uni'] }];
+  const old = { from: a, to: b, steps, fromStopId: '1:bus', toStopId: '1:uni', walkMin: 4 };
+  assert.deepEqual(keptStops(old, { from: a, to: b, steps }), { fromStopId: '1:bus', toStopId: '1:uni', walkMin: 4 });
+  // The way now boards elsewhere, or the start moved: the old ids would sync the wrong trip.
+  assert.deepEqual(keptStops(old, { from: a, to: b, steps: [{ fromStops: ['1:other'], toStops: ['1:uni'] }] }), {});
+  assert.deepEqual(keptStops(old, { from: { lat: 41.8, lon: 44.7 }, to: b, steps }), {});
+  // No kept way: kept only when the ends are where they were and the trip had none either.
+  const auto = { from: a, to: b, fromStopId: '1:x', toStopId: '1:y' };
+  assert.deepEqual(keptStops(auto, { from: a, to: b }), { fromStopId: '1:x', toStopId: '1:y' });
+  assert.deepEqual(keptStops(auto, { from: a, to: { lat: 41.71, lon: 44.8 } }), {});
+  assert.deepEqual(keptStops(old, { from: a, to: b }), {});
+  assert.deepEqual(keptStops(undefined, { from: a, to: b, steps }), {});
 });
