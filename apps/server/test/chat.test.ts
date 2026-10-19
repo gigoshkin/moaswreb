@@ -151,8 +151,17 @@ test('a hand-built route becomes a confirm_route card; every tool schema reaches
 
 test('running out of tool steps gives a reply, not an empty bubble', async () => {
   const call = message([{ type: 'tool_use', id: 'tu_1', name: 'next_arrivals', input: { stopId: '1:1405' } }], 'tool_use');
-  const { app } = setup(Array.from({ length: 8 }, () => call));
+  const { app } = setup(Array.from({ length: 16 }, () => call));
   const res = await app.inject({ method: 'POST', url: '/chat', payload: { messages: [{ role: 'user', text: 'x' }] } });
   assert.equal(res.statusCode, 200);
   assert.match(res.json().reply, /too many steps/);
+});
+
+test('tidyCards drops the plan and stop lists when a proposal follows, and keeps them otherwise', async () => {
+  const { tidyCards } = await import('../src/chat/agent.ts');
+  const plan = { type: 'plan' } as never;
+  const stops = { type: 'stops', stops: [] } as never;
+  const trip = { type: 'confirm_trip' } as never;
+  assert.deepEqual(tidyCards([stops, plan, trip]), [trip]);
+  assert.deepEqual(tidyCards([stops, plan]), [stops, plan]);
 });

@@ -7,8 +7,8 @@ interface Props {
   label: string;
   /** Colour and shape: metro is a red pill, buses green and minibuses blue rounded rectangles. */
   kind?: Kind;
-  /** sm = 20 px (rows), md = 28 px (plan card), lg = timeline. */
-  size?: 'sm' | 'md' | 'lg';
+  /** xs = 18 px (chat cards), sm = 20 px (rows), md = 28 px (plan card), lg = timeline. */
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   /** On the dark hero the plate is outlined so it doesn't vanish. */
   onDark?: boolean;
 }
@@ -34,6 +34,7 @@ export function RoutePlate({ label, kind = 'bus', size = 'sm', onDark }: Props) 
 }
 
 const sizes = {
+  xs: { h: 18, minW: 32, px: 5, r: 5, text: 'captionStrong' },
   sm: { h: 20, minW: 40, px: 6, r: 6, text: 'captionStrong' },
   md: { h: 28, minW: 40, px: 8, r: 8, text: 'label14' },
   lg: { h: 26, minW: 44, px: 8, r: 8, text: 'label14' },

@@ -10,7 +10,7 @@ export type { LineRef, Slot } from '@transit/shared';
 
 interface Props {
   slots: Slot[];
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
   onDark?: boolean;
   /** Rides shown before the rest are cut off. */
   max?: number;
@@ -25,10 +25,11 @@ export function LineChain({ slots, size = 'md', onDark, max = 3 }: Props) {
   const shown = slots.slice(0, max);
   return (
     <View style={styles.chain}>
+      {/* The arrow belongs to the ride before it, so a wrapped line never starts with an arrow. */}
       {shown.map((slot, i) => (
         <View key={i} style={styles.row}>
-          {i > 0 && <Icon name="chevron-right" size={size === 'sm' ? 14 : 16} color={onDark ? color.onInkMuted : color.textTertiary} />}
           <Stack slot={slot} size={size} onDark={onDark} />
+          {i < shown.length - 1 && <Icon name="chevron-right" size={size === 'md' ? 16 : size === 'sm' ? 14 : 12} color={onDark ? color.onInkMuted : color.textTertiary} />}
         </View>
       ))}
     </View>
@@ -36,7 +37,7 @@ export function LineChain({ slots, size = 'md', onDark, max = 3 }: Props) {
 }
 
 /** Alternatives for one ride, held together in one capsule: any of these lines does the ride. */
-export function Stack({ slot, size = 'md', onDark }: { slot: Slot; size?: 'sm' | 'md'; onDark?: boolean }) {
+export function Stack({ slot, size = 'md', onDark }: { slot: Slot; size?: 'xs' | 'sm' | 'md'; onDark?: boolean }) {
   if (slot.length === 1) return <RoutePlate label={slot[0].label} kind={slot[0].kind} size={size} onDark={onDark} />;
   const shown = slot.slice(0, 3);
   return (
