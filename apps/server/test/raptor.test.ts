@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { PatternRef, Timetable } from '../src/journey/source.ts';
+import { composeRoute } from '../src/journey/compose.ts';
 import { alternatives, raptor } from '../src/journey/raptor.ts';
 
 // SYNTHETIC network. Home at A; work at D, far away. Bus 1 A→B, metro M B'→D (B' 100 m from B), slow bus 9 A→D direct.
@@ -60,4 +61,14 @@ test('alternatives: the same answer every time (no jumping), distinct ways', asy
   const key = (js: typeof a) => js.map((j) => j.rides.map((r) => r.p.shortName).join('>'));
   assert.deepEqual(key(a), key(b));
   assert.equal(new Set(key(a)).size, key(a).length);
+});
+
+test('composeRoute: the described route even when a direct line exists; metro needs no line name', async () => {
+  const siblings = async (id: string) => [id];
+  const c = await composeRoute({ ...net, ready: true }, { from: home, to: work, deadline, rides: [{ lines: ['1'] }, { mode: 'SUBWAY' }] }, siblings);
+  assert.ok(c);
+  assert.deepEqual(c.steps, [{ fromStops: ['1:A'], toStops: ['1:B'], routes: ['1'] }, { fromStops: ['1:B2'], toStops: ['1:D'] }]);
+  // Getting off where the line doesn't stop: nothing.
+  assert.equal(await composeRoute({ ...net, ready: true }, { from: home, to: work, deadline, rides: [{ lines: ['1'], getOffAt: ['1:D'] }, { mode: 'SUBWAY' }] }, siblings), null);
+  assert.equal(await composeRoute({ ...net, ready: false }, { from: home, to: work, deadline, rides: [{ lines: ['1'] }] }, siblings), null);
 });

@@ -17,6 +17,7 @@ import { Icon, type IconName } from './Icon';
 import { LineChain } from './LineChain';
 import { RoutePlate } from './RoutePlate';
 import { Sheet } from './Sheet';
+import { StaticMap } from './StaticMap';
 import { Tap, haptic } from './Tap';
 import { Busy } from './Spinner';
 import { Text } from './Text';
@@ -134,6 +135,10 @@ function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanR
   const from = labelFor(plan.query.from, meta?.from ?? first?.legs[0]?.from.name, 'Start');
   const to = labelFor(plan.query.to, meta?.to ?? first?.legs.at(-1)?.to.name, 'Destination');
   const tripName = meta?.name ?? to.label;
+  // The map draws the ticked ways (their soonest option), so the rider sees where the route goes before saving it.
+  const drawn = groupWays(plan.itineraries)
+    .filter((w) => isTicked(w, kept))
+    .map((w) => w.its[0]);
 
   const replan = async (d: Date) => {
     setBusy(true);
@@ -181,6 +186,11 @@ function PlanCard({ plan, meta, itemId, index, done }: CardProps & { plan: PlanR
         </Actions>
       }
     >
+      {drawn.length > 0 && (
+        <View style={styles.map}>
+          <StaticMap itinerary={drawn[0]} also={drawn.slice(1)} endpoints={{ from: plan.query.from, to: plan.query.to }} height={140} fadeTo={color.sky} />
+        </View>
+      )}
       <WayRows
         its={plan.itineraries}
         arriveBy={arriveBy}
@@ -559,6 +569,7 @@ function RouteCard({ route, itemId, index, done, onEdit }: CardProps & { route: 
 }
 
 const styles = StyleSheet.create({
+  map: { borderRadius: radius.md, overflow: 'hidden', marginBottom: 12 },
   card: { backgroundColor: color.surface, borderRadius: radius.lg, paddingVertical: 18, paddingHorizontal: 14, ...shadow.card },
   title: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bold: { fontFamily: font.bold },
