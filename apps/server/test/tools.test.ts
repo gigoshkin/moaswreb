@@ -130,7 +130,7 @@ test('propose_route checks rides against TTC lines and the avoid list; card only
   assert.deepEqual(ok.card.route.avoid, { minibus: true });
   assert.deepEqual(ok.card.route.rides, [{ from: 'Free University', to: 'Station Square', routes: ['306'] }]);
   assert.deepEqual(ok.card.route.steps, [{ fromStops: ['1:1405'], toStops: ['1:3000'] }]);
-  assert.deepEqual(ok.card.route.ways, [ok.card.route.steps], 'the hand-built route is the way the trip keeps');
+  assert.deepEqual(ok.card.route.ways, [ok.card.route.steps.map((s: object) => ({ ...s, byHand: true }))], "the hand-built route is the way the trip keeps, marked as the rider's own");
   // Only the avoided minibus fits: refused, no card.
   const bad = await run('propose_route', { ...base, avoid: { minibus: true }, steps: [{ fromStops: ['1:1405'], toStops: ['1:3000'], routes: ['518'] }] });
   assert.equal(bad.card, undefined);

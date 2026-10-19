@@ -22,6 +22,7 @@ import { CoachTour, type ViewRef } from '../../ui/CoachTour';
 import { ask } from '../../ui/Dialog';
 import { Icon } from '../../ui/Icon';
 import { LineChain } from '../../ui/LineChain';
+import { OwnBadge } from '../../ui/Ways';
 import { StaticMap } from '../../ui/StaticMap';
 import { Tap, haptic } from '../../ui/Tap';
 import { TimeSpinner, openTimeDialog } from '../../ui/TimePick';
@@ -79,7 +80,8 @@ export default function EditTrip() {
     [from, to, arriveBy, days.join(), JSON.stringify(avoid), JSON.stringify(ways)],
   );
   const date = nextArriveBy(arriveBy, days, now).slice(0, 10);
-  const { choice, itineraries } = useTripPlan(draftTrip, date, now);
+  const { choice, itineraries, loaded, refreshing, error: planError } = useTripPlan(draftTrip, date, now);
+  const planned = loaded && !refreshing;
   const it = choice.kind === 'none' ? null : choice.it;
   const legs = it ? transitLegs(it) : [];
   const bufferMin = settings.use().bufferMin;
@@ -121,6 +123,18 @@ export default function EditTrip() {
 
   const save = async () => {
     if (!from || !to || saving) return;
+    // Nothing planned for it: say so before saving a trip that can't tell when to leave yet.
+    if (planned && !it) {
+      const ok = await ask({
+        title: planError ? "Can't reach the planner" : 'No departures found',
+        message: planError
+          ? 'The trip can be saved; the app plans it once the planner answers again.'
+          : `Nothing ${ways.length ? 'on your kept ways ' : ''}arrives by ${arriveBy} right now. Save it anyway? The app keeps trying, or change the time or route first.`,
+        confirm: 'Save anyway',
+        cancel: 'Not yet',
+      });
+      if (!ok) return;
+    }
     setSaving(true);
     // Names still being looked up for a pin are waited for a moment, so the trip is not saved as "Dropped pin".
     const [namedFrom, namedTo] = await Promise.all([nameOfPlace(from), nameOfPlace(to)]);
@@ -246,6 +260,7 @@ export default function EditTrip() {
                   <View style={styles.kept}>
                     {rows.map((r) => (
                       <View key={r.key} style={styles.keptRow} accessible accessibilityLabel={`${wayLabel(r.slots)}${r.it && r.leave !== null ? `, leave ${hhmm(r.leave)}, arrive ${hhmm(r.it.arriveAt)}` : ''}`}>
+                        {r.own && <OwnBadge />}
                         <LineChain slots={r.slots} size="sm" />
                         {r.it && r.leave !== null ? (
                           <Animated.View entering={FadeIn.duration(200)} style={styles.keptTime}>
@@ -254,6 +269,10 @@ export default function EditTrip() {
                               {r.late ? ' · late' : ''}
                             </Text>
                           </Animated.View>
+                        ) : planned ? (
+                          <Text variant="caption" color={color.textSecondary}>
+                            {planError ? "Can't reach the planner right now" : 'No departures found for this time right now'}
+                          </Text>
                         ) : null}
                       </View>
                     ))}
@@ -385,7 +404,7 @@ const styles = StyleSheet.create({
   spacer: { flex: 1, minHeight: 12 },
   bottom: { gap: 8 },
   kept: { gap: 6, paddingTop: 6 },
-  keptRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  keptRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   keptTime: { flexShrink: 1 },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 6 },
 });

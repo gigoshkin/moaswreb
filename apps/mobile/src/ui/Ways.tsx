@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { kindOf, leaveAt, transitLegs } from '../lib/plans';
-import { chainOf, groupWays, isTicked, toggleWay, type RideStep, type Way } from '../lib/ways';
+import { chainOf, groupWays, isOwn, isOwnRow, isTicked, stepSlots, toggleWay, unplannedKept, type RideStep, type Way } from '../lib/ways';
 import { hhmm } from '../lib/time';
 import { Icon } from './Icon';
 import { LineChain } from './LineChain';
@@ -21,8 +21,10 @@ import { color, radius } from './theme';
 // of the list; the avoid list belongs to this trip only.
 // With `onKeep` the list is a checklist: every ticked row is a way the trip
 // keeps (with all its variations), and the trip uses those and nothing else.
-// Tapping a row ticks or unticks it and shows it on the map; at least one
-// stays ticked.
+// Only the box ticks or unticks (at least one stays ticked); the rest of the
+// row shows the way on the map and opens its options, so looking never
+// changes the trip. The rider's own routes say so, and stay listed when
+// nothing can be planned for them right now.
 
 interface Props {
   itineraries: Itinerary[];
@@ -81,7 +83,7 @@ export function Ways({ itineraries, chosenId, selectedId, now, bufferMin, avoid,
         </View>
       )}
       {ways.length === 0 ? (
-        !loading && (
+        !loading && !unplannedKept(kept, itineraries).length && (
           <Card>
             <Text variant="body14" color={color.textSecondary}>
               {skipped.length ? 'Nothing is left once those lines are skipped.' : 'No options found.'}
@@ -102,9 +104,14 @@ export function Ways({ itineraries, chosenId, selectedId, now, bufferMin, avoid,
             onSelect={onSelect}
             ticked={onKeep ? isTicked(w, kept) : undefined}
             onTick={onKeep ? () => onKeep(toggleWay(kept, w, itineraries)) : undefined}
+            own={isOwnRow(w, kept)}
           />
         ))
       )}
+      {!loading &&
+        unplannedKept(kept, itineraries).map((k, i) => (
+          <MissingWay key={`missing-${i}`} steps={k} onUntick={onKeep && kept.length > 1 ? () => onKeep(kept.filter((x) => x !== k)) : undefined} />
+        ))}
       {chosen && avoidable(chosen).length > 0 && (
         <View style={styles.exclude}>
           <Text variant="caption" color={color.textSecondary}>
@@ -134,9 +141,11 @@ interface CardProps {
   /** Checklist mode: whether the trip keeps this way, and the tap that ticks or unticks it. */
   ticked?: boolean;
   onTick?: () => void;
+  /** One of the rider's own routes. */
+  own?: boolean;
 }
 
-function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSelect, ticked, onTick }: CardProps) {
+function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSelect, ticked, onTick, own }: CardProps) {
   const best = way.its[0];
   const leave = leaveAt(best, bufferMin);
   const gone = leave < now - 60_000;
@@ -153,18 +162,33 @@ function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSe
       <Tap
         onPress={() => {
           haptic('selection');
-          // A checklist row ticks; its variations open from the chevron instead.
-          if (onTick) onTick();
-          else onToggle();
+          // Looking at a way: on the map, and its options open. Keeping it is the box's job.
+          if (many) onToggle();
           onSelect?.(best);
         }}
         scaleTo={0.99}
         style={styles.head}
-        accessibilityRole={onTick ? 'checkbox' : 'button'}
-        accessibilityState={onTick ? { checked: !!ticked } : { expanded: open }}
+        accessibilityRole="button"
+        accessibilityLabel={`${own ? 'Your route. ' : ''}Show on the map`}
+        accessibilityState={{ expanded: open }}
       >
-        {onTick && <TickBox on={!!ticked} />}
+        {onTick && (
+          <Tap
+            onPress={() => {
+              haptic('selection');
+              onTick();
+            }}
+            hitSlop={12}
+            scaleTo={0.9}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: !!ticked }}
+            accessibilityLabel={ticked ? 'Kept for this trip. Tap to stop using it' : 'Keep this way for the trip'}
+          >
+            <TickBox on={!!ticked} />
+          </Tap>
+        )}
         <View style={styles.headMain}>
+          {own && <OwnBadge />}
           <LineChain slots={way.slots} />
           <Text variant="caption" color={color.textSecondary}>
             Arrive {hhmm(best.arriveAt)} · {min} min · {Math.round(best.walkSec / 60)} min walk{best.transfers > 0 ? ` · ${best.transfers} change${best.transfers > 1 ? 's' : ''}` : ''}
@@ -173,14 +197,7 @@ function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSe
         </View>
         <View style={styles.headSide}>
           <Text variant="label16">{gone ? 'Gone' : hhmm(leave)}</Text>
-          {many &&
-            (onTick ? (
-              <Tap onPress={onToggle} hitSlop={10} scaleTo={0.9} accessibilityRole="button" accessibilityLabel="Show each line of this way" accessibilityState={{ expanded: open }}>
-                {chevron}
-              </Tap>
-            ) : (
-              chevron
-            ))}
+          {many && chevron}
         </View>
       </Tap>
       {open && many && (
@@ -196,6 +213,38 @@ function WayCard({ way, open, activeId, chosenId, now, bufferMin, onToggle, onSe
         </Animated.View>
       )}
     </Card>
+  );
+}
+
+/** A kept way of the rider's own that no plan rides right now: still listed, ticked, with why it has no times. */
+function MissingWay({ steps, onUntick }: { steps: RideStep[]; onUntick?: () => void }) {
+  return (
+    <Card style={styles.card}>
+      <View style={styles.head}>
+        <Tap onPress={() => onUntick?.()} disabled={!onUntick} hitSlop={12} scaleTo={0.9} accessibilityRole="checkbox" accessibilityState={{ checked: true }} accessibilityLabel="Kept for this trip">
+          <TickBox on />
+        </Tap>
+        <View style={styles.headMain}>
+          {isOwn(steps) && <OwnBadge />}
+          <LineChain slots={stepSlots(steps)} />
+          <Text variant="caption" color={color.textSecondary}>
+            No departures found for this time right now. The trip keeps it and tries again.
+          </Text>
+        </View>
+      </View>
+    </Card>
+  );
+}
+
+/** "Your route": a way the rider built by hand or described in chat. */
+export function OwnBadge() {
+  return (
+    <View style={styles.own}>
+      <Icon name="map" size={12} color={color.textSecondary} />
+      <Text variant="captionStrong" color={color.textSecondary}>
+        Your route
+      </Text>
+    </View>
   );
 }
 
@@ -221,5 +270,6 @@ const styles = StyleSheet.create({
   opt: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 6, borderRadius: radius.sm },
   optOn: { backgroundColor: color.surfaceMuted },
   exclude: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, paddingTop: 6 },
+  own: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   neverBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });

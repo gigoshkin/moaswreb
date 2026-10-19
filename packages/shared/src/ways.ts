@@ -36,7 +36,21 @@ export type Slot = LineRef[];
  */
 export interface RideStep extends JourneyStep {
   lines?: LineRef[];
+  /** The rider's own route: built in the hand builder or described in chat. Shown as "Your route"; stays on the phone. */
+  byHand?: boolean;
 }
+
+/** Marks a way as the rider's own route. */
+export const ownWay = (steps: RideStep[]): RideStep[] => steps.map((s) => ({ ...s, byHand: true }));
+
+/** A kept way the rider built or described. */
+export const isOwn = (steps: RideStep[]): boolean => steps.some((s) => s.byHand);
+
+/** The row is one of the rider's own routes (a ticked way that was built by hand). */
+export const isOwnRow = (way: Way, kept: RideStep[][]): boolean => kept.some((k) => isOwn(k) && way.its.some((it) => fitsWay(k, it)));
+
+/** Kept ways that no itinerary rides right now: listed anyway, so a route the planner can't do at the moment never just disappears. */
+export const unplannedKept = (kept: RideStep[][], its: Itinerary[]): RideStep[][] => kept.filter((k) => !its.some((it) => fitsWay(k, it)));
 
 /** Steps as the server takes them: the phone's own fields (the lines offered per ride) stay on the phone. */
 export const wireSteps = (steps: JourneyStep[]): JourneyStep[] =>
@@ -340,9 +354,10 @@ export function toggleWay(kept: RideStep[][], way: Way, all: Itinerary[]): RideS
  * way: it takes the place of the first one, which the builder edits; the others
  * stay, minus any copy of it.
  */
-export function withBuiltWay(kept: RideStep[][], built: RideStep[]): RideStep[][] {
+export function withBuiltWay(kept: RideStep[][], builtSteps: RideStep[]): RideStep[][] {
+  const built = ownWay(builtSteps);
   const same = JSON.stringify(built);
-  return [built, ...kept.slice(1).filter((w) => JSON.stringify(w) !== same)];
+  return [built, ...kept.slice(1).filter((w) => JSON.stringify(ownWay(w)) !== same)];
 }
 
 /** The way the app would take now (the one holding choose()'s pick), else the first. */
@@ -358,9 +373,10 @@ export function bestWay(ways: Way[], arriveByLocal: string, now: number, bufferM
  */
 export function cardKept(card: { ways?: RideStep[][]; steps?: RideStep[]; plan?: PlanResponse | null }, now: number, bufferMin = 0): RideStep[][] {
   if (card.ways?.length) return card.ways;
-  if (card.steps?.length) return [card.steps];
+  // A route the rider described (a proposal's steps, or a plan of a described route) is their own.
+  if (card.steps?.length) return [ownWay(card.steps)];
   if (!card.plan) return [];
-  if (card.plan.query.steps?.length) return [card.plan.query.steps];
+  if (card.plan.query.steps?.length) return [ownWay(card.plan.query.steps)];
   return defaultKept(card.plan.itineraries, card.plan.query.arriveBy, now, bufferMin);
 }
 

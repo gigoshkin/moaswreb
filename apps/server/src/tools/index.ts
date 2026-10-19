@@ -1,5 +1,5 @@
 import type { ActionCard, Itinerary, JourneyStep, LatLon, Locale, PlanAvoid, PlanResponse, PlanWay, ProposedRide, RideStep } from '@transit/shared';
-import { STOP_ID_PATTERN, defaultKept, groupWays, isTicked, nextArriveBy, tbilisiLocalToIso, transitLegs, wayLabel } from '@transit/shared';
+import { STOP_ID_PATTERN, defaultKept, ownWay, groupWays, isTicked, nextArriveBy, tbilisiLocalToIso, transitLegs, wayLabel } from '@transit/shared';
 import * as z from 'zod/v4';
 import { detectMapsInput, mapsLinkToPlaces } from '../chat/maps-link.ts';
 import { insideTbilisi } from '../geo.ts';
@@ -150,11 +150,11 @@ const allTools = ({ ttc, stops, plans, locale = 'en', geo, source, network, fetc
         ...(p.avoid ? { avoid: p.avoid } : {}),
         ...(p.steps?.length ? { steps: p.steps } : {}),
       });
-      const ways = p.steps?.length ? [p.steps] : defaultKept(plan.itineraries, plan.query.arriveBy, Date.now(), 0, p.keep ?? []);
+      const ways = p.steps?.length ? [ownWay(p.steps)] : defaultKept(plan.itineraries, plan.query.arriveBy, Date.now(), 0, p.keep ?? []);
       if (!plan.itineraries.length) return { ...(p.steps?.length ? { ways } : {}), text: 'No itineraries found for its next day yet; the app plans it again when the card opens.' };
       return { ways, plan, text: describeWays(plan.itineraries, ways).text };
     } catch {
-      return { ...(p.steps?.length ? { ways: [p.steps] } : {}), text: 'The planner is unavailable; the app plans the ways when the card opens.' };
+      return { ...(p.steps?.length ? { ways: [ownWay(p.steps)] } : {}), text: 'The planner is unavailable; the app plans the ways when the card opens.' };
     }
   };
 

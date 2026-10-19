@@ -1,6 +1,6 @@
 import type { Itinerary, Slot } from '@transit/shared';
 import { choose, leaveAt } from './plans';
-import { fitsWay, slotsFor, stepSlots, type RideStep } from './ways';
+import { fitsWay, isOwn, slotsFor, stepSlots, type RideStep } from './ways';
 
 /** One kept way of a trip as the trip form lists it: its chain, and its times once a plan has it. */
 export interface KeptRow {
@@ -10,6 +10,8 @@ export interface KeptRow {
   it: Itinerary | null;
   leave: number | null;
   late: boolean;
+  /** The rider's own route (built by hand or described in chat). */
+  own: boolean;
 }
 
 /**
@@ -30,6 +32,7 @@ export function keptRows(kept: RideStep[][], itineraries: Itinerary[], arriveByL
       it,
       leave: it ? leaveAt(it, bufferMin) : null,
       late: c.kind === 'late',
+      own: isOwn(steps),
     };
   });
 }

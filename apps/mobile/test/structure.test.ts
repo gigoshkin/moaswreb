@@ -158,9 +158,12 @@ test('a kept way opened in the hand builder comes back the same way, variations 
   assert.equal(fitsWay(back, direct302), false);
   // The built way joins the kept ways in the first place, the others stay, no copy of it twice.
   const direct = variantSteps(direct302, all)!;
-  assert.deepEqual(shared.withBuiltWay([kept, direct], back), [back, direct]);
-  assert.deepEqual(shared.withBuiltWay([kept, back], back), [back]);
-  assert.deepEqual(shared.withBuiltWay([], back), [back]);
+  // It is the rider's own route from then on.
+  const own = shared.ownWay(back);
+  assert.deepEqual(shared.withBuiltWay([kept, direct], back), [own, direct]);
+  assert.deepEqual(shared.withBuiltWay([kept, back], back), [own]);
+  assert.deepEqual(shared.withBuiltWay([], back), [own]);
+  assert.ok(shared.isOwn(own) && !shared.isOwn(direct));
   // Switching a line off in the builder narrows the way to the lines left.
   const narrowed = stepOf(toggleLine(rides[0], '518'));
   assert.deepEqual(narrowed.routes, ['335', '321']);
@@ -174,10 +177,11 @@ test('chat cards save exactly the ticked ways, through the same fields as every 
   const direct = variantSteps(direct302, all)!;
   // The server ticked the direct 302: the card starts with exactly that.
   assert.deepEqual(cardKept({ ways: [direct], plan }, now), [direct]);
-  // A hand-built route is its own way.
+  // A hand-built route is its own way, and the rider's own route.
   const built = [{ fromStops: ['1:home'], toStops: ['1:m-bus'], routes: ['321'] }];
-  assert.deepEqual(cardKept({ steps: built, plan }, now), [built]);
-  assert.deepEqual(cardKept({ plan: { ...plan, query: { ...plan.query, steps: built } } }, now), [built]);
+  const own = [{ ...built[0], byHand: true }];
+  assert.deepEqual(cardKept({ steps: built, plan }, now), [own]);
+  assert.deepEqual(cardKept({ plan: { ...plan, query: { ...plan.query, steps: built } } }, now), [own]);
   // Nothing ticked (an older server): the best way only, never an empty, unpinned trip.
   const dflt = cardKept({ plan }, now);
   assert.equal(dflt.length, 1);
@@ -191,4 +195,14 @@ test('chat cards save exactly the ticked ways, through the same fields as every 
   assert.equal(saved.steps, two[0]);
   assert.deepEqual(tripWays(saved), two);
   assert.ok(rows.every((w) => isTicked(w, tripWays(saved))));
+});
+
+test('own routes: marked rows, and a kept way with no itinerary right now is still listed', () => {
+  const own = shared.ownWay(variantSteps(via321, all)!);
+  const direct = variantSteps(direct302, all)!;
+  const rows = groupWays(all);
+  assert.ok(rows.some((w) => shared.isOwnRow(w, [own, direct])), 'the 321 way is the rider\'s own');
+  assert.equal(rows.filter((w) => shared.isOwnRow(w, [own, direct])).length, 1, 'only that one');
+  assert.deepEqual(shared.unplannedKept([own, direct], all), []);
+  assert.deepEqual(shared.unplannedKept([own, direct], [direct302]), [own], 'no 321 ride planned: the way stays listed');
 });

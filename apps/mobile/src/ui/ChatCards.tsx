@@ -8,7 +8,7 @@ import { askAgain, markCard, replaceCard, say } from '../lib/chat';
 import { locateMe } from '../lib/locate';
 import { openNewTrip, openPreview, pickPlace } from '../lib/handoff';
 import { choose, placeName } from '../lib/plans';
-import { bestWay, cardKept, groupWays, isTicked, toggleWay, wayLabel, waysFields, type RideStep, type Way } from '../lib/ways';
+import { bestWay, cardKept, groupWays, isOwnRow, isTicked, toggleWay, wayLabel, waysFields, type RideStep, type Way } from '../lib/ways';
 import { settings, updateSettings } from '../lib/settings';
 import { daysText, hhmm, nextArriveBy, relativeDay } from '../lib/time';
 import { DEFAULT_DAYS, newTripId, saveTrip, withStops, type Place } from '../lib/trips';
@@ -21,7 +21,7 @@ import { StaticMap } from './StaticMap';
 import { Tap, haptic } from './Tap';
 import { Busy } from './Spinner';
 import { Text } from './Text';
-import { TickBox } from './Ways';
+import { OwnBadge, TickBox } from './Ways';
 import { color, font, radius, shadow } from './theme';
 
 // Action cards under an assistant reply (Figma "Chat / plan", "Chat /
@@ -245,13 +245,13 @@ function WayRows({ its, arriveBy, kept, onKeep, onOpen }: { its: Itinerary[]; ar
           haptic('selection');
           onKeep(toggleWay(kept, w, its));
         };
-        return <PlanRow key={w.key} way={w} it={it} best={w === best} ticked={isTicked(w, kept)} border={i < ways.length - 1} onTick={tick} onPress={onOpen ? () => onOpen(it) : tick} />;
+        return <PlanRow key={w.key} way={w} it={it} best={w === best} own={isOwnRow(w, kept)} ticked={isTicked(w, kept)} border={i < ways.length - 1} onTick={tick} onPress={onOpen ? () => onOpen(it) : tick} />;
       })}
     </>
   );
 }
 
-function PlanRow({ way, it, best, ticked, border, onTick, onPress }: { way: Way; it: Itinerary; best: boolean; ticked: boolean; border: boolean; onTick: () => void; onPress: () => void }) {
+function PlanRow({ way, it, best, own, ticked, border, onTick, onPress }: { way: Way; it: Itinerary; best: boolean; own: boolean; ticked: boolean; border: boolean; onTick: () => void; onPress: () => void }) {
   return (
     <View style={[styles.planRow, border && styles.rowBorder]}>
       <Tap onPress={onTick} hitSlop={10} scaleTo={0.9} accessibilityRole="checkbox" accessibilityState={{ checked: ticked }} accessibilityLabel={`Keep ${wayLabel(way.slots)}`}>
@@ -267,6 +267,7 @@ function PlanRow({ way, it, best, ticked, border, onTick, onPress }: { way: Way;
           </Text>
         </View>
         <View style={styles.plates}>
+          {own && <OwnBadge />}
           <LineChain slots={way.slots} size="xs" />
         </View>
       </Tap>
@@ -589,7 +590,7 @@ const styles = StyleSheet.create({
   waysHint: { paddingTop: 12 },
   planTime: { width: 88 },
   // minWidth 0 lets the plates shrink instead of running over the minutes.
-  plates: { flex: 1, minWidth: 0, flexDirection: 'row', gap: 4 },
+  plates: { flex: 1, minWidth: 0, gap: 4 },
   eventRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12 },
   when: { width: 76, paddingTop: 3 },
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: -2 },
