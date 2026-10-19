@@ -59,3 +59,13 @@ test('chat daily quota: per IP, per device, and a total cap; resets at midnight 
   t += 24 * 60 * 60_000;
   assert.equal((await chat('1.1.1.1')).statusCode, 200, 'next day');
 });
+
+test('TTC queue: a rider\'s request starts before background work queued earlier', async () => {
+  const ttc = new TtcClient();
+  const order: string[] = [];
+  (ttc as unknown as { request: (path: string) => Promise<unknown> }).request = (path) => (order.push(path), Promise.resolve([]));
+  const bg = ttc.background(() => Promise.all([ttc.stops('ka'), ttc.stopRoutes('1:1'), ttc.stopRoutes('1:2'), ttc.stopRoutes('1:3')]));
+  const rider = ttc.stopRoutes('1:rider');
+  await Promise.all([bg, rider]);
+  assert.ok(order.indexOf('v2/stops/1:rider/routes') <= 1, `rider went ${order.indexOf('v2/stops/1:rider/routes') + 1}th: ${order.join(', ')}`);
+});
